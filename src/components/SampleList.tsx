@@ -3,8 +3,6 @@ import type { SortKey } from "../api";
 import { app } from "../state/app";
 import { SampleRow } from "./SampleRow";
 
-const fmt = new Intl.NumberFormat("fr-FR");
-
 function Header(props: { k: SortKey; label: string; class: string }) {
   return (
     <span class={props.class} data-sorted={app.sort() === props.k || undefined} onClick={() => { app.setSort(props.k); app.refresh(); }}>
@@ -28,11 +26,10 @@ export function SampleList() {
       <div class="cr-list__header">
         <span class="cr-col-state" />
         <span class="cr-col-name" data-sorted={app.sort() === "name" || undefined} onClick={() => { app.setSort("name"); app.refresh(); }}>
-          Nom <span class="cr-num">{fmt.format(app.visible().length)}</span>
+          Nom
         </span>
         <Header k="bpm" label="BPM" class="cr-col-bpm" />
         <Header k="key" label="Clé" class="cr-col-key" />
-        <Header k="dur" label="Durée" class="cr-col-dur" />
       </div>
       <div class="cr-list__body">
         <For each={app.visible()}>

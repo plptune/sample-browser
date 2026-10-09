@@ -36,7 +36,7 @@ export function Waveform(props: {
     const mid = ch / 2;
     for (let i = 0; i < bars; i++) {
       const v = peaks[Math.floor((i / bars) * peaks.length)] ?? 0;
-      if (mini && v < 0.06) continue; // pas de ligne de base pointillée sur les silences
+      if (v < 0.06) continue; // pas de ligne de base pointillée sur les silences
       const bh = Math.max(1, v * (ch - 2));
       ctx.fillStyle = p !== undefined && i / bars < p ? played : base;
       ctx.fillRect(i * step, mid - bh / 2, step - 1, bh);

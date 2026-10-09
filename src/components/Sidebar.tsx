@@ -31,7 +31,6 @@ function Folder(props: { node: FolderNode; depth: number }) {
     <>
       <SidebarItem
         label={props.node.name}
-        count={props.node.count}
         depth={props.depth}
         expandable={props.node.children.length > 0}
         open={open()}
@@ -50,8 +49,8 @@ function Folder(props: { node: FolderNode; depth: number }) {
 
 export function Sidebar() {
   const lib = () => app.library();
-  const item = (label: string, scope: Scope, count?: number) => (
-    <SidebarItem label={label} count={count} selected={same(app.scope(), scope)} onClick={() => app.goTo(scope)} />
+  const item = (label: string, scope: Scope) => (
+    <SidebarItem label={label} selected={same(app.scope(), scope)} onClick={() => app.goTo(scope)} />
   );
   return (
     <nav class="cr-sidebar" aria-label="Navigation" role="tree">
@@ -59,10 +58,10 @@ export function Sidebar() {
         {(l) => (
           <>
             <Section id="library" title="Bibliothèque">
-              {item("Tous les samples", { type: "all" }, l().total)}
-              {item("Favoris", { type: "fav" }, l().favCount)}
-              {item("Récents", { type: "recent" }, l().recentCount)}
-              {item("Non tagués", { type: "untagged" }, l().untaggedCount)}
+              {item("Tous les samples", { type: "all" })}
+              {item("Favoris", { type: "fav" })}
+              {item("Récents", { type: "recent" })}
+              {item("Non tagués", { type: "untagged" })}
             </Section>
             <Section
               id="collections"
@@ -77,7 +76,6 @@ export function Sidebar() {
                 {(c) => (
                   <SidebarItem
                     label={c.name}
-                    count={c.count}
                     mark={c.kind}
                     selected={same(app.scope(), { type: "collection", id: c.id })}
                     dropTarget={app.dropTarget() === c.id}

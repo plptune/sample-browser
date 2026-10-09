@@ -1,11 +1,8 @@
 import { Show, onMount } from "solid-js";
 import { Chevron } from "./Icon";
 
-const fmt = new Intl.NumberFormat("fr-FR");
-
 export function SidebarItem(props: {
   label: string;
-  count?: number;
   depth?: number;
   mark?: "manual" | "smart" | "fav";
   expandable?: boolean;
@@ -55,10 +52,7 @@ export function SidebarItem(props: {
         <RenameInput value={props.label} onDone={(v) => props.onRename?.(v)} />
       </Show>
       <Show when={props.offline}>
-        <span class="cr-item__badge">déconnecté</span>
-      </Show>
-      <Show when={props.count !== undefined && !props.offline}>
-        <span class="cr-item__count cr-num">{fmt.format(props.count!)}</span>
+        <span class="cr-item__badge">hors ligne</span>
       </Show>
     </div>
   );

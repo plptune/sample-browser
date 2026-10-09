@@ -83,6 +83,7 @@
   --cr-fs-sm: 11px;  /* lignes, items */
   --cr-fs-md: 12px;  /* recherche, titres du tiroir */
   --cr-fs-lg: 13px;  /* états vides */
+  --cr-fs-search: 15px; /* champ de recherche */
   --cr-fw-regular: 400;
   --cr-fw-medium: 500;
   --cr-fw-bold: 600;
@@ -99,7 +100,8 @@
   /* Dimensions fixes */
   --cr-titlebar-h: 28px;
   --cr-traffic-w: 72px;   /* réserve des feux macOS (titleBarStyle Overlay) */
-  --cr-field-h: 24px;
+  --cr-search-h: 36px;   /* grand champ de recherche */
+  --cr-search-icon: 16px;
   --cr-row-h: 24px;       /* ligne compacte */
   --cr-row-h-wave: 36px;  /* ligne avec mini-waveform */
   --cr-item-h: 22px;      /* item de sidebar */
@@ -107,9 +109,10 @@
   --cr-indent: 12px;      /* retrait par niveau d'arbre */
   --cr-icon: 12px;
   --cr-icon-btn: 20px;
-  --cr-chip-h: 16px;      /* chips de requête, tags */
+  --cr-chip-h: 16px;      /* tags */
+  --cr-chip-h-lg: 22px;   /* chips dans la recherche */
   --cr-mark: 6px;         /* repère de collection */
-  --cr-input-min: 64px;
+  --cr-input-min: 24px;
   --cr-sidebar-max: 42%;  /* part max de la colonne prise par la sidebar */
   --cr-empty-max: 220px;
   --cr-wave-h: 44px;      /* waveform du tiroir */
@@ -118,7 +121,6 @@
   /* Colonnes de la liste */
   --cr-col-bpm: 32px;
   --cr-col-key: 28px;
-  --cr-col-dur: 36px;
 
   --cr-radius: 2px;
   --cr-radius-lg: 4px;

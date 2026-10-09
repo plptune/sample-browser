@@ -57,13 +57,13 @@ function StaticSearch(props: { chips?: string[]; text?: string; focused?: boolea
   return (
     <div class="cr-panel__search" style={{ "padding-top": "var(--cr-space-2)" }}>
       <div class="cr-search" data-focused={props.focused || undefined}>
-        <Icon name="search" />
+        <Icon name="search" class="cr-search__icon" />
         <div class="cr-search__chips">
           <For each={props.chips}>{(c) => <QueryChip raw={c} />}</For>
           <input
             class="cr-search__input"
             value={props.text ?? ""}
-            placeholder={props.placeholder ? "Rechercher   #tag  bpm:  key:" : ""}
+            placeholder={props.placeholder ? "Rechercher" : ""}
             readOnly
           />
         </div>
@@ -150,18 +150,18 @@ export function Gallery() {
               </svg>
               <span class="cr-section__title">Section ouverte</span>
             </button>
-            <SidebarItem label="Défaut" count={400} />
-            <SidebarItem label="Sélectionné" count={42} selected />
-            <SidebarItem label="Favoris" count={31} mark="fav" />
-            <SidebarItem label="Collection manuelle" count={18} mark="manual" />
-            <SidebarItem label="Collection smart" count={9} mark="smart" />
-            <SidebarItem label="Cible de dépôt" count={12} mark="manual" dropTarget />
+            <SidebarItem label="Défaut" />
+            <SidebarItem label="Sélectionné" selected />
+            <SidebarItem label="Favoris" mark="fav" />
+            <SidebarItem label="Collection manuelle" mark="manual" />
+            <SidebarItem label="Collection smart" mark="smart" />
+            <SidebarItem label="Cible de dépôt" mark="manual" dropTarget />
             <SidebarItem label="Renommage" mark="manual" renaming />
-            <SidebarItem label="Dossier replié" count={212} expandable />
-            <SidebarItem label="Dossier ouvert" count={164} expandable open />
-            <SidebarItem label="Niveau 2" count={88} expandable open depth={1} />
-            <SidebarItem label="Niveau 3" count={46} depth={2} />
-            <SidebarItem label="Source déconnectée" count={16} expandable offline />
+            <SidebarItem label="Dossier replié" expandable />
+            <SidebarItem label="Dossier ouvert" expandable open />
+            <SidebarItem label="Niveau 2" expandable open depth={1} />
+            <SidebarItem label="Niveau 3" depth={2} />
+            <SidebarItem label="Source déconnectée" expandable offline />
           </div>
         )}
       />

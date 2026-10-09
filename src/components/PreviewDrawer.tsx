@@ -55,10 +55,7 @@ export function PreviewDrawer(props: {
           <span>{s()!.kind === "loop" ? "Loop" : "One-shot"}</span>
           <Show when={s()!.bpm}><span>{s()!.bpm} BPM</span></Show>
           <Show when={s()!.key}><span>{s()!.key}</span></Show>
-          <span>{(s()!.sampleRate / 1000).toFixed(1)} kHz</span>
-          <span>{s()!.bitDepth} bit</span>
           <span>{s()!.channels === 1 ? "Mono" : "Stéréo"}</span>
-          <span>{s()!.ext.toUpperCase()}</span>
         </div>
         <div class="cr-drawer__tags">
           <For each={s()!.tags}>{(t) => <TagPill name={t} />}</For>

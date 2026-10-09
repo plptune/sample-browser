@@ -99,7 +99,7 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
   return (
     <div class="cr-panel__search">
       <div class="cr-search" data-focused={focused() || undefined} onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); input.focus(); } }}>
-        <Icon name="search" />
+        <Icon name="search" class="cr-search__icon" />
         <div class="cr-search__chips">
           <For each={app.chips()}>{(raw, i) => <QueryChip raw={raw} onClick={() => { app.editChip(i()); input.focus(); }} />}</For>
           <input
@@ -111,7 +111,7 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
             type="text"
             spellcheck={false}
             autocomplete="off"
-            placeholder={app.chips().length ? "" : "Rechercher   #tag  bpm:  key:"}
+            placeholder={app.chips().length ? "" : "Rechercher"}
             value={app.draft()}
             onInput={(e) => {
               setAcDismissed(false);

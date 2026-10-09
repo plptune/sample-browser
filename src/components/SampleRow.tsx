@@ -55,7 +55,6 @@ export function SampleRow(props: {
       <div class="cr-col-name cr-row__main">
         <span class="cr-row__name">
           {s().name}
-          <span class="cr-row__ext">.{s().ext}</span>
           <Show when={s().fav}>
             <span class="cr-row__fav" aria-label="favori">★</span>
           </Show>
@@ -72,7 +71,6 @@ export function SampleRow(props: {
       </div>
       <span class="cr-col-bpm cr-row__meta">{s().bpm ?? ""}</span>
       <span class="cr-col-key cr-row__meta">{s().key ?? ""}</span>
-      <span class="cr-col-dur cr-row__meta">{formatDuration(s().durationMs)}</span>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // État de l'app (signaux Solid). Toute donnée vient de `api` ; ici on ne garde que l'état d'UI.
 
-import { batch, createRoot, createSignal } from "solid-js";
+import { batch, createEffect, createRoot, createSignal, on } from "solid-js";
 import {
   api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type NodeKey, type Sample, type SampleId, type ScanStatus,
   type Source,
@@ -32,11 +32,25 @@ export interface CommitState {
   error: string | null; // copie refusée (dossier existant non vide…)
 }
 
+/** Mesures de la dernière requête d'arbre (overlay ⌥⌘D), en millisecondes. */
+export interface Metrics {
+  rust: number; // calcul côté backend
+  ipc: number; // aller-retour complet vu de l'UI (calcul compris)
+  dom: number; // mise à jour des lignes à l'écran (synchrone)
+  frame: number; // attente de l'image suivante (dépend de l'écran, pas de l'app)
+  rows: number;
+  matches: number;
+}
+
 function createAppState() {
   // --- données reçues du backend
   const [library, setLibrary] = createSignal<Library | null>(null);
-  const [rows, setRows] = createSignal<TreeRow[]>([]);
+  // Lignes de l'arbre chargées par pages : tableau creux de `total` cases (undefined = pas encore chargée).
+  const [rows, setRows] = createSignal<(TreeRow | undefined)[]>([]);
+  const [total, setTotal] = createSignal(0);
   const [matches, setMatches] = createSignal(0);
+  const [metrics, setMetrics] = createSignal<Metrics | null>(null); // overlay ⌥⌘D
+  const [debug, setDebug] = createSignal(false);
 
   // --- recherche
   const [chips, setChips] = createSignal<string[]>([]);
@@ -90,7 +104,13 @@ function createAppState() {
       : (themePref() as "dark" | "light");
   const setTheme = (t: ThemePref) => setThemePref(t);
   const [width, setWidth] = createSignal(320);
-  const [density, setDensity] = createSignal<Density>("compact");
+  const [density, setDensitySignal] = createSignal<Density>("compact");
+  // Les pics ne voyagent qu'en densité « waveform » : changer de densité recharge l'arbre.
+  const setDensity = (d: Density) => {
+    if (d === density()) return;
+    setDensitySignal(d);
+    void refresh();
+  };
   const [grid, setGrid] = createSignal(false);
 
   const queryLine = () => [...chips(), draft()].join(" ").trim();
@@ -98,19 +118,102 @@ function createAppState() {
   const searchLine = () => [...chips(), ...draft().split(/\s+/).filter((t) => t && !isChip(t))].join(" ");
   const searching = () => searchLine() !== "";
 
+  // --- arbre par pages
+  const PAGE = 200;
+  const keyIndex = new Map<string, number>(); // clé → position, pour les lignes chargées
+  let viewport = { start: 0, end: PAGE }; // lignes à l'écran (virtualiseur)
   let reqId = 0;
-  async function refresh() {
-    const id = ++reqId;
-    const page = await api.tree({ root: tab(), query: searchLine(), expanded: expanded(), offset: 0, limit: 2000 });
-    if (id !== reqId) return; // requête périmée
-    batch(() => {
-      setRows(page.rows);
-      setMatches(page.matches);
-      // Le tiroir garde le sample courant à jour (favori, tags) s'il est encore visible.
-      const cur = current();
-      const fresh = cur && page.rows.find((r) => r.type === "sample" && r.sample.id === cur.id);
-      if (fresh && fresh.type === "sample") setCurrent(fresh.sample);
+  let inFlight = new Set<number>(); // pages demandées pour la requête courante
+  let lastSig = "";
+  const [scrollReset, setScrollReset] = createSignal(0); // le virtualiseur remonte en haut quand il change
+
+  const baseRequest = () => ({ root: tab(), query: searchLine(), expanded: expanded(), peaks: density() === "wave" });
+
+  function place(arr: (TreeRow | undefined)[], offset: number, page: TreeRow[]) {
+    page.forEach((r, i) => {
+      arr[offset + i] = r;
+      keyIndex.set(r.key, offset + i);
     });
+  }
+
+  /** Recharge l'arbre : la page à l'écran et celle de `focusKey` (le curseur par défaut), en un seul échange. */
+  async function refresh(focusKey: string | null = cursor()) {
+    const id = ++reqId;
+    inFlight = new Set();
+    const t0 = performance.now();
+    const base = baseRequest();
+    // Nouvelle recherche ou autre onglet : on repart du haut de l'arbre.
+    const sig = `${base.root}\n${base.query}`;
+    if (sig !== lastSig) {
+      lastSig = sig;
+      viewport = { start: 0, end: PAGE };
+      setScrollReset((n) => n + 1);
+    }
+    const first = Math.floor(viewport.start / PAGE);
+    // Une page suffit à remplir l'écran (~30 lignes + marge) ; les suivantes arrivent au défilement.
+    const page = await api.tree({ ...base, offset: first * PAGE, limit: PAGE, focus: focusKey });
+    if (id !== reqId) return; // requête périmée
+    const t1 = performance.now();
+    keyIndex.clear();
+    const arr: (TreeRow | undefined)[] = new Array(page.totalRows);
+    place(arr, first * PAGE, page.rows);
+    const fi = page.focusIndex ?? null;
+    if (fi !== null && arr[fi] === undefined) {
+      const at = Math.floor(fi / PAGE) * PAGE;
+      const extra = await api.tree({ ...base, offset: at, limit: PAGE });
+      if (id !== reqId) return;
+      place(arr, at, extra.rows);
+    }
+    batch(() => {
+      setRows(arr);
+      setTotal(page.totalRows);
+      setMatches(page.matches);
+      // Le tiroir et la sélection gardent leurs samples à jour (favori, tags) s'ils sont chargés.
+      const cur = current();
+      const fresh = cur ? sampleById(cur.id) : undefined;
+      if (fresh) setCurrent(fresh);
+      for (const k of selData.keys()) {
+        const r = rowByKey(k);
+        if (r?.type === "sample") selData.set(k, r.sample);
+      }
+    });
+    const t2 = performance.now();
+    requestAnimationFrame(() =>
+      setMetrics({
+        rust: page.micros / 1000,
+        ipc: t1 - t0,
+        dom: t2 - t1,
+        frame: performance.now() - t2,
+        rows: page.totalRows,
+        matches: page.matches,
+      }),
+    );
+  }
+
+  /** Charge les pages qui couvrent [start, end) si besoin (défilement, flèches, ⇧-sélection). */
+  async function ensureRange(start: number, end: number) {
+    const id = reqId;
+    const base = baseRequest();
+    const want: number[] = [];
+    for (let p = Math.floor(Math.max(0, start) / PAGE); p * PAGE < Math.min(end, total()); p++) {
+      if (rows()[p * PAGE] === undefined && !inFlight.has(p)) want.push(p);
+    }
+    await Promise.all(
+      want.map(async (p) => {
+        inFlight.add(p);
+        const page = await api.tree({ ...base, offset: p * PAGE, limit: PAGE });
+        if (id !== reqId) return;
+        const arr = rows().slice();
+        place(arr, p * PAGE, page.rows);
+        setRows(arr);
+      }),
+    );
+  }
+
+  /** Lignes à l'écran, données par le virtualiseur. */
+  function setViewRange(start: number, end: number) {
+    viewport = { start, end };
+    void ensureRange(start, end);
   }
 
   async function reloadLibrary() {
@@ -121,18 +224,43 @@ function createAppState() {
     });
   }
 
-  const visible = () => {
+  /** Nombre de lignes affichées (le scénario « Indexation » le limite pour simuler un arbre qui se remplit). */
+  const shownTotal = () => {
     const lim = visibleLimit();
-    const r = rows();
-    return lim === null ? r : r.slice(0, lim);
+    return lim === null ? total() : Math.min(lim, total());
   };
+  const rowAt = (i: number) => (i < shownTotal() ? rows()[i] : undefined);
+  /** Lignes chargées, dans l'ordre (scénarios de démo, tests). */
+  const visible = () => rows().slice(0, shownTotal()).filter((r): r is TreeRow => r !== undefined);
 
-  const rowByKey = (key: string | null) => (key === null ? undefined : visible().find((r) => r.key === key));
+  const indexOf = (key: string | null) => {
+    rows(); // dépendance réactive
+    const i = key === null ? undefined : keyIndex.get(key);
+    return i === undefined || i >= shownTotal() ? -1 : i;
+  };
+  const rowByKey = (key: string | null) => {
+    const i = indexOf(key);
+    return i < 0 ? undefined : rows()[i];
+  };
   const sampleById = (id: SampleId | null) => {
     if (id === null) return undefined;
-    const r = rows().find((r) => r.type === "sample" && r.sample.id === id);
-    return r?.type === "sample" ? r.sample : undefined;
+    const r = rows().find((r) => r?.type === "sample" && r.sample.id === id);
+    if (r?.type === "sample") return r.sample;
+    const cur = current();
+    return cur?.id === id ? cur : undefined;
   };
+
+  // Pics du sample du tiroir (les lignes ne les transportent qu'en densité « waveform »).
+  const [currentPeaks, setCurrentPeaks] = createSignal<number[]>([]);
+  createEffect(
+    on(
+      () => current()?.id,
+      (id) => {
+        if (id === undefined) return setCurrentPeaks([]);
+        void api.peaks(id).then((p) => current()?.id === id && setCurrentPeaks(p));
+      },
+    ),
+  );
 
   // --- recherche
   function setQueryDraft(v: string) {
@@ -191,39 +319,71 @@ function createAppState() {
 
   const toggleNode = (key: NodeKey) => setOpen(key, !expanded().includes(key));
 
-  // --- sélection
+  // --- sélection (les samples sélectionnés sont gardés à part : leurs lignes peuvent sortir des pages chargées)
+  const selData = new Map<string, Sample>();
+
+  function setSelected(keys: string[]) {
+    selData.clear();
+    for (const k of keys) {
+      const r = rowByKey(k);
+      if (r?.type === "sample") selData.set(k, r.sample);
+    }
+    setSelection(keys);
+  }
+
   function select(key: string, mode: "replace" | "toggle" | "range" = "replace") {
-    const list = visible();
-    const row = list.find((r) => r.key === key);
+    const i = indexOf(key);
+    const row = i < 0 ? undefined : rows()[i];
     if (!row) return;
     setCursor(key);
     if (row.type === "node") {
-      setSelection([]);
+      setSelected([]);
       return;
     }
     if (mode === "toggle") {
       const cur = selection();
-      setSelection(cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key]);
+      const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
+      const keep = new Map(selData);
+      setSelected(next);
+      for (const k of next) if (!selData.has(k) && keep.has(k)) selData.set(k, keep.get(k)!);
       setAnchor(key);
-    } else if (mode === "range" && anchor() !== null) {
-      const a = list.findIndex((r) => r.key === anchor());
-      const b = list.findIndex((r) => r.key === key);
-      const [lo, hi] = a < b ? [a, b] : [b, a];
-      setSelection(list.slice(lo, hi + 1).filter((r) => r.type === "sample").map((r) => r.key));
+    } else if (mode === "range" && indexOf(anchor()) >= 0) {
+      const a = indexOf(anchor());
+      const [lo, hi] = a < i ? [a, i] : [i, a];
+      const span = rows().slice(lo, hi + 1);
+      if (span.some((r) => r === undefined)) {
+        // Pages manquantes au milieu : on les charge, puis on reprend.
+        void ensureRange(lo, hi + 1).then(() => select(key, "range"));
+        return;
+      }
+      setSelected(span.flatMap((r) => (r?.type === "sample" ? [r.key] : [])));
     } else {
-      setSelection([key]);
+      setSelected([key]);
       setAnchor(key);
     }
     setCurrent(row.sample);
     if (autoPlay() && mode === "replace") play(row.sample.id);
   }
 
-  function move(delta: number, extend = false) {
-    const list = visible();
-    if (!list.length) return;
-    const i = list.findIndex((r) => r.key === cursor());
-    const next = list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + delta))];
-    select(next.key, extend ? "range" : "replace");
+  async function move(delta: number, extend = false) {
+    const n = shownTotal();
+    if (!n) return;
+    const i = indexOf(cursor());
+    const next = Math.max(0, Math.min(n - 1, i < 0 ? 0 : i + delta));
+    await ensureRange(next, next + 1);
+    const r = rows()[next];
+    if (r) select(r.key, extend ? "range" : "replace");
+  }
+
+  /** Sélectionne une ligne qui n'est peut-être pas chargée (parent lointain, saut). */
+  async function selectKey(key: string) {
+    if (indexOf(key) < 0) {
+      const page = await api.tree({ ...baseRequest(), offset: 0, limit: 0, focus: key });
+      const fi = page.focusIndex ?? null;
+      if (fi === null) return;
+      await ensureRange(fi, fi + 1);
+    }
+    select(key);
   }
 
   /** → : ouvre un dossier fermé, entre dans un dossier ouvert, lit un sample. */
@@ -241,7 +401,7 @@ function createAppState() {
     const row = rowByKey(cursor());
     if (!row) return;
     if (row.type === "node" && row.open && !searching()) return setOpen(row.key, false);
-    if (row.parent && rowByKey(row.parent)) select(row.parent);
+    if (row.parent) await selectKey(row.parent);
   }
 
   function activate() {
@@ -287,8 +447,9 @@ function createAppState() {
 
   // --- sélection effective : la multi-sélection, sinon la ligne sous le curseur
   const selectedSamples = (): Sample[] => {
-    const keys = selection().length ? selection() : cursor() ? [cursor()!] : [];
-    return keys.map(rowByKey).flatMap((r) => (r?.type === "sample" ? [r.sample] : []));
+    if (selection().length) return selection().flatMap((k) => (selData.has(k) ? [selData.get(k)!] : []));
+    const r = rowByKey(cursor());
+    return r?.type === "sample" ? [r.sample] : [];
   };
 
   function closeOverlays() {
@@ -360,13 +521,13 @@ function createAppState() {
       setCursor(snap.cursor);
       setSelection([]);
     });
-    await refresh();
+    await refresh(snap.cursor);
     // Curseur seulement (pas de lecture auto) ; un sample redevient la sélection.
     const row = rowByKey(snap.cursor);
     if (!row) setCursor(null);
     else if (row.type === "sample") {
       batch(() => {
-        setSelection([row.key]);
+        setSelected([row.key]);
         setAnchor(row.key);
         setCurrent(row.sample);
       });
@@ -417,7 +578,7 @@ function createAppState() {
       setDraft("");
       setExpanded([...new Set([...expanded(), ...parents, target])]);
     });
-    await refresh();
+    await refresh(target);
     select(target);
   }
 
@@ -450,7 +611,7 @@ function createAppState() {
     setTabSignal("virtual");
     setView("browser");
     setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
-    await Promise.all([refresh(), reloadLibrary()]);
+    await Promise.all([refresh(key), reloadLibrary()]);
     select(key);
     if (rename) setRenamingKey(key);
   }
@@ -677,8 +838,17 @@ function createAppState() {
     }
   }
 
+  // --- synonymes de la recherche (Réglages)
+  const [synonyms, setSynonyms] = createSignal<string[][]>([]);
+  async function saveSynonyms(groups: string[][]) {
+    await api.setSynonyms(groups);
+    setSynonyms(await api.synonyms());
+    await refresh();
+  }
+
   /** Démarrage : démo (scénarios) ou vraie bibliothèque (premier lancement si aucune source). */
   async function start(): Promise<boolean> {
+    void api.synonyms().then(setSynonyms);
     const isDemo = await api.isDemo();
     setDemo(isDemo);
     if (isDemo) return true;
@@ -730,7 +900,8 @@ function createAppState() {
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,
     setWidth, setDensity, setGrid, setChips, setDraft, setSelection, setCursor, setCurrent, setExpanded,
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
-    select, move, right, left, activate, play, stop, togglePlay,
+    select, move, right, left, activate, play, stop, togglePlay, selectKey,
+    total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms, metrics, debug, setDebug,
     jumpTo, back, forward, clearHistory, canBack, canForward,
     demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, showInFinder, openFolderInFinder, finderForSelection, chooseCommitParent,
   };

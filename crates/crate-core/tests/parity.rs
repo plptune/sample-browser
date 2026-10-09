@@ -37,6 +37,7 @@ fn req(root: TreeRoot, query: &str, expanded: Vec<String>) -> TreeRequest {
         expanded,
         offset: 0,
         limit: 100_000,
+        ..Default::default()
     }
 }
 
@@ -165,6 +166,21 @@ fn memes_parents() {
     let lib = MockLibrary::demo();
     for (key, want) in fx["ancestors"].as_object().unwrap() {
         assert_eq!(lib.ancestors(key), strings(want), "ancestors({key})");
+    }
+}
+
+#[test]
+fn memes_positions_focus() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    for f in fx["focus"].as_array().unwrap() {
+        let page = lib.tree(&TreeRequest {
+            focus: Some(f["focus"].as_str().unwrap().into()),
+            limit: 0,
+            ..req(TreeRoot::Library, f["query"].as_str().unwrap(), strings(&f["expanded"]))
+        });
+        assert!(page.rows.is_empty());
+        assert_eq!(serde_json::to_value(page.focus_index).unwrap(), f["focusIndex"], "{f}");
     }
 }
 

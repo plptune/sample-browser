@@ -202,6 +202,25 @@ fn ancestors(lib: State<'_, Lib>, key: String) -> Vec<String> {
     lib.lock().ancestors(&key)
 }
 
+/// Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ».
+#[tauri::command]
+#[specta::specta]
+fn peaks(lib: State<'_, Lib>, id: SampleId) -> Vec<f32> {
+    lib.lock().peaks(id).into_iter().map(|x| x as f32).collect()
+}
+
+#[tauri::command]
+#[specta::specta]
+fn synonyms(lib: State<'_, Lib>) -> Vec<Vec<String>> {
+    lib.lock().synonyms()
+}
+
+#[tauri::command]
+#[specta::specta]
+fn set_synonyms(lib: State<'_, Lib>, groups: Vec<Vec<String>>) {
+    lib.lock().set_synonyms(&groups)
+}
+
 #[tauri::command]
 #[specta::specta]
 fn node_path(lib: State<'_, Lib>, key: String) -> Option<String> {
@@ -321,6 +340,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_pinned,
             ancestors,
             node_path,
+            peaks,
+            synonyms,
+            set_synonyms,
             plan_commit,
             commit_to_folder,
             add_source,

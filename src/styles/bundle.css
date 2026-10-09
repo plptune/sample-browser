@@ -305,6 +305,20 @@
   cursor: default;
 }
 
+/* ⌥⌘D : mesures, même bande que le statut. */
+.cr-debug {
+  height: auto;
+  padding-block: var(--cr-space-1);
+  line-height: 1.5;
+  font-family: var(--cr-font-mono);
+  color: var(--cr-text-2);
+  border-top: var(--cr-border) solid var(--cr-line);
+}
+
+.cr-synonyms__field {
+  flex: 1;
+}
+
 .cr-scan__count {
   color: var(--cr-text-3);
 }
@@ -331,6 +345,23 @@
   overflow-y: auto;
   padding: var(--cr-space-1) 0;
   background: var(--cr-bg);
+}
+
+/* Arbre virtualisé : seules les lignes à l'écran existent ; le virtualiseur gère les marges haut / bas. */
+.cr-tree[data-virtual] {
+  padding: 0;
+}
+
+.cr-tree__space {
+  position: relative;
+  width: 100%;
+}
+
+.cr-tree__row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 
 /* L'arbre signale son focus par la teinte de la sélection, pas par un contour */

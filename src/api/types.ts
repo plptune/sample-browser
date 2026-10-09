@@ -95,12 +95,18 @@ export interface TreeRequest {
   expanded: NodeKey[];
   offset: number;
   limit: number;
+  /** Pics de waveform dans les lignes (densité « waveform » seulement) ; sinon `sample.peaks` est vide. */
+  peaks?: boolean;
+  /** Ligne dont on veut la position (`TreePage.focusIndex`), pour y faire défiler l'arbre. */
+  focus?: string | null;
 }
 
 export interface TreePage {
   rows: TreeRow[]; // lignes visibles, dans l'ordre d'affichage (dossiers puis samples à chaque niveau)
   totalRows: number;
   matches: number; // nombre de samples correspondant à la recherche
+  focusIndex?: number | null; // position de `TreeRequest.focus` dans l'arbre complet, s'il y est
+  micros: number; // temps de calcul côté backend (overlay de mesures)
 }
 
 export interface Library {
@@ -172,6 +178,11 @@ export interface Backend {
   setPinned(key: NodeKey, pinned: boolean): Promise<void>;
   /** Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre). */
   ancestors(key: NodeKey): Promise<NodeKey[]>;
+  /** Pics de waveform d'un sample (256 valeurs 0..1 ; vide tant qu'ils ne sont pas calculés). */
+  peaks(id: SampleId): Promise<number[]>;
+  /** Groupes de synonymes : un mot libre d'un groupe trouve aussi les autres (« kick » trouve « bd »). */
+  synonyms(): Promise<string[][]>;
+  setSynonyms(groups: string[][]): Promise<void>;
   /** Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; null sinon. */
   nodePath(key: NodeKey): Promise<string | null>;
   planCommit(key: NodeKey, options: CommitOptions): Promise<CommitPlan>;

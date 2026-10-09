@@ -193,6 +193,10 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
         .query_map([], |r| r.get(0))?
         .collect::<DbResult<_>>()?;
     c.favorites_pinned = setting(conn, "favorites_pinned")?.as_deref() != Some("0");
+    c.synonyms = match setting(conn, "synonyms")? {
+        Some(text) => crate::synonyms::from_text(&text),
+        None => crate::synonyms::defaults(),
+    };
 
     c.set_sources(sources);
     Ok(c)

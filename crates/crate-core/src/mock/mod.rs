@@ -22,6 +22,7 @@ impl Catalog {
         c.virtual_folders = data::virtual_folders();
         c.favorites_pinned = data::FAVORITES_PINNED;
         c.pinned_folders = data::PINNED_FOLDERS.to_vec();
+        c.synonyms = crate::synonyms::defaults();
         c.known_tags = data::TAGS.iter().map(|t| t.to_string()).collect();
         c.set_sources(sources);
         c

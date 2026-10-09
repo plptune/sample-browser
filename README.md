@@ -40,6 +40,7 @@ pnpm build        # typecheck + build
 | ⌘N | Nouveau dossier virtuel |
 | ⌘O | Ajouter un dossier (fenêtre) |
 | ⌥⌘R | Afficher le sample (ou ouvrir le dossier) dans le Finder ; aussi au clic droit |
+| ⌥⌘D | Mesures en direct : calcul de l'arbre, échange, rendu (budget 16 ms par frappe) |
 | ⌘, | Réglages (Échap pour revenir) |
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
@@ -75,6 +76,8 @@ Premier lancement : glissez un dossier sur la fenêtre (ou ⌘O, ou Réglages �
 « Créer un vrai dossier », qui copie dans un nouveau dossier. Les sources sont surveillées : un fichier ajouté,
 modifié ou supprimé apparaît tout seul ; « Actualiser » (clic droit sur une source) force un rescan.
 Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une collection ou un dossier virtuel.
+Recherche : un mot d'un groupe de synonymes trouve aussi les autres (`kick` trouve `bd`) ; les groupes se modifient
+dans Réglages › Synonymes. Prototype : `?overscan=1000` dans l'URL monte toutes les lignes (utile aux tests).
 Chaque push construit aussi un `Crate.app` sur macOS (workflow « Tauri (macOS) », artefact `Crate-macos`,
 non signé : clic droit → Ouvrir au premier lancement).
 

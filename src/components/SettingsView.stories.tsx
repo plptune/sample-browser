@@ -14,6 +14,11 @@ const meta = {
     density: "compact",
     alwaysOnTop: true,
     autoPlay: false,
+    synonyms: [
+      ["kick", "bd", "bassdrum"],
+      ["snare", "sd"],
+      ["hat", "hh", "hihat"],
+    ],
   },
   argTypes: {
     theme: { control: "inline-radio", options: ["dark", "light", "system"] },

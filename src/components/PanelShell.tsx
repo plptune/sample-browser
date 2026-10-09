@@ -14,6 +14,26 @@ import { SettingsView } from "./SettingsView";
 import { Tabs } from "./Tabs";
 import { TagPopover, type TagState } from "./TagPopover";
 
+const ms = (x: number) => `${x.toLocaleString("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ms`;
+const num = (x: number) => x.toLocaleString("fr-FR");
+
+/** ⌥⌘D : mesures de la dernière requête d'arbre (budget : 16 ms de la frappe à l'image). */
+function DebugOverlay() {
+  return (
+    <div class="cr-scan cr-debug cr-num" role="status" aria-label="Mesures">
+      <Show when={app.metrics()} fallback={<span class="cr-scan__label">Mesures : en attente d'une requête</span>}>
+        {(m) => (
+          <span class="cr-scan__label">
+            arbre {ms(m().rust)} · échange {ms(m().ipc - m().rust)} · rendu {ms(m().dom)}
+            <br />
+            total {ms(m().ipc + m().dom)} (+ image {ms(m().frame)}) · {num(m().rows)} lignes
+          </span>
+        )}
+      </Show>
+    </div>
+  );
+}
+
 /** Message bref (source refusée…) : disparaît seul, ou au clic. */
 function Notice() {
   return (
@@ -194,6 +214,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onAutoPlay={app.setAutoPlay}
             onRemoveSource={app.removeSource}
             onAddSource={() => app.addFolder()}
+            synonyms={app.synonyms()}
+            onSynonyms={app.saveSynonyms}
           />
         </Match>
         <Match when={app.view() === "commit" && app.commit()}>
@@ -225,7 +247,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
           <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
           <Notice />
           <Show
-            when={app.visible().length}
+            when={app.shownTotal()}
             fallback={
               <EmptyState
                 variant="noresults"
@@ -237,8 +259,12 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
           >
             <Browser />
           </Show>
+          <Show when={app.debug()}>
+            <DebugOverlay />
+          </Show>
           <PreviewDrawer
             sample={app.current()}
+            peaks={app.currentPeaks()}
             playing={app.playingId() !== null && app.playingId() === app.current()?.id}
             progress={app.progress()}
             themeKey={app.theme()}

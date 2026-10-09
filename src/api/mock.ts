@@ -3,6 +3,7 @@
 
 import { naturalCompare } from "../lib/natural";
 import { parseLine, type QueryToken } from "../lib/query";
+import { DEFAULT_SYNONYMS, expandSynonym, normalizeSynonyms } from "../lib/synonyms";
 import {
   COLLECTIONS, COLLECTION_ITEMS, FAVORITES, PINNED_FOLDERS, ROOT_PATHS, SAMPLES, SOURCES, TAGS, VIRTUAL_FOLDERS, VIRTUAL_ITEMS,
   type FolderNode,
@@ -27,12 +28,16 @@ function parseRange(v: string, unit = ""): (n: number) => boolean {
   return (n) => Math.round(n) === Math.round(x);
 }
 
+let SYNONYMS = DEFAULT_SYNONYMS.map((g) => [...g]);
+
 function matchToken(s: Sample, t: QueryToken): boolean {
   switch (t.kind) {
     case "text":
     case "phrase": {
       const hay = `${s.name} ${s.path} ${s.tags.join(" ")}`.toLowerCase();
-      return hay.includes(t.value.toLowerCase());
+      // Un mot libre d'un groupe de synonymes : un seul des mots suffit.
+      const words = (t.kind === "text" && expandSynonym(SYNONYMS, t.value)) || [t.value.toLowerCase()];
+      return words.some((w) => hay.includes(w));
     }
     case "tag":
       return s.tags.includes(t.value);
@@ -220,6 +225,7 @@ export const mockBackend: Backend = {
   },
 
   async tree(req: TreeRequest): Promise<TreePage> {
+    const t0 = performance.now();
     const q = req.query.trim();
     const searching = q !== "";
     const match = (s: Sample) => !searching || matchLine(s, q);
@@ -247,16 +253,19 @@ export const mockBackend: Backend = {
       if (key === null) return;
       for (const s of childSamples(key)) {
         if (!match(s)) continue;
-        // copies : l'UI reçoit des valeurs, comme à travers l'IPC Tauri
-        rows.push({ type: "sample", key: `s:${s.id}@${key}`, parent: key, depth, sample: { ...s } });
+        // copies : l'UI reçoit des valeurs, comme à travers l'IPC Tauri ; pics seulement si demandés
+        rows.push({ type: "sample", key: `s:${s.id}@${key}`, parent: key, depth, sample: { ...s, peaks: req.peaks ? s.peaks : [] } });
       }
     };
     walk(null, 0);
 
+    const focus = req.focus ? rows.findIndex((r) => r.key === req.focus) : -1;
     return {
       rows: rows.slice(req.offset, req.offset + req.limit),
       totalRows: rows.length,
       matches: searching ? SAMPLES.filter(match).length : SAMPLES.length,
+      ...(focus >= 0 ? { focusIndex: focus } : {}),
+      micros: Math.round((performance.now() - t0) * 1000),
     };
   },
 
@@ -387,6 +396,18 @@ export const mockBackend: Backend = {
       for (let p = vfById(+key.slice(2))?.parentId ?? null; p !== null; p = vfById(p)?.parentId ?? null) chain.unshift(`v:${p}`);
     }
     return chain;
+  },
+
+  async peaks(id) {
+    return byId.get(id)?.peaks ?? [];
+  },
+
+  async synonyms() {
+    return SYNONYMS.map((g) => [...g]);
+  },
+
+  async setSynonyms(groups) {
+    SYNONYMS = normalizeSynonyms(groups);
   },
 
   async nodePath(key) {

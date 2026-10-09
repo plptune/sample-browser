@@ -99,10 +99,11 @@ pub enum NodeKind {
 }
 
 /// Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "lowercase")]
 pub enum TreeRoot {
+    #[default]
     Library,
     Virtual,
 }
@@ -180,7 +181,7 @@ impl TreeRow {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TreeRequest {
     pub root: TreeRoot,
@@ -189,6 +190,14 @@ pub struct TreeRequest {
     pub expanded: Vec<NodeKey>,
     pub offset: u32,
     pub limit: u32,
+    /// Pics de waveform dans les lignes (densité « waveform » seulement). Sinon `peaks` est vide.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub peaks: bool,
+    /// Ligne dont on veut la position (`TreePage.focusIndex`) : pour y faire défiler l'arbre.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub focus: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -198,6 +207,12 @@ pub struct TreePage {
     pub rows: Vec<TreeRow>,
     pub total_rows: u32,
     pub matches: u32,
+    /// Position de `TreeRequest.focus` dans l'arbre complet, s'il y est.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub focus_index: Option<u32>,
+    /// Temps de calcul côté Rust (overlay de mesures).
+    pub micros: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -293,6 +308,11 @@ pub trait Backend {
     fn set_pinned(&mut self, key: &str, pinned: bool);
     /// Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre).
     fn ancestors(&self, key: &str) -> Vec<NodeKey>;
+    /// Pics de waveform d'un sample (256 valeurs 0..1, vide tant qu'ils ne sont pas calculés).
+    fn peaks(&self, id: SampleId) -> Vec<f64>;
+    /// Groupes de synonymes appliqués aux mots libres de la recherche.
+    fn synonyms(&self) -> Vec<Vec<String>>;
+    fn set_synonyms(&mut self, groups: &[Vec<String>]);
     /// Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; `None` sinon.
     fn node_path(&self, key: &str) -> Option<String>;
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan;

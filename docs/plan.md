@@ -57,7 +57,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Design system | `src/styles/tokens.css` + `bundle.css`, documenté dans **Storybook 10** (`storybook-solidjs-vite`) | Une story par composant et par état, publiée sur GitHub Pages |
 | Arbre | Lignes à plat calculées par Rust (`tree()`), hauteur fixe ; **TanStack Virtual** dès la phase 3 | Seules les lignes visibles existent dans le DOM |
 | Waveform | `<canvas>` 2D, pics précalculés envoyés par Rust | Rendu instantané |
-| Base / index | SQLite via `rusqlite` (`bundled`, FTS5), mode WAL | Recherche texte embarquée |
+| Base / index | SQLite via `rusqlite` (`bundled`), mode WAL ; recherche en mémoire (catalogue indexé, en parallèle) | Stockage embarqué ; FTS5 inutile tant que la recherche tient le budget (phase 3 : < 6 ms à 100 000 fichiers) |
 | Décodage audio | `symphonia` | WAV, AIFF, FLAC, MP3 en Rust pur |
 | Lecture audio | `cpal` (CoreAudio), côté Rust | L'UI envoie play / stop / seek |
 | Pics, BPM, tonalité | `rustfft` + DSP maison | Pas de dépendance lourde |
@@ -110,16 +110,17 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘N | Nouveau dossier virtuel |
 | ⌘O | Ajouter un dossier |
 | ⌥⌘R | Afficher la sélection dans le Finder |
+| ⌥⌘D | Mesures (arbre, échange, rendu) |
 | ⌘, | Réglages |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
 ## Langage de recherche
 
-Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Rust produit une requête SQL paramétrée (jamais de concaténation) et renvoie les tokens reconnus pour les chips.
+Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Rust la compile une fois par requête (texte en minuscules, `in:` résolu) puis l'applique à tout le catalogue en parallèle.
 
 | Syntaxe | Exemple | Effet |
 | --- | --- | --- |
-| mot libre | `kick dark` | FTS5 préfixe sur nom + chemin + tags |
+| mot libre | `kick dark` | Contenu dans nom + chemin + tags ; un mot d'un groupe de **synonymes** trouve aussi les autres (`kick` → `bd`, `bassdrum`) |
 | `"…"` | `"vinyl crackle"` | Phrase exacte |
 | `#tag` | `#warm` | A ce tag |
 | `-` devant | `-loop`, `-#bright` | Exclusion |
@@ -181,6 +182,20 @@ Tout est dans le dépôt `plptune/sample-browser` :
   rescan sans changement 0,6 s, chargement du catalogue 0,19 s, ouverture d'un dossier de 5 000 samples 40 ms ;
   recherche 0,3 à 0,7 s → c'est le chantier de la phase 3 (budget 16 ms).
 
+### Phase 3 — Arbre + recherche ✅ terminée
+
+- Cœur : tri naturel sans allocation, samples de chaque dossier triés une fois, recherche calculée une fois par requête
+  et en parallèle (rayon), lignes légères, dernier arbre gardé en cache (défiler ne refait pas la marche), seule la page
+  demandée est construite. `focus` → `focusIndex` pour faire défiler l'arbre jusqu'à une ligne lointaine.
+- Pics de waveform hors des lignes (`peaks` seulement en densité « Waveform », `peaks(id)` pour le tiroir).
+- Synonymes : 7 groupes par défaut, éditables dans Réglages › Synonymes, appliqués aux mots libres (pas aux phrases).
+- UI : arbre virtualisé (TanStack Virtual), lignes chargées par pages de 200, réutilisées d'une recherche à l'autre ;
+  flèches, ⇧-sélection et sauts à travers les pages. Overlay de mesures ⌥⌘D.
+- Mesures, 100 000 fichiers, build release : **pire frappe 6 ms côté Rust** (budget 10 ms), ouverture d'un dossier de
+  5 000 samples 4 ms. Dans la fenêtre (conteneur Linux sans GPU) : **frappe 12–13 ms de bout en bout**, ouverture du
+  dossier 10 ms ; une recherche qui fait apparaître ~70 nouvelles lignes d'un coup monte à ~27 ms (rendu logiciel) —
+  à revérifier sur Mac avec ⌥⌘D. FTS5 n'est pas nécessaire (voir `docs/decisions.md`).
+
 ### Phases 2 à 6 — Le moteur
 
 Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
@@ -189,7 +204,7 @@ Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
    - Sortie : le prototype tourne à l'identique dans la fenêtre Tauri, mais ses données passent par Rust ; un test vérifie que les types générés et `types.ts` sont compatibles.
 2. ✅ **Index + scan** — schéma SQLite, indexeur sur un thread dédié, scan des dossiers (métadonnées rapides), `notify`, `sources()` / `removeSource()` / ajout de dossier (⌘O + dépôt), statut d'indexation par événement. **Actualiser une source** (menu contextuel) : rescan forcé, pour un disque où `notify` n'a rien vu.
    - Sortie : 100 000 fichiers indexés en < 60 s, UI fluide pendant le scan, arbre réel affiché.
-3. **Arbre + recherche** — `tree()` en Rust (dossiers puis samples, ouverture, élagage en recherche), parser du langage, FTS5 + filtres, TanStack Virtual sur les lignes. **Synonymes** : une petite table éditable dans les Réglages (`kick` ↔ `bd`, `hat` ↔ `hh`…) développée par le parser.
+3. ✅ **Arbre + recherche** — `tree()` en Rust (dossiers puis samples, ouverture, élagage en recherche), parser du langage, FTS5 + filtres, TanStack Virtual sur les lignes. **Synonymes** : une petite table éditable dans les Réglages (`kick` ↔ `bd`, `hat` ↔ `hh`…) développée par le parser.
    - Sortie : < 16 ms par frappe et par ouverture de dossier sur 100 000 fichiers.
 4. **Preview + drag & drop** — lecture côté Rust (cpal + symphonia), commandes play / stop / seek et événement de position (~30 Hz) qui remplacent la fausse lecture, pics de waveform, drag vers Ableton / Logic / Finder. Avec : **clic dans la waveform** du tiroir = lire depuis ce point ; **boucle** et **volume** (Réglages, plus ⌘L pour la boucle) ; **lecture aléatoire** ⌘⇧Espace (un sample au hasard parmi les lignes visibles) ; **arrêter la lecture** au début d'un glisser et quand l'app perd le focus (deux réglages, activés par défaut).
    - Sortie : son en < 30 ms ; drop fonctionnel dans Ableton Live 12 et Logic.
@@ -234,7 +249,8 @@ docs/phase0-checklist.md, src/api/types.ts et src/api/mock.ts.
   ailleurs. Storybook et le prototype en ligne doivent continuer à marcher avec le mock.
 - Contrat typé avec tauri-specta : types générés dans src/api/bindings.ts, jamais écrits à la main ; un test
   TypeScript (tsc) échoue si bindings.ts et types.ts divergent.
-- SQLite via rusqlite (bundled), WAL, FTS5. Migrations SQL versionnées.
+- SQLite via rusqlite (bundled), WAL. Migrations SQL versionnées. Arbre et recherche en mémoire (catalogue indexé) :
+  FTS5 seulement si une mesure montre que le budget n'est plus tenu.
 - Audio : symphonia + cpal côté Rust ; l'UI n'envoie que play / stop / seek et reçoit la position par événement.
 - Waveform : 256 pics par fichier calculés en Rust, stockés en blob.
 - Drag vers le DAW : plugin drag de CrabNebula. File watching : notify. Analyse : rayon, priorité basse.
@@ -270,12 +286,13 @@ et "virtual" (favoris, groupe Collections, dossiers virtuels).
 Lignes renvoyées dans l'ordre d'affichage : à chaque niveau, sous-dossiers triés par nom puis samples triés par
 nom. Sans recherche : un nœud est ouvert s'il est dans `expanded`. Avec recherche : seuls les nœuds qui contiennent
 au moins un résultat restent, tous ouverts, et le groupe Collections est masqué. Pagination offset / limit, total
-séparé. Les pics de waveform ne voyagent que si la densité « waveform » est active (à ajouter au contrat).
+séparé. Les pics de waveform ne voyagent que si la densité « waveform » est active (`TreeRequest.peaks`) ;
+le tiroir les demande avec `peaks(id)`. `focus` renvoie la position d'une ligne (`focusIndex`).
 « Créer un vrai dossier » : plan (fichiers, sous-dossiers, octets, introuvables) puis copie ; progression par événement
 Tauri (phase 5) ; option « Ajouter aux sources » qui indexe le nouveau dossier.
 
 ## Langage de recherche
-mots libres → FTS5 préfixe · "phrase" · #tag · -exclusion · bpm:120-128 / bpm:>140 · key:Am · dur:<2s ·
+mots libres (+ synonymes) · "phrase" · #tag · -exclusion · bpm:120-128 / bpm:>140 · key:Am · dur:<2s ·
 in:<collection|dossier> · type:loop|oneshot · is:fav|untagged. Parser pur en Rust, testé, qui produit une requête
 paramétrée et la liste des tokens reconnus.
 
@@ -309,3 +326,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.6 | Favoris de retour, discrets : dossier « Favoris », ⌘D, étoile grise dans le tiroir uniquement, `is:fav` |
 | v0.7 | Collections (à plat) **et** dossiers virtuels (arborescence) ; onglets Bibliothèque / Virtuels ; épinglage avec repère ; « Créer un vrai dossier » (copie) |
 | v0.8 | Idées reprises de Sononym, en version simple : raccourcis vers des sous-dossiers, historique ⌥← / ⌥→ ; planifiés : masquer, lecture aléatoire, boucle + volume, lecture depuis un point, arrêt au drag / perte de focus, synonymes, actualiser une source ; en attente : taper pour sauter |
+| v0.9 | Phase 3 : arbre virtualisé par pages, synonymes dans les Réglages, overlay de mesures ⌥⌘D |

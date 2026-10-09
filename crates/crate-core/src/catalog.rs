@@ -2,8 +2,12 @@
 //! Rempli par les données du prototype (`Catalog::demo()`, vérifié par tests/parity.rs) ou chargé depuis
 //! SQLite (`db::load_catalog`), puis indexé pour rester rapide à 100 000 fichiers.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::time::Instant;
+
+use rayon::prelude::*;
 
 use crate::model::*;
 use crate::natural;
@@ -35,6 +39,8 @@ pub struct Catalog {
     pub(crate) pinned_folders: Vec<u32>,
     /// Tags proposés même sans fichier (ordre d'apparition).
     pub(crate) known_tags: Vec<String>,
+    /// Groupes de synonymes (minuscules) appliqués aux mots libres.
+    pub(crate) synonyms: Vec<Vec<String>>,
     /// Taille réelle des fichiers (vide en démo : taille estimée d'après la durée).
     pub(crate) file_sizes: HashMap<SampleId, u64>,
     // --- index (reindex)
@@ -42,6 +48,7 @@ pub struct Catalog {
     by_folder: HashMap<u32, Vec<usize>>,
     /// Texte de recherche en minuscules : nom, chemin, tags.
     hay: Vec<String>,
+    cache: RefCell<Option<TreeCache>>,
 }
 
 pub(crate) struct NodeInfo {
@@ -84,15 +91,18 @@ fn haystack(s: &Sample) -> String {
 /// Une condition de recherche, résolue une fois par requête.
 enum Cond {
     Text(String),
+    /// Mot libre et ses synonymes : un seul suffit.
+    AnyText(Vec<String>),
     Tag(String),
-    Bpm(Box<dyn Fn(f64) -> bool>),
-    Dur(Box<dyn Fn(f64) -> bool>),
+    Bpm(Box<dyn Fn(f64) -> bool + Send + Sync>),
+    Dur(Box<dyn Fn(f64) -> bool + Send + Sync>),
     Key(String),
     Kind(SampleKind),
     Fav,
     Untagged,
     Never,
-    In(HashSet<SampleId>),
+    /// Appartenance (`in:` collection ou dossier virtuel), par index de sample.
+    In(Vec<bool>),
     InPath(String),
 }
 
@@ -100,8 +110,58 @@ enum Cond {
 pub(crate) struct Matcher(Vec<(Cond, bool)>);
 
 impl Matcher {
-    pub fn matches(&self, cat: &Catalog, s: &Sample) -> bool {
-        self.0.iter().all(|(c, negated)| cat.cond(c, s) != *negated)
+    /// Sans `&Catalog` (qui n'est pas partageable entre threads) : pour la recherche en parallèle.
+    fn matches_parts(&self, s: &Sample, hay: &str, i: usize) -> bool {
+        self.0.iter().all(|(c, negated)| cond(c, s, hay, i) != *negated)
+    }
+}
+
+/// Une ligne de l'arbre avant matérialisation : seule la page demandée devient des `TreeRow`.
+enum RowRef {
+    Node {
+        /// En boîte : la ligne reste petite (les samples, bien plus nombreux, n'ont qu'un index).
+        info: Box<NodeInfo>,
+        parent: Option<u32>,
+        depth: u32,
+        open: bool,
+    },
+    Sample {
+        idx: usize,
+        parent: u32,
+        depth: u32,
+    },
+}
+
+/// Dernier arbre calculé : défiler (autre page, même requête) ne refait pas la marche.
+pub(crate) struct TreeCache {
+    root: TreeRoot,
+    query: String,
+    expanded: Vec<NodeKey>,
+    /// Clés des nœuds ouverts ; les lignes y renvoient par index (parent).
+    keys: Vec<NodeKey>,
+    rows: Vec<RowRef>,
+    matches: u32,
+}
+
+fn cond(c: &Cond, s: &Sample, hay: &str, i: usize) -> bool {
+    match c {
+        Cond::Text(v) => hay.contains(v.as_str()),
+        Cond::AnyText(words) => words.iter().any(|w| hay.contains(w.as_str())),
+        Cond::Tag(v) => s.tags.contains(v),
+        Cond::Bpm(f) => s.bpm.is_some_and(f),
+        Cond::Dur(f) => f(s.duration_ms as f64 / 1000.0),
+        Cond::Key(want) => {
+            let Some(have) = s.key.as_ref().map(|k| k.to_lowercase()) else {
+                return false;
+            };
+            have == *want || (!want.ends_with('m') && have.strip_suffix('m').unwrap_or(&have) == want)
+        }
+        Cond::Kind(k) => s.kind == *k,
+        Cond::Fav => s.fav,
+        Cond::Untagged => s.tags.is_empty(),
+        Cond::Never => false,
+        Cond::In(member) => member[i],
+        Cond::InPath(v) => s.path.to_lowercase().contains(v.as_str()),
     }
 }
 
@@ -125,24 +185,45 @@ impl Catalog {
 
     /// Index des samples (à appeler après tout ajout ou retrait de samples).
     pub(crate) fn reindex(&mut self) {
+        self.touch();
         self.by_id = self.samples.iter().enumerate().map(|(i, s)| (s.id, i)).collect();
-        self.by_folder.clear();
+        let mut by_folder: HashMap<u32, Vec<usize>> = HashMap::new();
         for (i, s) in self.samples.iter().enumerate() {
-            self.by_folder.entry(s.folder_id).or_default().push(i);
+            by_folder.entry(s.folder_id).or_default().push(i);
         }
+        // Triés une fois pour toutes : ouvrir un dossier ne trie plus rien.
+        for v in by_folder.values_mut() {
+            self.sort_idx(v);
+        }
+        self.by_folder = by_folder;
         self.hay = self.samples.iter().map(haystack).collect();
     }
 
-    /// Samples de ces ids, dans l'ordre des ids (comme un filtre sur la liste complète).
-    fn samples_of(&self, ids: &[SampleId]) -> Vec<&Sample> {
+    /// Oublie l'arbre en cache (à appeler à chaque modification).
+    pub(crate) fn touch(&mut self) {
+        *self.cache.get_mut() = None;
+    }
+
+    /// Tri naturel stable par nom (à égalité : ordre des ids, comme un filtre sur la liste complète).
+    fn sort_idx(&self, v: &mut [usize]) {
+        v.sort_by(|&a, &b| natural::compare(&self.samples[a].name, &self.samples[b].name));
+    }
+
+    /// Index de ces ids, dans l'ordre des ids (comme un filtre sur la liste complète).
+    fn idx_of(&self, ids: &[SampleId]) -> Vec<usize> {
         let mut idx: Vec<usize> = ids.iter().filter_map(|id| self.by_id.get(id).copied()).collect();
         idx.sort_unstable();
         idx.dedup();
+        idx
+    }
+
+    fn refs(&self, idx: Vec<usize>) -> Vec<&Sample> {
         idx.into_iter().map(|i| &self.samples[i]).collect()
     }
 
     /// Réservé aux scénarios de démo : marque des fichiers comme introuvables.
     pub fn set_missing(&mut self, ids: &[SampleId]) {
+        self.touch();
         for s in &mut self.samples {
             s.missing = ids.contains(&s.id);
         }
@@ -168,30 +249,34 @@ impl Catalog {
         v
     }
 
-    fn collection_samples(&self, id: u32) -> Vec<&Sample> {
+    fn collection_idx(&self, id: u32) -> Vec<usize> {
         let Some(c) = self.collection(id) else { return vec![] };
         match c.kind {
             CollectionKind::Smart => {
                 let m = self.compile(c.query.as_deref().unwrap_or_default());
-                self.samples.iter().filter(|s| m.matches(self, s)).collect()
+                self.hits(&m).into_iter().enumerate().filter_map(|(i, h)| h.then_some(i)).collect()
             }
-            CollectionKind::Manual => self.samples_of(self.collection_items.get(&c.id).map(Vec::as_slice).unwrap_or_default()),
+            CollectionKind::Manual => self.idx_of(self.collection_items.get(&c.id).map(Vec::as_slice).unwrap_or_default()),
         }
     }
 
     /// Samples propres à un dossier virtuel (pas ceux de ses sous-dossiers).
+    fn own_idx(&self, id: u32) -> Vec<usize> {
+        self.idx_of(self.virtual_items.get(&id).map(Vec::as_slice).unwrap_or_default())
+    }
+
     fn own_samples(&self, id: u32) -> Vec<&Sample> {
-        self.samples_of(self.virtual_items.get(&id).map(Vec::as_slice).unwrap_or_default())
+        self.refs(self.own_idx(id))
     }
 
     /// Samples d'un dossier virtuel et de tous ses descendants (pour `in:` et le commit à plat).
-    fn subtree_samples(&self, id: u32) -> Vec<&Sample> {
+    fn subtree_idx(&self, id: u32) -> Vec<usize> {
         let mut seen = HashSet::new();
         let mut out = Vec::new();
-        fn visit<'a>(lib: &'a Catalog, fid: u32, seen: &mut HashSet<u32>, out: &mut Vec<&'a Sample>) {
-            for s in lib.own_samples(fid) {
-                if seen.insert(s.id) {
-                    out.push(s);
+        fn visit(lib: &Catalog, fid: u32, seen: &mut HashSet<usize>, out: &mut Vec<usize>) {
+            for i in lib.own_idx(fid) {
+                if seen.insert(i) {
+                    out.push(i);
                 }
             }
             for c in lib.vf_children(Some(fid)) {
@@ -202,6 +287,18 @@ impl Catalog {
         out
     }
 
+    fn subtree_samples(&self, id: u32) -> Vec<&Sample> {
+        self.refs(self.subtree_idx(id))
+    }
+
+    fn membership(&self, idx: Vec<usize>) -> Vec<bool> {
+        let mut v = vec![false; self.samples.len()];
+        for i in idx {
+            v[i] = true;
+        }
+        v
+    }
+
     // ---------- recherche ----------
 
     pub(crate) fn compile(&self, line: &str) -> Matcher {
@@ -209,7 +306,11 @@ impl Catalog {
             .into_iter()
             .map(|t| {
                 let cond = match &t.kind {
-                    TokenKind::Text | TokenKind::Phrase => Cond::Text(t.value.to_lowercase()),
+                    TokenKind::Text => match crate::synonyms::expand(&self.synonyms, &t.value) {
+                        Some(words) => Cond::AnyText(words),
+                        None => Cond::Text(t.value.to_lowercase()),
+                    },
+                    TokenKind::Phrase => Cond::Text(t.value.to_lowercase()),
                     TokenKind::Tag => Cond::Tag(t.value.clone()),
                     TokenKind::Filter(key) => match key {
                         FilterKey::Bpm => Cond::Bpm(Box::new(query::parse_range(&t.value, ""))),
@@ -229,9 +330,9 @@ impl Catalog {
                             // Collection, sinon dossier virtuel (avec ses sous-dossiers), sinon chemin.
                             let v = t.value.to_lowercase();
                             if let Some(c) = self.collections.iter().find(|c| c.name.to_lowercase().starts_with(&v)) {
-                                Cond::In(self.collection_samples(c.id).iter().map(|s| s.id).collect())
+                                Cond::In(self.membership(self.collection_idx(c.id)))
                             } else if let Some(f) = self.virtual_folders.iter().find(|f| f.name.to_lowercase().starts_with(&v)) {
-                                Cond::In(self.subtree_samples(f.id).iter().map(|s| s.id).collect())
+                                Cond::In(self.membership(self.subtree_idx(f.id)))
                             } else {
                                 Cond::InPath(v)
                             }
@@ -244,28 +345,14 @@ impl Catalog {
         Matcher(conds)
     }
 
-    fn cond(&self, c: &Cond, s: &Sample) -> bool {
-        match c {
-            Cond::Text(v) => match self.by_id.get(&s.id) {
-                Some(&i) => self.hay[i].contains(v.as_str()),
-                None => haystack(s).contains(v.as_str()),
-            },
-            Cond::Tag(v) => s.tags.contains(v),
-            Cond::Bpm(f) => s.bpm.is_some_and(f),
-            Cond::Dur(f) => f(s.duration_ms as f64 / 1000.0),
-            Cond::Key(want) => {
-                let Some(have) = s.key.as_ref().map(|k| k.to_lowercase()) else {
-                    return false;
-                };
-                have == *want || (!want.ends_with('m') && have.strip_suffix('m').unwrap_or(&have) == want)
-            }
-            Cond::Kind(k) => s.kind == *k,
-            Cond::Fav => s.fav,
-            Cond::Untagged => s.tags.is_empty(),
-            Cond::Never => false,
-            Cond::In(ids) => ids.contains(&s.id),
-            Cond::InPath(v) => s.path.to_lowercase().contains(v.as_str()),
-        }
+    /// Résultat de la recherche pour chaque sample, calculé en parallèle (100 000 fichiers : quelques ms).
+    fn hits(&self, m: &Matcher) -> Vec<bool> {
+        let (samples, hay) = (&self.samples, &self.hay);
+        (0..samples.len())
+            .into_par_iter()
+            .with_min_len(4096)
+            .map(|i| m.matches_parts(&samples[i], &hay[i], i))
+            .collect()
     }
 
     // ---------- arbre ----------
@@ -380,23 +467,205 @@ impl Catalog {
         }
     }
 
-    pub(crate) fn child_samples(&self, key: &str) -> Vec<&Sample> {
-        let mut v: Vec<&Sample> = if key.starts_with("f:") {
-            self.by_folder
-                .get(&node_id(key))
-                .map(|idx| idx.iter().map(|&i| &self.samples[i]).collect())
-                .unwrap_or_default()
-        } else if key == "c:fav" {
-            self.samples.iter().filter(|s| s.fav).collect()
+    /// Samples directement sous un nœud (index), triés par nom si demandé.
+    fn child_idx(&self, key: &str, sorted: bool) -> Vec<usize> {
+        if key.starts_with("f:") {
+            // Déjà triés (reindex).
+            return self.by_folder.get(&node_id(key)).cloned().unwrap_or_default();
+        }
+        let mut v: Vec<usize> = if key == "c:fav" {
+            (0..self.samples.len()).filter(|&i| self.samples[i].fav).collect()
         } else if key.starts_with("c:") {
-            self.collection_samples(node_id(key))
+            self.collection_idx(node_id(key))
         } else if key.starts_with("v:") {
-            self.own_samples(node_id(key))
+            self.own_idx(node_id(key))
         } else {
             vec![]
         };
-        by_name(&mut v, |s| &s.name);
+        if sorted {
+            self.sort_idx(&mut v);
+        }
         v
+    }
+
+    pub(crate) fn child_samples(&self, key: &str) -> Vec<&Sample> {
+        self.refs(self.child_idx(key, true))
+    }
+
+    /// Au moins un sample directement sous ce nœud est un résultat.
+    fn any_hit(&self, key: &str, hits: &[bool]) -> bool {
+        if key.starts_with("f:") {
+            return self.by_folder.get(&node_id(key)).is_some_and(|v| v.iter().any(|&i| hits[i]));
+        }
+        self.child_idx(key, false).into_iter().any(|i| hits[i])
+    }
+
+    /// Marche complète de l'arbre (lignes légères) : sans recherche, les nœuds ouverts ; avec, les nœuds qui
+    /// contiennent au moins un résultat, tous ouverts.
+    fn build_tree(&self, root: TreeRoot, q: &str, expanded: &[NodeKey]) -> TreeCache {
+        let searching = !q.is_empty();
+        let hits: Option<Vec<bool>> = searching.then(|| {
+            let m = self.compile(q);
+            self.hits(&m)
+        });
+        let matches = hits.as_ref().map_or(self.samples.len(), |h| h.iter().filter(|&&b| b).count());
+
+        struct Walk<'a> {
+            lib: &'a Catalog,
+            root: TreeRoot,
+            hits: Option<&'a [bool]>,
+            expanded: HashSet<&'a str>,
+            memo: HashMap<String, bool>,
+            keys: Vec<NodeKey>,
+            rows: Vec<RowRef>,
+        }
+        impl Walk<'_> {
+            /// Un nœud reste visible en recherche s'il contient au moins un résultat (mémoïsé).
+            fn has_match(&mut self, key: &str, hits: &[bool]) -> bool {
+                if let Some(&v) = self.memo.get(key) {
+                    return v;
+                }
+                let v = self.lib.any_hit(key, hits)
+                    || self
+                        .lib
+                        .child_nodes(self.root, Some(key), true)
+                        .iter()
+                        .any(|n| self.has_match(&n.key, hits));
+                self.memo.insert(key.to_string(), v);
+                v
+            }
+
+            fn walk(&mut self, key: Option<&str>, slot: Option<u32>, depth: u32) {
+                let searching = self.hits.is_some();
+                for n in self.lib.child_nodes(self.root, key, searching) {
+                    if let Some(h) = self.hits {
+                        if !self.has_match(&n.key, h) {
+                            continue;
+                        }
+                    }
+                    // Un raccourci ne se déplie jamais : il saute au dossier visé.
+                    let open = n.kind != NodeKind::Shortcut && (searching || self.expanded.contains(n.key.as_str()));
+                    let child_key = n.key.clone();
+                    self.rows.push(RowRef::Node {
+                        info: Box::new(n),
+                        parent: slot,
+                        depth,
+                        open,
+                    });
+                    if open {
+                        self.keys.push(child_key.clone());
+                        let s = (self.keys.len() - 1) as u32;
+                        self.walk(Some(&child_key), Some(s), depth + 1);
+                    }
+                }
+                let (Some(k), Some(slot)) = (key, slot) else { return };
+                let owned;
+                let idx: &[usize] = match k.strip_prefix("f:") {
+                    // Dossier : liste déjà triée, sans copie.
+                    Some(id) => self
+                        .lib
+                        .by_folder
+                        .get(&id.parse().unwrap_or(0))
+                        .map(Vec::as_slice)
+                        .unwrap_or_default(),
+                    None => {
+                        owned = self.lib.child_idx(k, true);
+                        &owned
+                    }
+                };
+                let hits = self.hits;
+                self.rows
+                    .extend(idx.iter().filter(|&&i| hits.is_none_or(|h| h[i])).map(|&i| RowRef::Sample {
+                        idx: i,
+                        parent: slot,
+                        depth,
+                    }));
+            }
+        }
+
+        let mut w = Walk {
+            lib: self,
+            root,
+            hits: hits.as_deref(),
+            expanded: expanded.iter().map(String::as_str).collect(),
+            memo: HashMap::new(),
+            keys: Vec::new(),
+            rows: Vec::with_capacity(if searching { matches + 64 } else { 256 }),
+        };
+        w.walk(None, None, 0);
+        TreeCache {
+            root,
+            query: q.to_string(),
+            expanded: expanded.to_vec(),
+            keys: w.keys,
+            rows: w.rows,
+            matches: matches as u32,
+        }
+    }
+
+    /// Copie d'un sample pour l'UI ; les pics ne voyagent que si on les demande (densité « waveform »).
+    fn sample_out(s: &Sample, peaks: bool) -> Sample {
+        Sample {
+            id: s.id,
+            name: s.name.clone(),
+            ext: s.ext.clone(),
+            path: s.path.clone(),
+            folder_id: s.folder_id,
+            duration_ms: s.duration_ms,
+            sample_rate: s.sample_rate,
+            bit_depth: s.bit_depth,
+            channels: s.channels,
+            bpm: s.bpm,
+            key: s.key.clone(),
+            kind: s.kind,
+            tags: s.tags.clone(),
+            missing: s.missing,
+            fav: s.fav,
+            peaks: if peaks { s.peaks.clone() } else { vec![] },
+        }
+    }
+
+    fn materialize(&self, c: &TreeCache, r: &RowRef, peaks: bool) -> TreeRow {
+        match r {
+            RowRef::Node { info, parent, depth, open } => TreeRow::Node(FolderRow {
+                tag: NodeTag::Node,
+                key: info.key.clone(),
+                parent: parent.map(|p| c.keys[p as usize].clone()),
+                depth: *depth,
+                name: info.name.clone(),
+                kind: info.kind,
+                open: *open,
+                offline: info.offline.then_some(true),
+                pinned: info.pinned.then_some(true),
+                target: info.target.clone(),
+            }),
+            RowRef::Sample { idx, parent, depth } => {
+                let s = &self.samples[*idx];
+                let parent = &c.keys[*parent as usize];
+                TreeRow::Sample(SampleRow {
+                    tag: SampleTag::Sample,
+                    key: format!("s:{}@{parent}", s.id),
+                    parent: parent.clone(),
+                    depth: *depth,
+                    sample: Self::sample_out(s, peaks),
+                })
+            }
+        }
+    }
+
+    /// Position d'une ligne (nœud ou "s:<id>@<parent>") dans l'arbre complet.
+    fn find_row(&self, c: &TreeCache, key: &str) -> Option<usize> {
+        if let Some(rest) = key.strip_prefix("s:") {
+            let (id, parent) = rest.split_once('@')?;
+            let id: SampleId = id.parse().ok()?;
+            return c.rows.iter().position(|r| match r {
+                RowRef::Sample { idx, parent: p, .. } => self.samples[*idx].id == id && c.keys[*p as usize] == parent,
+                _ => false,
+            });
+        }
+        c.rows
+            .iter()
+            .position(|r| matches!(r, RowRef::Node { info, .. } if info.key == key))
     }
 
     // ---------- commit ----------
@@ -503,99 +772,31 @@ impl Backend for Catalog {
     }
 
     fn tree(&self, req: &TreeRequest) -> TreePage {
+        let t0 = Instant::now();
         let q = req.query.trim();
-        let searching = !q.is_empty();
-        let matcher = self.compile(q);
-        let matches = |s: &Sample| !searching || matcher.matches(self, s);
-
-        struct Walk<'a> {
-            lib: &'a Catalog,
-            req: &'a TreeRequest,
-            searching: bool,
-            m: &'a dyn Fn(&Sample) -> bool,
-            memo: HashMap<String, bool>,
-            rows: Vec<TreeRow>,
+        let fresh = matches!(&*self.cache.borrow(), Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded);
+        if !fresh {
+            let built = self.build_tree(req.root, q, &req.expanded);
+            *self.cache.borrow_mut() = Some(built);
         }
-        impl Walk<'_> {
-            /// Un nœud reste visible en recherche s'il contient au moins un résultat (mémoïsé).
-            fn has_match(&mut self, key: &str) -> bool {
-                if let Some(&v) = self.memo.get(key) {
-                    return v;
-                }
-                let v = self.lib.child_samples(key).into_iter().any(self.m)
-                    || self
-                        .lib
-                        .child_nodes(self.req.root, Some(key), self.searching)
-                        .iter()
-                        .any(|n| self.has_match(&n.key));
-                self.memo.insert(key.to_string(), v);
-                v
-            }
-
-            fn walk(&mut self, key: Option<&str>, depth: u32) {
-                for n in self.lib.child_nodes(self.req.root, key, self.searching) {
-                    if self.searching && !self.has_match(&n.key) {
-                        continue;
-                    }
-                    // Un raccourci ne se déplie jamais : il saute au dossier visé.
-                    let open = n.kind != NodeKind::Shortcut && (self.searching || self.req.expanded.contains(&n.key));
-                    self.rows.push(TreeRow::Node(FolderRow {
-                        tag: NodeTag::Node,
-                        key: n.key.clone(),
-                        parent: key.map(String::from),
-                        depth,
-                        name: n.name.clone(),
-                        kind: n.kind,
-                        open,
-                        offline: n.offline.then_some(true),
-                        pinned: n.pinned.then_some(true),
-                        target: n.target.clone(),
-                    }));
-                    if open {
-                        self.walk(Some(&n.key), depth + 1);
-                    }
-                }
-                let Some(k) = key else { return };
-                for s in self.lib.child_samples(k) {
-                    if !(self.m)(s) {
-                        continue;
-                    }
-                    self.rows.push(TreeRow::Sample(SampleRow {
-                        tag: SampleTag::Sample,
-                        key: format!("s:{}@{k}", s.id),
-                        parent: k.to_string(),
-                        depth,
-                        sample: s.clone(),
-                    }));
-                }
-            }
-        }
-
-        let mut w = Walk {
-            lib: self,
-            req,
-            searching,
-            m: &matches,
-            memo: HashMap::new(),
-            rows: Vec::new(),
-        };
-        w.walk(None, 0);
-        let rows = w.rows;
-        let total_rows = rows.len() as u32;
-        let rows = rows.into_iter().skip(req.offset as usize).take(req.limit as usize).collect();
-        let matched = if searching {
-            self.samples.iter().filter(|s| matches(s)).count()
-        } else {
-            self.samples.len()
-        };
+        let cache = self.cache.borrow();
+        let c = cache.as_ref().expect("arbre calculé");
+        let total = c.rows.len();
+        let start = (req.offset as usize).min(total);
+        let end = start.saturating_add(req.limit as usize).min(total);
+        let rows = c.rows[start..end].iter().map(|r| self.materialize(c, r, req.peaks)).collect();
+        let focus_index = req.focus.as_deref().and_then(|k| self.find_row(c, k)).map(|i| i as u32);
         TreePage {
             rows,
-            total_rows,
-            matches: matched as u32,
+            total_rows: total as u32,
+            matches: c.matches,
+            focus_index,
+            micros: t0.elapsed().as_micros().min(u32::MAX as u128) as u32,
         }
     }
 
     fn set_favorite(&mut self, ids: &[SampleId], fav: bool) {
+        self.touch();
         for id in ids {
             if let Some(&i) = self.by_id.get(id) {
                 self.samples[i].fav = fav;
@@ -604,6 +805,7 @@ impl Backend for Catalog {
     }
 
     fn add_tag(&mut self, ids: &[SampleId], tag: &str) {
+        self.touch();
         for id in ids {
             let Some(&i) = self.by_id.get(id) else { continue };
             let s = &mut self.samples[i];
@@ -616,6 +818,7 @@ impl Backend for Catalog {
     }
 
     fn remove_tag(&mut self, ids: &[SampleId], tag: &str) {
+        self.touch();
         for id in ids {
             let Some(&i) = self.by_id.get(id) else { continue };
             self.samples[i].tags.retain(|t| t != tag);
@@ -626,6 +829,7 @@ impl Backend for Catalog {
     // ----- collections (à plat)
 
     fn create_collection(&mut self, name: &str, query: Option<&str>) -> Collection {
+        self.touch();
         let id = self.collections.iter().map(|c| c.id).max().unwrap_or(0) + 1;
         let query = query.filter(|q| !q.is_empty()).map(String::from);
         let kind = if query.is_some() {
@@ -648,16 +852,19 @@ impl Backend for Catalog {
     }
 
     fn rename_collection(&mut self, id: u32, name: &str) {
+        self.touch();
         if let Some(c) = self.collections.iter_mut().find(|c| c.id == id) {
             c.name = name.into();
         }
     }
 
     fn delete_collection(&mut self, id: u32) {
+        self.touch();
         self.collections.retain(|c| c.id != id);
     }
 
     fn add_to_collection(&mut self, id: u32, ids: &[SampleId]) {
+        self.touch();
         if self.collection(id).map(|c| c.kind) != Some(CollectionKind::Manual) {
             return;
         }
@@ -670,6 +877,7 @@ impl Backend for Catalog {
     }
 
     fn remove_from_collection(&mut self, id: u32, ids: &[SampleId]) {
+        self.touch();
         if let Some(items) = self.collection_items.get_mut(&id) {
             items.retain(|s| !ids.contains(s));
         }
@@ -678,6 +886,7 @@ impl Backend for Catalog {
     // ----- dossiers virtuels (arborescence)
 
     fn create_virtual_folder(&mut self, name: &str, parent_id: Option<u32>) -> VirtualFolder {
+        self.touch();
         let id = self.virtual_folders.iter().map(|f| f.id).max().unwrap_or(0) + 1;
         let parent_id = parent_id.filter(|p| self.virtual_folder(*p).is_some());
         let f = VirtualFolder {
@@ -692,12 +901,14 @@ impl Backend for Catalog {
     }
 
     fn rename_virtual_folder(&mut self, id: u32, name: &str) {
+        self.touch();
         if let Some(f) = self.virtual_folders.iter_mut().find(|f| f.id == id) {
             f.name = name.into();
         }
     }
 
     fn delete_virtual_folder(&mut self, id: u32) {
+        self.touch();
         let mut doomed = HashSet::from([id]);
         loop {
             let more: Vec<u32> = self
@@ -715,6 +926,7 @@ impl Backend for Catalog {
     }
 
     fn move_virtual_folder(&mut self, id: u32, parent_id: Option<u32>) {
+        self.touch();
         if self.virtual_folder(id).is_none() {
             return;
         }
@@ -737,6 +949,7 @@ impl Backend for Catalog {
     }
 
     fn add_to_virtual_folder(&mut self, id: u32, ids: &[SampleId]) {
+        self.touch();
         if self.virtual_folder(id).is_none() {
             return;
         }
@@ -749,12 +962,14 @@ impl Backend for Catalog {
     }
 
     fn remove_from_virtual_folder(&mut self, id: u32, ids: &[SampleId]) {
+        self.touch();
         if let Some(items) = self.virtual_items.get_mut(&id) {
             items.retain(|s| !ids.contains(s));
         }
     }
 
     fn set_pinned(&mut self, key: &str, pinned: bool) {
+        self.touch();
         if key.starts_with("f:") {
             // Raccourci : seulement pour un sous-dossier (une source est déjà à la racine).
             let id = node_id(key);
@@ -797,6 +1012,19 @@ impl Backend for Catalog {
         chain
     }
 
+    fn peaks(&self, id: SampleId) -> Vec<f64> {
+        self.by_id.get(&id).map(|&i| self.samples[i].peaks.clone()).unwrap_or_default()
+    }
+
+    fn synonyms(&self) -> Vec<Vec<String>> {
+        self.synonyms.clone()
+    }
+
+    fn set_synonyms(&mut self, groups: &[Vec<String>]) {
+        self.touch();
+        self.synonyms = crate::synonyms::normalize(groups);
+    }
+
     fn node_path(&self, key: &str) -> Option<String> {
         if !(key.starts_with("f:") || key.starts_with("p:")) {
             return None;
@@ -833,6 +1061,7 @@ impl Backend for Catalog {
     }
 
     fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> Result<CommitResult, String> {
+        self.touch();
         // Démo : aucun fichier n'est écrit. On simule le résultat et, si demandé, une nouvelle source qui
         // reflète l'arborescence copiée (la bibliothèque réelle copie vraiment, voir library.rs).
         let all = self.commit_entries(key, options);
@@ -898,6 +1127,7 @@ impl Backend for Catalog {
     }
 
     fn add_source(&mut self, path: &str) -> Result<Source, String> {
+        self.touch();
         // Démo : une source vide (aucun disque n'est lu).
         let id = self.folders.keys().copied().max().unwrap_or(0).max(999) + 1;
         let path = path.trim_end_matches('/').to_string();
@@ -926,6 +1156,7 @@ impl Backend for Catalog {
     fn refresh_source(&mut self, _id: u32) {}
 
     fn remove_source(&mut self, id: u32) {
+        self.touch();
         self.sources.retain(|f| f.id != id);
     }
 }

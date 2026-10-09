@@ -51,6 +51,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | QueryChip | `cr-chip` | `data-kind=tag/filter/exclude`, `data-pending` | Clé en `text-2`, valeur en `text-strong`. Clic = repasser en édition. |
 | Autocomplete | `cr-ac` | `data-active` sur l'item | Après `#`, `key:`, `in:`. ↑↓ ⏎/Tab, Échap ferme. |
 | ScanStatus | `cr-scan` | — | Barre de progression de 1 px en accent sous le libellé. Compteur masqué tant que le total est inconnu (parcours des dossiers). |
+| DebugOverlay | `cr-scan cr-debug` | — | ⌥⌘D, au-dessus du tiroir, en mono : arbre (Rust), échange, rendu, total (+ attente de l'image suivante), lignes. Outil de mesure, pas un élément de l'interface. |
 | Notice | `cr-scan cr-notice` | — | Même bande que ScanStatus, texte principal, sans icône : un refus en une phrase (source déjà couverte, pas un dossier). Disparaît après 6 s ou au clic. |
 | Tabs | `cr-tabs`, `cr-tab` | `data-active` | Dans la barre titre, après les feux : « Bibliothèque » / « Virtuels » (⌘1 / ⌘2). Survoler un onglet pendant un glisser l'ouvre après 500 ms. |
 | Browser (arbre) | `cr-tree` | `data-focused`, `data-drop-target` (fond) | Un arbre par onglet. Bibliothèque : sources puis éléments épinglés. Virtuels : Favoris, « Collections », dossiers virtuels. Chaque dossier liste ses sous-dossiers puis ses samples, au même retrait. |
@@ -61,7 +62,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | TagPopover | `cr-popover` | item `data-state=all/some/none`, `data-active` | Touche T sur la sélection. ✓ = tous les samples ont le tag, – = certains. Saisie = filtre ; un nom inconnu propose « Créer ». Coche sur la colonne des icônes. |
 | SaveSearch | `cr-save` | — | ⌘S sur une recherche : nom de la collection smart, ⏎ enregistre, Échap annule. Seul champ à contour accent avec le renommage. |
 | ContextMenu | `cr-menu` | item `data-active`, `data-danger`, `data-disabled` ; séparateur, en-tête | Clic droit. Contenu selon la ligne : sample, source, sous-dossier, groupe Collections, collection. ↑↓ ⏎ Échap. Reste dans le panneau. |
-| SettingsView | `cr-settings`, `cr-setting`, `cr-source` | — | Remplace l'arbre dans la même colonne (⌘, / Échap). Sources, Apparence, Fenêtre et lecture. Libellés sur la colonne des libellés de l'arbre. |
+| SettingsView | `cr-settings`, `cr-setting`, `cr-source` | — | Remplace l'arbre dans la même colonne (⌘, / Échap). Sources, Apparence, Synonymes (un champ par groupe, une ligne vide pour en ajouter), Fenêtre et lecture. Libellés sur la colonne des libellés de l'arbre. |
 | Toggle | `cr-switch` | `data-on` | 24 × 14. Gris, pas d'accent (l'accent reste réservé à la lecture). |
 | Segmented | `cr-seg` | item `data-active` | 2 à 3 options courtes. |
 | CommitView | `cr-commit` (dans `cr-settings`) | prêt / copie en cours / terminé | « Créer un vrai dossier » : résumé (fichiers, sous-dossiers, taille, introuvables), destination, garder l'arborescence, ajouter aux sources. Rappel « copie : les originaux ne bougent pas ». |

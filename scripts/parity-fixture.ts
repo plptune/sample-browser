@@ -8,7 +8,7 @@ import { SAMPLES } from "../src/mock/generate";
 const QUERIES = [
   "", "kick", "#warm", "bpm:120-128", "key:Am", "key:F", "dur:<1s", "type:loop #lofi bpm:80-110", "-#bright kick",
   '"tape 1"', "in:night", "in:drums", "in:pack", "in:go", "is:fav", "is:untagged", "vox", "bpm:>170 #airy", "-loop",
-  "dur:1-4s", "type:one-shot",
+  "dur:1-4s", "type:one-shot", "bd", "hh", "vocal -kick", "-sd", '"bd"',
 ];
 const EXPANDED = {
   library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5", "p:3"]],
@@ -49,6 +49,18 @@ for (const key of PLAN_KEYS) {
   }
 }
 
+// Position d'une ligne (focus) dans l'arbre complet.
+const FOCUS = [
+  { query: "", expanded: ["f:10", "f:11", "f:12"], focus: "f:12" },
+  { query: "kick", expanded: [], focus: "s:5@f:12" },
+  { query: "", expanded: [], focus: "f:999" },
+];
+const focus = [];
+for (const f of FOCUS) {
+  const page = await mockBackend.tree({ root: "library", query: f.query, expanded: f.expanded, offset: 0, limit: 0, focus: f.focus });
+  focus.push({ ...f, focusIndex: page.focusIndex ?? null });
+}
+
 const library = await mockBackend.library();
 const sources = await mockBackend.sources();
 
@@ -79,6 +91,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, library, sources, ancestors, nodePaths, pins, after };
+const out = { samples, trees, plans, focus, library, sources, ancestors, nodePaths, pins, after };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

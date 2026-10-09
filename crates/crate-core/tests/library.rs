@@ -70,6 +70,7 @@ fn req(expanded: &[String]) -> TreeRequest {
         expanded: expanded.to_vec(),
         offset: 0,
         limit: 100_000,
+        ..Default::default()
     }
 }
 
@@ -267,7 +268,9 @@ fn page(lib: &SqliteLibrary, root: TreeRoot, expanded: &[String]) -> String {
         expanded: expanded.to_vec(),
         ..req(&[])
     };
-    serde_json::to_string(&lib.tree(&r)).unwrap()
+    let mut page = lib.tree(&r);
+    page.micros = 0; // temps mesuré, varie d'un appel à l'autre
+    serde_json::to_string(&page).unwrap()
 }
 
 #[test]
@@ -295,6 +298,7 @@ fn tout_est_persistant() {
         lib.set_pinned(&format!("v:{}", pack.id), true);
         lib.set_pinned(&format!("c:{}", c.id), true);
         lib.set_pinned("c:fav", false);
+        lib.set_synonyms(&[vec!["Kick".into(), "boum".into()], vec!["seul".into()]]);
         let kick_folder = lib.catalog().samples().iter().find(|s| s.name == "Kick 2").unwrap().folder_id;
         lib.set_pinned(&format!("f:{kick_folder}"), true);
         let expanded = vec![
@@ -316,6 +320,16 @@ fn tout_est_persistant() {
     assert_eq!(serde_json::to_string(&lib.library()).unwrap(), before.0);
     assert_eq!(page(&lib, TreeRoot::Library, &before.3), before.1);
     assert_eq!(page(&lib, TreeRoot::Virtual, &before.3), before.2);
+    assert_eq!(lib.synonyms(), [["kick", "boum"]], "synonymes normalisés et gardés");
+    assert_eq!(
+        lib.tree(&TreeRequest {
+            query: "boum".into(),
+            ..req(&[])
+        })
+        .matches,
+        2,
+        "« boum » trouve les kicks"
+    );
     let lib_json = lib.library();
     assert!(!lib_json.favorites_pinned);
     assert_eq!(lib_json.pinned_folders.len(), 1);

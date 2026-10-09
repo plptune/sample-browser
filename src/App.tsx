@@ -36,6 +36,12 @@ export function App() {
       app.openSaveSearch();
       return;
     }
+    // ⌥⌘D : overlay de mesures (e.code : ⌥ change le caractère tapé sur Mac).
+    if (mod && e.altKey && e.code === "KeyD") {
+      e.preventDefault();
+      app.setDebug(!app.debug());
+      return;
+    }
     if (mod && key === "d" && !isField(e.target)) {
       e.preventDefault();
       app.toggleFavorite();

@@ -33,7 +33,17 @@ export function SettingsView(props: {
   onAutoPlay?: (v: boolean) => void;
   onRemoveSource?: (id: number) => void;
   onAddSource?: () => void;
+  /** Groupes de synonymes de la recherche (« kick, bd, bassdrum »). */
+  synonyms?: string[][];
+  onSynonyms?: (groups: string[][]) => void;
 }) {
+  // Une ligne par groupe ; la dernière, vide, en ajoute un. Valider (⏎ ou sortie du champ) enregistre tout.
+  const groups = () => [...(props.synonyms ?? []).map((g) => g.join(", ")), ""];
+  const commit = (index: number, value: string) => {
+    const lines = groups();
+    lines[index] = value;
+    props.onSynonyms?.(lines.map((l) => l.split(",").map((w) => w.trim()).filter(Boolean)));
+  };
   return (
     <div class="cr-settings">
       <div class="cr-settings__head">
@@ -86,6 +96,28 @@ export function SettingsView(props: {
             onChange={(v) => props.onDensity?.(v)}
           />
         </Row>
+      </section>
+
+      <section class="cr-settings__section">
+        <h3 class="cr-settings__h">Synonymes</h3>
+        <div class="cr-setting">
+          <span class="cr-setting__hint">Un mot d'une ligne trouve aussi les autres : « kick » trouve « bd ».</span>
+        </div>
+        <For each={groups()}>
+          {(line, i) => (
+            <div class="cr-setting">
+              <input
+                class="cr-field cr-synonyms__field"
+                value={line}
+                placeholder={line ? undefined : "Nouveau groupe : hat, hh, hihat"}
+                spellcheck={false}
+                aria-label={line ? `Synonymes : ${line}` : "Nouveau groupe de synonymes"}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                onChange={(e) => commit(i(), e.currentTarget.value)}
+              />
+            </div>
+          )}
+        </For>
       </section>
 
       <section class="cr-settings__section">

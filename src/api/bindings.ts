@@ -9,7 +9,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	library: () => __TAURI_INVOKE<Library_Serialize>("library"),
 	sources: () => __TAURI_INVOKE<Source[]>("sources"),
-	tree: (req: TreeRequest) => __TAURI_INVOKE<TreePage_Serialize>("tree", { req }),
+	tree: (req: TreeRequest_Deserialize) => __TAURI_INVOKE<TreePage_Serialize>("tree", { req }),
 	setFavorite: (ids: number[], fav: boolean) => __TAURI_INVOKE<void>("set_favorite", { ids, fav }),
 	addTag: (ids: number[], tag: string) => __TAURI_INVOKE<void>("add_tag", { ids, tag }),
 	removeTag: (ids: number[], tag: string) => __TAURI_INVOKE<void>("remove_tag", { ids, tag }),
@@ -27,6 +27,10 @@ export const commands = {
 	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
 	ancestors: (key: string) => __TAURI_INVOKE<string[]>("ancestors", { key }),
 	nodePath: (key: string) => __TAURI_INVOKE<string | null>("node_path", { key }),
+	/**  Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ». */
+	peaks: (id: number) => __TAURI_INVOKE<(number | null)[]>("peaks", { id }),
+	synonyms: () => __TAURI_INVOKE<string[][]>("synonyms"),
+	setSynonyms: (groups: string[][]) => __TAURI_INVOKE<void>("set_synonyms", { groups }),
 	planCommit: (key: string, options: CommitOptions) => __TAURI_INVOKE<CommitPlan>("plan_commit", { key, options }),
 	/**  Copie réelle (simulée en démo). Phase 5 : progression par événement. */
 	commitToFolder: (key: string, destination: string, options: CommitOptions) => typedError<CommitResult, string>(__TAURI_INVOKE("commit_to_folder", { key, destination, options })),
@@ -239,21 +243,48 @@ export type TreePage_Deserialize = {
 	rows: TreeRow_Deserialize[],
 	totalRows: number,
 	matches: number,
+	/**  Position de `TreeRequest.focus` dans l'arbre complet, s'il y est. */
+	focusIndex?: number | null,
+	/**  Temps de calcul côté Rust (overlay de mesures). */
+	micros: number,
 };
 
 export type TreePage_Serialize = {
 	rows: TreeRow_Serialize[],
 	totalRows: number,
 	matches: number,
+	/**  Position de `TreeRequest.focus` dans l'arbre complet, s'il y est. */
+	focusIndex?: number | null,
+	/**  Temps de calcul côté Rust (overlay de mesures). */
+	micros: number,
 };
 
-export type TreeRequest = {
+export type TreeRequest = TreeRequest_Serialize | TreeRequest_Deserialize;
+
+export type TreeRequest_Deserialize = {
 	root: TreeRoot,
 	/**  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts. */
 	query: string,
 	expanded: string[],
 	offset: number,
 	limit: number,
+	/**  Pics de waveform dans les lignes (densité « waveform » seulement). Sinon `peaks` est vide. */
+	peaks?: boolean,
+	/**  Ligne dont on veut la position (`TreePage.focusIndex`) : pour y faire défiler l'arbre. */
+	focus?: string | null,
+};
+
+export type TreeRequest_Serialize = {
+	root: TreeRoot,
+	/**  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts. */
+	query: string,
+	expanded: string[],
+	offset: number,
+	limit: number,
+	/**  Pics de waveform dans les lignes (densité « waveform » seulement). Sinon `peaks` est vide. */
+	peaks?: boolean,
+	/**  Ligne dont on veut la position (`TreePage.focusIndex`) : pour y faire défiler l'arbre. */
+	focus?: string | null,
 };
 
 /**  Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels. */

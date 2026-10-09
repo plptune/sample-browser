@@ -21,43 +21,43 @@ fn rank(c: char) -> u32 {
     1000 + c as u32
 }
 
-/// Compare deux suites de chiffres par valeur (sans limite de taille).
-fn cmp_digits(a: &[char], b: &[char]) -> Ordering {
-    let trim = |s: &[char]| -> Vec<char> {
-        let start = s.iter().position(|&c| c != '0').unwrap_or(s.len());
-        s[start..].to_vec()
-    };
-    let (ta, tb) = (trim(a), trim(b));
-    ta.len().cmp(&tb.len()).then_with(|| ta.cmp(&tb))
+/// Compare deux suites de chiffres ASCII par valeur (sans limite de taille).
+fn cmp_digits(a: &[u8], b: &[u8]) -> Ordering {
+    let trim = |s: &[u8]| -> usize { s.iter().position(|&c| c != b'0').unwrap_or(s.len()) };
+    let (ta, tb) = (&a[trim(a)..], &b[trim(b)..]);
+    ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb))
 }
 
+/// Sans allocation : les chiffres sont des octets ASCII, le reste est décodé caractère par caractère.
 pub fn compare(a: &str, b: &str) -> Ordering {
-    let (ca, cb): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+    let (ba, bb) = (a.as_bytes(), b.as_bytes());
     let (mut i, mut j) = (0, 0);
-    while i < ca.len() && j < cb.len() {
-        if ca[i].is_ascii_digit() && cb[j].is_ascii_digit() {
+    while i < ba.len() && j < bb.len() {
+        if ba[i].is_ascii_digit() && bb[j].is_ascii_digit() {
             let si = i;
-            while i < ca.len() && ca[i].is_ascii_digit() {
+            while i < ba.len() && ba[i].is_ascii_digit() {
                 i += 1;
             }
             let sj = j;
-            while j < cb.len() && cb[j].is_ascii_digit() {
+            while j < bb.len() && bb[j].is_ascii_digit() {
                 j += 1;
             }
-            match cmp_digits(&ca[si..i], &cb[sj..j]) {
+            match cmp_digits(&ba[si..i], &bb[sj..j]) {
                 Ordering::Equal => continue,
                 o => return o,
             }
         }
-        match rank(ca[i]).cmp(&rank(cb[j])) {
+        let ca = a[i..].chars().next().unwrap_or_default();
+        let cb = b[j..].chars().next().unwrap_or_default();
+        match rank(ca).cmp(&rank(cb)) {
             Ordering::Equal => {
-                i += 1;
-                j += 1;
+                i += ca.len_utf8();
+                j += cb.len_utf8();
             }
             o => return o,
         }
     }
-    (ca.len() - i).cmp(&(cb.len() - j)).then_with(|| a.cmp(b))
+    a[i..].chars().count().cmp(&b[j..].chars().count()).then_with(|| a.cmp(b))
 }
 
 #[cfg(test)]
@@ -76,5 +76,13 @@ mod tests {
         assert_eq!(compare("kick", "Kick"), Greater); // égalité de rang → ordre des octets ('K' < 'k')
         assert_eq!(compare("Bass_F_03", "Bass_F#m_01"), Less); // '_' avant '#'
         assert_eq!(compare("Pad_Airy", "Pad_airy_2"), Less);
+    }
+
+    #[test]
+    fn unicode_and_leading_zeros() {
+        assert_eq!(compare("Kick_007", "Kick_7"), Equal.then("Kick_007".cmp("Kick_7")));
+        assert_eq!(compare("Été 2", "Été 10"), Less);
+        assert_eq!(compare("é", "e"), Greater);
+        assert_eq!(compare("Pack", "Pack 2"), Less);
     }
 }

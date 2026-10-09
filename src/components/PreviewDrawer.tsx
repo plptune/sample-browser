@@ -7,6 +7,8 @@ import { Waveform } from "./Waveform";
 
 export function PreviewDrawer(props: {
   sample?: Sample | null;
+  /** Pics du sample (demandés à part : les lignes de l'arbre ne les transportent pas). Défaut : `sample.peaks`. */
+  peaks?: number[];
   playing: boolean;
   progress: number;
   themeKey?: string;
@@ -46,7 +48,7 @@ export function PreviewDrawer(props: {
       </div>
       <div class="cr-drawer__wave cr-wave">
         <Show when={s() && !s()!.missing}>
-          <Waveform peaks={s()!.peaks} progress={props.playing ? props.progress : undefined} themeKey={props.themeKey} />
+          <Waveform peaks={props.peaks ?? s()!.peaks} progress={props.playing ? props.progress : undefined} themeKey={props.themeKey} />
         </Show>
         <Show when={s()?.missing}>
           <div class="cr-drawer__error">Fichier introuvable</div>

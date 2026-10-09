@@ -96,16 +96,53 @@ fn indexation_de_100_000_fichiers() {
             query: q.into(),
             expanded,
             offset: 0,
-            limit: 2000,
+            limit: 200,
+            ..Default::default()
         });
         (t.elapsed(), page.total_rows, page.matches)
     };
     let (d, rows, _) = tree("", vec![format!("f:{big}"), format!("f:{big_folder}")]);
     println!("ouverture d'un dossier de 5 000 samples : {} ({rows} lignes)", ms(d));
-    for q in ["kick", "kick dusty", "#warm", "type:loop", "zzz"] {
+    // Frappe par frappe (« kick » développe aussi « bd » et « bassdrum »).
+    let mut worst = Duration::ZERO;
+    for q in [
+        "k",
+        "ki",
+        "kic",
+        "kick",
+        "kick ",
+        "kick d",
+        "kick du",
+        "kick dusty",
+        "#warm",
+        "type:loop",
+        "zzz",
+        "-kick",
+    ] {
         let (d, rows, m) = tree(q, vec![]);
+        worst = worst.max(d);
         println!("recherche {q:?} : {} ({m} résultats, {rows} lignes)", ms(d));
     }
+    // Page suivante de la même recherche : l'arbre est en cache.
+    let t = Instant::now();
+    lib.tree(&TreeRequest {
+        query: "kick".into(),
+        offset: 4000,
+        limit: 200,
+        ..Default::default()
+    });
+    lib.tree(&TreeRequest {
+        query: "kick".into(),
+        offset: 6000,
+        limit: 200,
+        ..Default::default()
+    });
+    println!("défilement (page suivante, même recherche) : {}", ms(t.elapsed() / 2));
+    println!("pire frappe : {}", ms(worst));
     let _ = fs::remove_dir_all(&base);
     assert!(scan < Duration::from_secs(60), "budget : 100 000 fichiers en moins de 60 s");
+    assert!(
+        worst < Duration::from_millis(10),
+        "budget : arbre + recherche en moins de 10 ms par frappe"
+    );
 }

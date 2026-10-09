@@ -347,6 +347,23 @@ impl Backend for SqliteLibrary {
         self.cat.ancestors(key)
     }
 
+    fn peaks(&self, id: SampleId) -> Vec<f64> {
+        self.cat.peaks(id)
+    }
+
+    fn synonyms(&self) -> Vec<Vec<String>> {
+        self.cat.synonyms()
+    }
+
+    fn set_synonyms(&mut self, groups: &[Vec<String>]) {
+        self.cat.set_synonyms(groups);
+        log(db::set_setting(
+            &self.conn,
+            "synonyms",
+            &crate::synonyms::to_text(&self.cat.synonyms),
+        ));
+    }
+
     fn node_path(&self, key: &str) -> Option<String> {
         if !(key.starts_with("f:") || key.starts_with("p:")) {
             return None;

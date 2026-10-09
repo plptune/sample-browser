@@ -89,13 +89,30 @@ samples 40 ms, recherche 0,3–0,7 s. Fenêtre vérifiée sous écran virtuel : 
 | Le dernier statut de scan est gardé côté Rust (`scan_status`) et lu par l'UI au démarrage. | Le scan lancé à l'ouverture commence avant que la page n'écoute les événements. |
 | Un refus (source déjà couverte, pas un dossier, copie vers un dossier non vide) remonte comme une erreur lisible, affichée en une ligne sous la recherche (ou dans la vue de copie). | Pas de boîte de dialogue ; le message disparaît seul. |
 
+## Phase 3 — Arbre + recherche (9 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Pas de FTS5.** La recherche reste en mémoire : texte pré-calculé en minuscules, requête compilée une fois (`in:` résolu en tableau d'appartenance), appliquée à tous les samples en parallèle (rayon). | Pire frappe mesurée : 6 ms à 100 000 fichiers (budget 10 ms côté Rust). FTS5 ajouterait un second chemin de recherche à garder identique au premier. À revoir au-delà de ~300 000 fichiers. |
+| Tri naturel sans allocation ; samples de chaque dossier triés une fois au chargement. | Le tri allouait deux vecteurs par comparaison : c'était l'essentiel des 300 ms de la phase 2. |
+| Marche de l'arbre en lignes légères (index), **dernier arbre en cache** (même onglet, même recherche, mêmes dossiers ouverts), seule la page demandée est construite ; le cache est vidé à chaque modification. | Défiler ou charger la page suivante ne refait pas la marche. |
+| Contrat : `TreeRequest.peaks` (pics seulement en densité « Waveform »), `focus` → `TreePage.focusIndex`, `TreePage.micros` ; `peaks(id)` pour le tiroir ; `synonyms()` / `setSynonyms()`. | Les pics sortent des lignes (risque noté en phase 1) ; l'UI peut aller à une ligne qu'elle n'a pas chargée. |
+| UI : pages de 200 lignes dans un tableau creux, virtualiseur TanStack ; curseur, ⇧-sélection et sauts par index (pages chargées à la demande) ; les samples sélectionnés sont gardés à part. Les cases de l'arbre sont **réutilisées** d'une recherche à l'autre (seules leurs valeurs changent). | Rendu de 15 ms → 2–4 ms par frappe dans le conteneur (sans GPU). |
+| Synonymes : 7 groupes par défaut (kick/bd/bassdrum, snare/sd, hat/hh/hihat, clap/cp, perc/percussion, vox/vocal, fx/sfx), dans `settings`. S'appliquent aux mots libres, pas aux phrases ; `-kick` exclut tout le groupe. | Simple à expliquer ; une phrase reste exacte. |
+| Overlay ⌥⌘D : arbre (Rust) · échange (IPC + JSON) · rendu (mise à jour synchrone du DOM) · total, et à part l'attente de l'image suivante. | L'attente de l'image (jusqu'à 16,7 ms) dépend de l'écran, pas de l'app : la compter faussait la mesure. |
+| `?overscan=1000` dans l'URL du prototype monte toutes les lignes. | Les tests navigateur écrits avant la virtualisation cherchent des lignes hors de l'écran ; le nouveau test garde le réglage réel. |
+
+Mesures (100 000 fichiers, build release, conteneur Linux 4 cœurs) : ouverture d'un dossier de 5 000 samples 4 ms ;
+« kick » 4–5 ms, « kick dusty » 3–4 ms, `-kick` (88 500 lignes) 4–5 ms, pire frappe 6 ms. Fenêtre Tauri (WebKitGTK,
+rendu logiciel) : frappe 12–13 ms de bout en bout, ouverture du dossier 10 ms, ~27 ms quand ~70 lignes nouvelles
+apparaissent d'un coup.
+
 ### Risques ouverts
 
-- Chaque ligne de sample transporte ses 256 pics : à sortir du contrat (densité « waveform » seulement, ou commande `peaks(ids)`) avant la phase 3 et les 100 000 fichiers.
 - tauri-specta est en RC : surveiller la sortie de la 2.0 stable et lever l'épinglage.
-- Recherche à 100 000 fichiers : 0,3–0,7 s par frappe (budget 16 ms). Pistes phase 3 : résultat mémoïsé par dossier,
-  pas de tri ni de clonage des samples non affichés, puis FTS5 si ça ne suffit pas.
+- Rendu : ~27 ms dans le conteneur sans GPU quand ~70 lignes nouvelles apparaissent ; à mesurer sur Mac (⌥⌘D).
+- Pendant un scan, le catalogue est rechargé (0,25–0,3 s à 100 000 fichiers) au plus une fois par seconde, verrou tenu :
+  une frappe peut attendre d'autant. À rendre incrémental si c'est gênant sur Mac.
 - Le sélecteur de dossier GTK ne liste rien dans le conteneur de test (pas de gvfs) : ⌘O n'est vérifiable que sur Mac.
-- Le rechargement complet du catalogue après un palier de scan coûte de l'ordre de 100 ms à 100 000 fichiers : à rendre incrémental si la phase 3 le mesure comme gênant.
 - Tauri reçoit les fichiers déposés sur la fenêtre (dépôt de dossiers) : sur macOS le glisser-déposer interne (HTML5) continue de marcher, à vérifier sur Mac.
 - La parité porte sur les données factices ; elle disparaît en phase 2 (données réelles), où les tests de `tree()` prendront le relais.

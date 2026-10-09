@@ -282,6 +282,33 @@ pub struct ScanStatus {
     pub finished: bool,
 }
 
+/// État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackStatus {
+    pub id: SampleId,
+    pub position_ms: u32,
+    pub duration_ms: u32,
+    pub playing: bool,
+    pub looping: bool,
+    /// Délai entre la demande et le premier son (une fois par lecture), en ms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub latency_ms: Option<f32>,
+    /// Fichier illisible.
+    pub error: bool,
+}
+
+/// Réglages de lecture.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PlaybackOptions {
+    /// 0..1
+    pub volume: f32,
+    pub looping: bool,
+}
+
 /// Ce que l'UI peut demander au cœur : `Catalog` (données du prototype) ou `SqliteLibrary` (vraie bibliothèque).
 pub trait Backend {
     fn library(&self) -> Library;

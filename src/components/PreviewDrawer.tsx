@@ -14,6 +14,8 @@ export function PreviewDrawer(props: {
   themeKey?: string;
   onTogglePlay?: () => void;
   onToggleFav?: () => void;
+  /** Clic dans la waveform : position 0..1. */
+  onSeek?: (fraction: number) => void;
 }) {
   const s = () => props.sample;
   const time = () => {
@@ -48,7 +50,12 @@ export function PreviewDrawer(props: {
       </div>
       <div class="cr-drawer__wave cr-wave">
         <Show when={s() && !s()!.missing}>
-          <Waveform peaks={props.peaks ?? s()!.peaks} progress={props.playing ? props.progress : undefined} themeKey={props.themeKey} />
+          <Waveform
+            peaks={props.peaks ?? s()!.peaks}
+            progress={props.playing ? props.progress : undefined}
+            themeKey={props.themeKey}
+            onSeek={props.onSeek}
+          />
         </Show>
         <Show when={s()?.missing}>
           <div class="cr-drawer__error">Fichier introuvable</div>

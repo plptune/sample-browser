@@ -110,7 +110,9 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘N | Nouveau dossier virtuel |
 | ⌘O | Ajouter un dossier |
 | ⌥⌘R | Afficher la sélection dans le Finder |
-| ⌥⌘D | Mesures (arbre, échange, rendu) |
+| ⌥⌘D | Mesures (arbre, échange, rendu, son) |
+| ⌘L | Boucle |
+| ⌘⇧Espace | Lire un sample au hasard |
 | ⌘, | Réglages |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
@@ -196,6 +198,20 @@ Tout est dans le dépôt `plptune/sample-browser` :
   dossier 10 ms ; une recherche qui fait apparaître ~70 nouvelles lignes d'un coup monte à ~27 ms (rendu logiciel) —
   à revérifier sur Mac avec ⌥⌘D. FTS5 n'est pas nécessaire (voir `docs/decisions.md`).
 
+### Phase 4 — Preview + drag & drop ✅ terminée (à valider sur Mac)
+
+- Son : moteur Rust (symphonia + cpal), sortie ouverte au lancement, décodage progressif sur son propre thread,
+  conversion à la fréquence et aux canaux de la sortie, volume, boucle, déplacement ; position par événement ~30 Hz.
+  Sans périphérique audio, la lecture avance en silence au rythme réel (conteneur, CI).
+- Waveforms réelles : 256 pics par fichier, en base ; calculés à la demande pour le tiroir et en tâche de fond pour
+  la densité « Waveform ».
+- Clic dans la waveform = lire depuis ce point ; boucle (⌘L) et volume dans les Réglages ; lecture aléatoire ⌘⇧Espace ;
+  arrêt au début d'un glisser et quand Crate passe en arrière-plan (deux réglages, activés par défaut).
+- Glisser natif des samples sélectionnés vers le DAW ou le Finder (plugin drag de CrabNebula) ; dans la fenêtre, les
+  dépôts sur collection / dossier virtuel / Favoris et l'ouverture d'onglet au survol marchent avec ce même glisser.
+- Mesures (conteneur, sans carte son) : premier son prêt en < 30 ms (lecture muette, au tick près). **À valider sur
+  Mac** : latence réelle (⌥⌘D affiche « son … ms ») et dépôt dans Ableton Live 12 et Logic.
+
 ### Phases 2 à 6 — Le moteur
 
 Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
@@ -206,7 +222,7 @@ Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
    - Sortie : 100 000 fichiers indexés en < 60 s, UI fluide pendant le scan, arbre réel affiché.
 3. ✅ **Arbre + recherche** — `tree()` en Rust (dossiers puis samples, ouverture, élagage en recherche), parser du langage, FTS5 + filtres, TanStack Virtual sur les lignes. **Synonymes** : une petite table éditable dans les Réglages (`kick` ↔ `bd`, `hat` ↔ `hh`…) développée par le parser.
    - Sortie : < 16 ms par frappe et par ouverture de dossier sur 100 000 fichiers.
-4. **Preview + drag & drop** — lecture côté Rust (cpal + symphonia), commandes play / stop / seek et événement de position (~30 Hz) qui remplacent la fausse lecture, pics de waveform, drag vers Ableton / Logic / Finder. Avec : **clic dans la waveform** du tiroir = lire depuis ce point ; **boucle** et **volume** (Réglages, plus ⌘L pour la boucle) ; **lecture aléatoire** ⌘⇧Espace (un sample au hasard parmi les lignes visibles) ; **arrêter la lecture** au début d'un glisser et quand l'app perd le focus (deux réglages, activés par défaut).
+4. ✅ **Preview + drag & drop** — lecture côté Rust (cpal + symphonia), commandes play / stop / seek et événement de position (~30 Hz) qui remplacent la fausse lecture, pics de waveform, drag vers Ableton / Logic / Finder. Avec : **clic dans la waveform** du tiroir = lire depuis ce point ; **boucle** et **volume** (Réglages, plus ⌘L pour la boucle) ; **lecture aléatoire** ⌘⇧Espace (un sample au hasard parmi les lignes visibles) ; **arrêter la lecture** au début d'un glisser et quand l'app perd le focus (deux réglages, activés par défaut).
    - Sortie : son en < 30 ms ; drop fonctionnel dans Ableton Live 12 et Logic.
 5. **Tags, collections, favoris** — toutes les mutations du contrat en base (tags, favoris, collections manuelles et smart, renommage, suppression, ajout, raccourcis), révéler dans le Finder. **Masquer des fichiers** : « Masquer » dans le menu d'un sample ou d'un dossier, `is:hidden` pour les retrouver, « Afficher » pour annuler (jamais de suppression).
    - Sortie : tout est faisable sans souris ; rien n'est écrit dans les dossiers de l'utilisateur.
@@ -327,3 +343,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.7 | Collections (à plat) **et** dossiers virtuels (arborescence) ; onglets Bibliothèque / Virtuels ; épinglage avec repère ; « Créer un vrai dossier » (copie) |
 | v0.8 | Idées reprises de Sononym, en version simple : raccourcis vers des sous-dossiers, historique ⌥← / ⌥→ ; planifiés : masquer, lecture aléatoire, boucle + volume, lecture depuis un point, arrêt au drag / perte de focus, synonymes, actualiser une source ; en attente : taper pour sauter |
 | v0.9 | Phase 3 : arbre virtualisé par pages, synonymes dans les Réglages, overlay de mesures ⌥⌘D |
+| v1.0 | Phase 4 : son réel, waveforms réelles, glisser natif vers le DAW, boucle / volume / aléatoire |

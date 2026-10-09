@@ -8,6 +8,8 @@ export function Waveform(props: {
   variant?: "full" | "mini";
   themeKey?: string; // force un redessin au changement de thème
   class?: string;
+  /** Clic : position 0..1 dans le sample (tiroir : lire à partir de ce point). */
+  onSeek?: (fraction: number) => void;
 }) {
   let canvas!: HTMLCanvasElement;
   const [w, h] = [{ v: 0 }, { v: 0 }];
@@ -69,5 +71,16 @@ export function Waveform(props: {
     requestAnimationFrame(draw);
   });
 
-  return <canvas ref={canvas} class={props.class} />;
+  return (
+    <canvas
+      ref={canvas}
+      class={props.class}
+      data-seekable={props.onSeek ? "" : undefined}
+      onMouseDown={(e) => {
+        if (!props.onSeek || e.button !== 0) return;
+        const r = canvas.getBoundingClientRect();
+        props.onSeek((e.clientX - r.left) / Math.max(1, r.width));
+      }}
+    />
+  );
 }

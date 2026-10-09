@@ -107,9 +107,31 @@ Mesures (100 000 fichiers, build release, conteneur Linux 4 cœurs) : ouverture 
 rendu logiciel) : frappe 12–13 ms de bout en bout, ouverture du dossier 10 ms, ~27 ms quand ~70 lignes nouvelles
 apparaissent d'un coup.
 
+## Phase 4 — Preview + drag & drop (9 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Moteur audio dans crate-core (`audio.rs`) : sortie cpal **ouverte au lancement** et gardée ; un sample à la fois, décodé **progressivement** sur son propre thread et converti (interpolation linéaire, mono → deux côtés) à la fréquence et aux canaux de la sortie ; rendu sous verrou bref (volume, boucle, déplacement). | Le premier son ne paie ni l'ouverture du périphérique ni le décodage complet du fichier. Interpolation linéaire suffisante pour une préécoute. |
+| Sans périphérique audio, la lecture avance en silence au rythme réel. | Le conteneur et la CI n'ont pas de carte son ; l'UI et les tests gardent le même comportement. |
+| Statut de lecture par événement (~30 Hz) : position, durée, boucle, latence (une fois par lecture), erreur. Mode démo (`CRATE_DEMO=1`) : silence de la durée du sample ; navigateur : lecteur factice au même contrat. | La progression vient du moteur, plus de minuterie côté UI. |
+| Pics : 256 octets par fichier dans `files.peaks`, **normalisés** sur le maximum du fichier ; jamais dans le catalogue en mémoire. Tiroir : `peaks(id)` les calcule tout de suite s'ils manquent ; densité « Waveform » : lus en base pour la seule page ; l'indexeur calcule les autres par lots de 64, en parallèle, quand il n'a rien d'autre à faire. Un fichier illisible reçoit des pics vides (pas de nouvel essai avant qu'il change). | 25 Mo pour 100 000 fichiers en base, rien en mémoire ; un sample discret reste lisible. |
+| Glisser natif avec **tauri-plugin-drag** (CrabNebula), icône « nombre de fichiers » dessinée à la volée ; seulement dans la fenêtre sur de vrais fichiers (le navigateur et la démo gardent le glisser HTML). | Seul moyen fiable de déposer des fichiers dans Ableton, Logic ou le Finder depuis une webview. |
+| Dans la fenêtre, le même glisser natif sert aux dépôts internes : la cible est retrouvée sous le pointeur à partir des événements de dépôt de Tauri ; le dernier glisser est gardé 1,5 s, car la fin du glisser arrive avant l'événement de dépôt, qui peut en plus être livré deux fois. | Un seul geste pour le DAW et pour les collections ; aucun dépôt pris pour un dossier venu du Finder. |
+| Boucle, volume et arrêts automatiques réglés en mémoire (pas encore persistés, comme le thème). | La persistance des réglages d'UI viendra avec la phase 5. |
+| Nouvelles dépendances : cpal (citée dans le plan), tauri-plugin-drag + @crabnebula/tauri-plugin-drag (« plugin drag de CrabNebula » du plan). CI Linux : `libasound2-dev`. | — |
+
+Vérifié dans le conteneur : décodage, rééchantillonnage, boucle, déplacement, arrêt, fichier illisible (tests),
+latence de démarrage < 30 ms en lecture muette (au pas de 33 ms près), waveforms calculées et affichées, clic dans la
+waveform, glisser natif sur « Favoris » dans la fenêtre (GTK, Xvfb). **Pas vérifiable ici** : le son réel, la latence
+réelle et le dépôt dans Ableton / Logic (sur Mac, avec ⌥⌘D qui affiche « son … ms »).
+
 ### Risques ouverts
 
 - tauri-specta est en RC : surveiller la sortie de la 2.0 stable et lever l'épinglage.
+- Phase 4 à valider sur Mac : latence du son (< 30 ms), dépôt dans Ableton Live 12 et Logic, glisser HTML des
+  dossiers virtuels toujours actif à côté du glisser natif.
+- En développement, recharger la page (F5) laisse d'anciens écouteurs d'événements Tauri actifs (dépôts reçus en
+  double ou triple) ; sans effet dans l'app livrée, qui ne recharge pas sa page.
 - Rendu : ~27 ms dans le conteneur sans GPU quand ~70 lignes nouvelles apparaissent ; à mesurer sur Mac (⌥⌘D).
 - Pendant un scan, le catalogue est rechargé (0,25–0,3 s à 100 000 fichiers) au plus une fois par seconde, verrou tenu :
   une frappe peut attendre d'autant. À rendre incrémental si c'est gênant sur Mac.

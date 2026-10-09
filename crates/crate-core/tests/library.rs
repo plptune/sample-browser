@@ -496,3 +496,60 @@ fn indexeur_en_tache_de_fond_et_surveillance() {
     assert_eq!(lib.library().total, 5, "la base est lue tout de suite");
     wait_for(&mut lib, "rescan au lancement", |l| l.library().total == 6);
 }
+
+#[test]
+fn pics_a_la_demande_et_en_tache_de_fond() {
+    let tmp = Tmp::new("peaks");
+    let root = tmp.join("Samples");
+    pack(&root);
+    // L'app : l'indexeur calcule les pics une fois le scan fini.
+    let mut lib = SqliteLibrary::open(&tmp.join("crate.db"), Arc::new(|_| {})).unwrap();
+    lib.add_source(&root.to_string_lossy()).unwrap();
+    wait_for(&mut lib, "scan", |l| l.library().total == 4);
+    wait_for(&mut lib, "pics en tâche de fond", |l| {
+        l.connection()
+            .query_row("SELECT COUNT(*) FROM files WHERE peaks IS NULL", [], |r| r.get::<_, i64>(0))
+            .unwrap()
+            == 0
+    });
+    // Densité « waveform » : les lignes de la page portent leurs pics ; sinon, non.
+    let kicks = lib.catalog().samples().iter().find(|s| s.name == "Kick 2").unwrap().folder_id;
+    let drums = lib.catalog().ancestors(&format!("f:{kicks}"));
+    let mut expanded = drums.clone();
+    expanded.push(format!("f:{kicks}"));
+    let with = lib.tree(&TreeRequest {
+        peaks: true,
+        ..req(&expanded)
+    });
+    let without = lib.tree(&req(&expanded));
+    let sample_peaks = |p: &crate_core::TreePage| -> Vec<usize> {
+        p.rows
+            .iter()
+            .filter_map(|r| match r {
+                TreeRow::Sample(s) => Some(s.sample.peaks.len()),
+                _ => None,
+            })
+            .collect()
+    };
+    assert!(sample_peaks(&with).iter().all(|&n| n == 256), "{:?}", sample_peaks(&with));
+    assert!(sample_peaks(&without).iter().all(|&n| n == 0));
+    drop(lib);
+
+    // À la demande (tiroir) : calculés tout de suite s'ils manquent, puis gardés.
+    let lib = library_at(&tmp.join("crate.db"));
+    lib.connection().execute("UPDATE files SET peaks = NULL", []).unwrap();
+    let id = sample_id(&lib, "Kick 10");
+    assert_eq!(lib.peaks(id).len(), 256);
+    let stored: i64 = lib
+        .connection()
+        .query_row("SELECT length(peaks) FROM files WHERE id = ?", [id], |r| r.get(0))
+        .unwrap();
+    assert_eq!(stored, 256);
+    // Silence partout (fichiers de test) : pics à zéro, sans erreur.
+    assert!(lib.peaks(id).iter().all(|&x| x == 0.0));
+    assert!(lib.peaks(999_999).is_empty());
+}
+
+fn library_at(path: &Path) -> SqliteLibrary {
+    SqliteLibrary::open_inline(path).unwrap()
+}

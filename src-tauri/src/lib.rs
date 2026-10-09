@@ -6,9 +6,10 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use crate_core::audio::Player;
 use crate_core::{
-    Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitResult, Library, SampleId, ScanStatus, Source, SqliteLibrary, TreePage,
-    TreeRequest, VirtualFolder,
+    Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitResult, Library, PlaybackOptions, PlaybackStatus, SampleId, ScanStatus,
+    Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -53,6 +54,45 @@ impl DerefMut for LibGuard<'_> {
             Inner::Real(l) => l,
         }
     }
+}
+
+/// Position de lecture (~30 par seconde pendant la lecture, puis un dernier statut à l'arrêt).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct PlaybackEvent(PlaybackStatus);
+
+/// Lit un sample à partir de `start_ms`. En démo, un silence de la durée du sample (fichiers factices).
+#[tauri::command]
+#[specta::specta]
+fn play(lib: State<'_, Lib>, player: State<'_, Player>, id: SampleId, start_ms: u32) {
+    let file = match &*lib.0.lock().unwrap_or_else(|e| e.into_inner()) {
+        Inner::Real(l) => l.sample_file(id).map(|(p, d)| (Some(p), d)),
+        Inner::Demo(c) => c.samples().iter().find(|s| s.id == id).map(|s| (None, s.duration_ms)),
+    };
+    trace(|| format!("play {id} @ {start_ms} ms"));
+    match file {
+        Some((Some(path), dur)) => player.play(id, path, start_ms, dur),
+        Some((None, dur)) => player.play_virtual(id, start_ms, dur),
+        None => {}
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+fn stop(player: State<'_, Player>) {
+    player.stop()
+}
+
+#[tauri::command]
+#[specta::specta]
+fn seek(player: State<'_, Player>, ms: u32) {
+    player.seek(ms)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn set_playback(player: State<'_, Player>, options: PlaybackOptions) {
+    player.set_volume(options.volume);
+    player.set_loop(options.looping);
 }
 
 /// Dernier statut d'indexation (None hors scan) : l'UI le lit au démarrage, les scans lancés avant qu'elle
@@ -318,7 +358,7 @@ fn demo_set_missing(lib: State<'_, Lib>, ids: Vec<SampleId>) {
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![ScanEvent])
+        .events(tauri_specta::collect_events![ScanEvent, PlaybackEvent])
         .commands(tauri_specta::collect_commands![
             library,
             sources,
@@ -351,6 +391,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             pick_folder,
             is_demo,
             scan_status,
+            play,
+            stop,
+            seek,
+            set_playback,
             reveal_in_finder,
             demo_set_missing,
         ])
@@ -361,6 +405,7 @@ pub fn run() {
     let builder = specta_builder();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_drag::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -387,6 +432,13 @@ pub fn run() {
                 app.manage(CurrentScan::default());
             }
             app.manage(Lib(Mutex::new(inner)));
+            // Sortie audio ouverte dès le lancement : le premier son part sans attendre le périphérique.
+            let handle = app.handle().clone();
+            let player = Player::start(Arc::new(move |s: PlaybackStatus| {
+                let _ = PlaybackEvent(s).emit(&handle);
+            }));
+            trace(|| format!("sortie audio : {}", if player.silent { "aucune (lecture muette)" } else { "ok" }));
+            app.manage(player);
             Ok(())
         })
         .run(tauri::generate_context!())

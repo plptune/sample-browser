@@ -3,8 +3,8 @@
 Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton) :
 une arborescence de dossiers qui s'ouvre sur les samples, un second onglet pour les favoris, collections et dossiers
 virtuels (qu'on peut transformer en vrai dossier), et en bas le sample courant avec sa waveform.
-La fenêtre indexe maintenant de **vrais dossiers** (SQLite, scan incrémental, surveillance des changements) ;
-pas encore de son (phase 4) ni de waveform réelle. Le prototype en ligne et Storybook restent sur des données factices.
+La fenêtre indexe de **vrais dossiers** (SQLite, scan incrémental, surveillance des changements), les **joue**
+(son réel, waveform réelle, clic dans la waveform pour lire depuis un point) et les **glisse vers le DAW** ou le Finder. Le prototype en ligne et Storybook restent sur des données factices.
 
 **Plan et prompts à jour :** [`docs/plan.md`](docs/plan.md) · **Validation phase 0 :** [`docs/phase0-checklist.md`](docs/phase0-checklist.md)
 
@@ -40,7 +40,9 @@ pnpm build        # typecheck + build
 | ⌘N | Nouveau dossier virtuel |
 | ⌘O | Ajouter un dossier (fenêtre) |
 | ⌥⌘R | Afficher le sample (ou ouvrir le dossier) dans le Finder ; aussi au clic droit |
-| ⌥⌘D | Mesures en direct : calcul de l'arbre, échange, rendu (budget 16 ms par frappe) |
+| ⌥⌘D | Mesures en direct : calcul de l'arbre, échange, rendu (budget 16 ms par frappe), latence du son |
+| ⌘L | Boucle |
+| ⌘⇧Espace | Lire un sample au hasard parmi les lignes de l'arbre |
 | ⌘, | Réglages (Échap pour revenir) |
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
@@ -76,6 +78,9 @@ Premier lancement : glissez un dossier sur la fenêtre (ou ⌘O, ou Réglages �
 « Créer un vrai dossier », qui copie dans un nouveau dossier. Les sources sont surveillées : un fichier ajouté,
 modifié ou supprimé apparaît tout seul ; « Actualiser » (clic droit sur une source) force un rescan.
 Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une collection ou un dossier virtuel.
+Lecture : Espace, ⏎ ou → ; clic dans la waveform du tiroir pour lire depuis ce point ; boucle, volume et arrêt
+automatique (au glisser, en arrière-plan) dans les Réglages. Glisser un sample (ou la sélection) hors de la fenêtre :
+le fichier part vers Ableton, Logic ou le Finder.
 Recherche : un mot d'un groupe de synonymes trouve aussi les autres (`kick` trouve `bd`) ; les groupes se modifient
 dans Réglages › Synonymes. Prototype : `?overscan=1000` dans l'URL monte toutes les lignes (utile aux tests).
 Chaque push construit aussi un `Crate.app` sur macOS (workflow « Tauri (macOS) », artefact `Crate-macos`,

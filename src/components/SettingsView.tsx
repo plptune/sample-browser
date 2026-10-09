@@ -26,6 +26,14 @@ export function SettingsView(props: {
   density: Density;
   alwaysOnTop: boolean;
   autoPlay: boolean;
+  looping?: boolean;
+  volume?: number; // 0..1
+  stopOnDrag?: boolean;
+  stopOnBlur?: boolean;
+  onLooping?: (v: boolean) => void;
+  onVolume?: (v: number) => void;
+  onStopOnDrag?: (v: boolean) => void;
+  onStopOnBlur?: (v: boolean) => void;
   onBack?: () => void;
   onTheme?: (t: ThemePref) => void;
   onDensity?: (d: Density) => void;
@@ -127,6 +135,27 @@ export function SettingsView(props: {
         </Row>
         <Row label="Lecture auto" hint="Lit le sample dès qu'il est sélectionné">
           <Toggle label="Lecture auto" checked={props.autoPlay} onChange={(v) => props.onAutoPlay?.(v)} />
+        </Row>
+        <Row label="Boucle" hint="⌘L">
+          <Toggle label="Boucle" checked={!!props.looping} onChange={(v) => props.onLooping?.(v)} />
+        </Row>
+        <Row label="Volume">
+          <input
+            class="cr-range"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={props.volume ?? 1}
+            aria-label="Volume"
+            onInput={(e) => props.onVolume?.(+e.currentTarget.value)}
+          />
+        </Row>
+        <Row label="Arrêter au glisser" hint="Quand un sample part vers le DAW">
+          <Toggle label="Arrêter au glisser" checked={props.stopOnDrag ?? true} onChange={(v) => props.onStopOnDrag?.(v)} />
+        </Row>
+        <Row label="Arrêter en arrière-plan" hint="Quand une autre app passe devant">
+          <Toggle label="Arrêter en arrière-plan" checked={props.stopOnBlur ?? true} onChange={(v) => props.onStopOnBlur?.(v)} />
         </Row>
       </section>
     </div>

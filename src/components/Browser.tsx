@@ -2,7 +2,12 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { For, Show, createEffect, on } from "solid-js";
 import type { FolderRow, SampleRow } from "../api";
+import { inTauri } from "../lib/env";
+import { startNativeDrag } from "../lib/nativeDrag";
 import { app } from "../state/app";
+
+/** Glisser natif : dans la fenêtre, sur de vrais fichiers (pas en démo, où les chemins sont factices). */
+const nativeDrag = () => inTauri && !app.demo();
 import { TreeRow, type TreeRowMarker } from "./TreeRow";
 
 /** Coordonnées d'un clic relatives au panneau (le menu y est positionné en absolu). */
@@ -101,7 +106,11 @@ export function Browser() {
       <div class="cr-tree__space" style={{ height: `${virtualizer.getTotalSize()}px` }}>
         <For each={virtualizer.getVirtualItems()}>
           {(item) => (
-            <div class="cr-tree__row" style={{ transform: `translateY(${item.start}px)` }}>
+            <div
+              class="cr-tree__row"
+              data-key={app.rowAt(item.index)?.key}
+              style={{ transform: `translateY(${item.start}px)` }}
+            >
               <RowSlot index={item.index} />
             </div>
           )}
@@ -205,6 +214,13 @@ function SampleRowView(props: { row: SampleRow }) {
         app.openMenu(p.x, p.y, props.row.key);
       }}
       onDragStart={(e) => {
+        if (nativeDrag()) {
+          // Fenêtre Tauri : glisser natif de fichiers (DAW, Finder) à la place du glisser HTML.
+          e.preventDefault();
+          void startNativeDrag(props.row.key);
+          return;
+        }
+        if (app.stopOnDrag() && app.playingId() !== null) app.stop();
         e.dataTransfer?.setData("text/plain", s().path);
         // Glisser une ligne hors sélection la sélectionne d'abord, comme dans le Finder.
         if (!app.selection().includes(props.row.key)) app.select(props.row.key);

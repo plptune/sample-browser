@@ -25,6 +25,7 @@ export function Tabs<T extends string>(props: {
             role="tab"
             aria-selected={props.value === it.value}
             data-active={props.value === it.value || undefined}
+            data-tab={it.value}
             title={it.shortcut ? `${it.label} (${it.shortcut})` : it.label}
             onClick={() => props.onChange?.(it.value)}
             onDragEnter={() => {

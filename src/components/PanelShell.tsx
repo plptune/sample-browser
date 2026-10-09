@@ -27,6 +27,7 @@ function DebugOverlay() {
             arbre {ms(m().rust)} · échange {ms(m().ipc - m().rust)} · rendu {ms(m().dom)}
             <br />
             total {ms(m().ipc + m().dom)} (+ image {ms(m().frame)}) · {num(m().rows)} lignes
+            <Show when={app.latency() !== null}> · son {ms(app.latency()!)}</Show>
           </span>
         )}
       </Show>
@@ -212,6 +213,14 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onDensity={app.setDensity}
             onAlwaysOnTop={app.setAlwaysOnTop}
             onAutoPlay={app.setAutoPlay}
+            looping={app.looping()}
+            onLooping={app.setLooping}
+            volume={app.volume()}
+            onVolume={app.setVolume}
+            stopOnDrag={app.stopOnDrag()}
+            onStopOnDrag={app.setStopOnDrag}
+            stopOnBlur={app.stopOnBlur()}
+            onStopOnBlur={app.setStopOnBlur}
             onRemoveSource={app.removeSource}
             onAddSource={() => app.addFolder()}
             synonyms={app.synonyms()}
@@ -270,6 +279,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             themeKey={app.theme()}
             onTogglePlay={() => app.togglePlay()}
             onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
+            onSeek={app.seekTo}
           />
           <Show when={app.tagging()}>
             <TagPopover

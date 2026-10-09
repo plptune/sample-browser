@@ -9,7 +9,8 @@ import {
   type FolderNode,
 } from "../mock/generate";
 import type {
-  Backend, Collection, CommitOptions, CommitPlan, FolderRow, Library, NodeKey, NodeKind, Sample, TreePage, TreeRequest, TreeRow,
+  Backend, Collection, CommitOptions, CommitPlan, FolderRow, Library, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
+  TreeRow,
   VirtualFolder,
 } from "./types";
 
@@ -203,6 +204,35 @@ function commitFolders(key: NodeKey, options: CommitOptions): string[][] {
 const byId = new Map(SAMPLES.map((s) => [s.id, s]));
 const basename = (p: string) => p.replace(/\/+$/, "").split("/").pop() ?? p;
 const nextId = (xs: { id: number }[]) => Math.max(0, ...xs.map((x) => x.id)) + 1;
+
+// ---------- Lecture factice (navigateur) : même déroulé que le lecteur Rust, sans son ----------
+
+const listeners = new Set<(s: PlaybackStatus) => void>();
+const playback = { volume: 1, looping: false };
+let voice: { id: number; durationMs: number; t0: number; startMs: number; timer: number } | null = null;
+
+function emit(s: PlaybackStatus) {
+  for (const l of listeners) l(s);
+}
+
+function tick() {
+  if (!voice) return;
+  const v = voice;
+  let pos = v.startMs + (performance.now() - v.t0);
+  if (pos >= v.durationMs && playback.looping && v.durationMs > 0) {
+    v.startMs = 0;
+    v.t0 = performance.now();
+    pos = 0;
+  }
+  const playing = pos < v.durationMs;
+  emit({ id: v.id, positionMs: Math.min(pos, v.durationMs), durationMs: v.durationMs, playing, looping: playback.looping, error: false });
+  if (!playing) stopVoice();
+}
+
+function stopVoice() {
+  if (voice) clearInterval(voice.timer);
+  voice = null;
+}
 
 export const mockBackend: Backend = {
   async library(): Promise<Library> {
@@ -498,6 +528,45 @@ export const mockBackend: Backend = {
 
   onScanStatus() {
     return () => {};
+  },
+
+  async play(id, startMs) {
+    const s = byId.get(id);
+    if (voice) {
+      const old = voice;
+      stopVoice();
+      emit({ id: old.id, positionMs: 0, durationMs: old.durationMs, playing: false, looping: playback.looping, error: false });
+    }
+    if (!s) return;
+    if (s.missing) {
+      emit({ id, positionMs: 0, durationMs: s.durationMs, playing: false, looping: playback.looping, error: true });
+      return;
+    }
+    voice = { id, durationMs: s.durationMs, t0: performance.now(), startMs, timer: 0 };
+    voice.timer = window.setInterval(tick, 33);
+    emit({ id, positionMs: startMs, durationMs: s.durationMs, playing: true, looping: playback.looping, latencyMs: 0, error: false });
+  },
+
+  async stop() {
+    if (!voice) return;
+    const v = voice;
+    stopVoice();
+    emit({ id: v.id, positionMs: 0, durationMs: v.durationMs, playing: false, looping: playback.looping, error: false });
+  },
+
+  async seek(ms) {
+    if (!voice) return;
+    voice.startMs = ms;
+    voice.t0 = performance.now();
+  },
+
+  async setPlayback(options) {
+    Object.assign(playback, options);
+  },
+
+  onPlayback(cb) {
+    listeners.add(cb);
+    return () => listeners.delete(cb);
   },
 
   async removeSource(id) {

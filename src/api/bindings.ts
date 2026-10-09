@@ -50,6 +50,11 @@ export const commands = {
 	total: number,
 	finished: boolean,
 } | null>("scan_status"),
+	/**  Lit un sample à partir de `start_ms`. En démo, un silence de la durée du sample (fichiers factices). */
+	play: (id: number, startMs: number) => __TAURI_INVOKE<void>("play", { id, startMs }),
+	stop: () => __TAURI_INVOKE<void>("stop"),
+	seek: (ms: number) => __TAURI_INVOKE<void>("seek", { ms }),
+	setPlayback: (options: PlaybackOptions) => __TAURI_INVOKE<void>("set_playback", { options }),
 	/**  Dossier : l'ouvre dans le Finder. Fichier : ouvre son dossier et le sélectionne. */
 	revealInFinder: (path: string) => __TAURI_INVOKE<void>("reveal_in_finder", { path }),
 	/**  Démo uniquement (scénario « Erreurs ») : marque des fichiers comme introuvables. */
@@ -58,6 +63,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	playbackEvent: makeEvent<PlaybackEvent_Deserialize>("playback-event"),
 	scanEvent: makeEvent<ScanEvent>("scan-event"),
 };
 
@@ -172,6 +178,51 @@ export type NodeKind = "folder" | "shortcut" | "favorites" | "group" | "collecti
 
 /**  Discriminant littéral `"node"` d'une ligne de dossier. */
 export type NodeTag = "node";
+
+/**  Position de lecture (~30 par seconde pendant la lecture, puis un dernier statut à l'arrêt). */
+export type PlaybackEvent = PlaybackEvent_Serialize | PlaybackEvent_Deserialize;
+
+/**  Position de lecture (~30 par seconde pendant la lecture, puis un dernier statut à l'arrêt). */
+export type PlaybackEvent_Deserialize = PlaybackStatus_Deserialize;
+
+/**  Position de lecture (~30 par seconde pendant la lecture, puis un dernier statut à l'arrêt). */
+export type PlaybackEvent_Serialize = PlaybackStatus_Serialize;
+
+/**  Réglages de lecture. */
+export type PlaybackOptions = {
+	/**  0..1 */
+	volume: number | null,
+	looping: boolean,
+};
+
+/**  État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt). */
+export type PlaybackStatus = PlaybackStatus_Serialize | PlaybackStatus_Deserialize;
+
+/**  État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt). */
+export type PlaybackStatus_Deserialize = {
+	id: number,
+	positionMs: number,
+	durationMs: number,
+	playing: boolean,
+	looping: boolean,
+	/**  Délai entre la demande et le premier son (une fois par lecture), en ms. */
+	latencyMs?: number | null,
+	/**  Fichier illisible. */
+	error: boolean,
+};
+
+/**  État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt). */
+export type PlaybackStatus_Serialize = {
+	id: number,
+	positionMs: number,
+	durationMs: number,
+	playing: boolean,
+	looping: boolean,
+	/**  Délai entre la demande et le premier son (une fois par lecture), en ms. */
+	latencyMs?: number | null,
+	/**  Fichier illisible. */
+	error: boolean,
+};
 
 export type Sample = {
 	id: number,

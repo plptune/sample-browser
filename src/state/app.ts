@@ -410,39 +410,86 @@ function createAppState() {
     else togglePlay();
   }
 
-  // --- lecture factice (aucun son)
-  let raf = 0;
-  function play(id: SampleId) {
-    cancelAnimationFrame(raf);
+  // --- lecture : moteur Rust dans la fenêtre, lecteur factice (même déroulé, sans son) dans le navigateur
+  const [looping, setLoopingSignal] = createSignal(false);
+  const [volume, setVolumeSignal] = createSignal(1);
+  const [stopOnDrag, setStopOnDrag] = createSignal(true); // arrêter au début d'un glisser
+  const [stopOnBlur, setStopOnBlur] = createSignal(true); // arrêter quand Crate passe en arrière-plan
+  const [latency, setLatency] = createSignal<number | null>(null); // délai demande → premier son (⌥⌘D)
+
+  api.onPlayback((s) => {
+    batch(() => {
+      if (s.latencyMs != null) setLatency(s.latencyMs);
+      if (s.playing) {
+        setPlayingId(s.id);
+        setProgress(s.durationMs ? s.positionMs / s.durationMs : 0);
+      } else if (playingId() === s.id) {
+        // L'arrêt d'un sample remplacé par un autre arrive après coup : on l'ignore.
+        setPlayingId(null);
+        setProgress(0);
+      }
+    });
+    if (s.error) setNotice("Ce fichier ne peut pas être lu.");
+  });
+
+  function play(id: SampleId, startMs = 0) {
     const s = sampleById(id);
     if (!s || s.missing) return stop();
-    const dur = Math.max(s.durationMs, 600);
-    const t0 = performance.now();
     batch(() => {
       setPlayingId(id);
-      setProgress(0);
+      setProgress(s.durationMs ? startMs / s.durationMs : 0);
     });
-    const tick = (now: number) => {
-      const p = (now - t0) / dur;
-      if (p >= 1) return stop();
-      setProgress(p);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
+    void api.play(id, Math.round(startMs));
   }
 
   function stop() {
-    cancelAnimationFrame(raf);
     batch(() => {
       setPlayingId(null);
       setProgress(0);
     });
+    void api.stop();
   }
 
   function togglePlay() {
     const s = current();
     if (!s) return;
     playingId() === s.id ? stop() : play(s.id);
+  }
+
+  /** Clic dans la waveform du tiroir : lit (ou continue) à partir de ce point. */
+  function seekTo(fraction: number) {
+    const s = current();
+    if (!s || s.missing) return;
+    const ms = Math.max(0, Math.min(1, fraction)) * s.durationMs;
+    if (playingId() === s.id) {
+      setProgress(fraction);
+      void api.seek(Math.round(ms));
+    } else play(s.id, ms);
+  }
+
+  function setLooping(v: boolean) {
+    setLoopingSignal(v);
+    void api.setPlayback({ volume: volume(), looping: v });
+  }
+
+  function setVolume(v: number) {
+    setVolumeSignal(v);
+    void api.setPlayback({ volume: v, looping: looping() });
+  }
+
+  /** ⌘⇧Espace : un sample au hasard parmi les lignes de l'arbre (chargées à la demande). */
+  async function playRandom() {
+    const n = shownTotal();
+    for (let k = 0; k < 40 && n > 0; k++) {
+      const i = Math.floor(Math.random() * n);
+      await ensureRange(i, i + 1);
+      const r = rows()[i];
+      if (r?.type === "sample" && !r.sample.missing) {
+        select(r.key);
+        play(r.sample.id);
+        return;
+      }
+    }
   }
 
   // --- sélection effective : la multi-sélection, sinon la ligne sous le curseur
@@ -901,7 +948,8 @@ function createAppState() {
     setWidth, setDensity, setGrid, setChips, setDraft, setSelection, setCursor, setCurrent, setExpanded,
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
     select, move, right, left, activate, play, stop, togglePlay, selectKey,
-    total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms, metrics, debug, setDebug,
+    total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms,
+    looping, setLooping, volume, setVolume, stopOnDrag, setStopOnDrag, stopOnBlur, setStopOnBlur, latency, seekTo, playRandom, metrics, debug, setDebug,
     jumpTo, back, forward, clearHistory, canBack, canForward,
     demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, showInFinder, openFolderInFinder, finderForSelection, chooseCommitParent,
   };

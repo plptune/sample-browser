@@ -8,6 +8,7 @@ const isField = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA");
 
 import { inTauri } from "./lib/env";
+import { isOwnDrag, nativeDragLeave, nativeDragOver, nativeDrop } from "./lib/nativeDrag";
 
 export function App() {
   const [scenario, setScenario] = createSignal(3);
@@ -67,6 +68,16 @@ export function App() {
     if (mod && e.altKey && e.code === "KeyR" && !isField(e.target)) {
       e.preventDefault();
       app.finderForSelection();
+      return;
+    }
+    if (mod && key === "l" && !isField(e.target)) {
+      e.preventDefault();
+      app.setLooping(!app.looping());
+      return;
+    }
+    if (mod && e.shiftKey && e.key === " " && !isField(e.target)) {
+      e.preventDefault();
+      void app.playRandom();
       return;
     }
     if (mod && key === "o") {
@@ -142,14 +153,28 @@ export function App() {
   }
 
   // Dossiers glissés depuis le Finder sur la fenêtre : chacun devient une source.
+  let lastDrop = { sig: "", at: 0 };
   async function listenFileDrops() {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
     const off = await getCurrentWebview().onDragDropEvent((e) => {
       const p = e.payload;
+      // Nos propres samples, glissés nativement : cible retrouvée sous le pointeur.
+      if (app.draggingKey() || isOwnDrag("paths" in p ? p.paths : undefined)) {
+        if (p.type === "enter" || p.type === "over") {
+          const pos = p.position.toLogical(window.devicePixelRatio || 1);
+          nativeDragOver(pos.x, pos.y);
+        } else if (p.type === "drop") nativeDrop();
+        else nativeDragLeave();
+        return;
+      }
       if (p.type === "enter") app.setFileOver(p.paths.length > 0);
       else if (p.type === "leave") app.setFileOver(false);
       else if (p.type === "drop") {
         app.setFileOver(false);
+        // Même dépôt livré deux fois : une seule fois.
+        const sig = p.paths.join("\n");
+        if (sig === lastDrop.sig && performance.now() - lastDrop.at < 500) return;
+        lastDrop = { sig, at: performance.now() };
         if (!app.demo()) for (const path of p.paths) void app.addFolder(path);
       }
     });
@@ -169,6 +194,10 @@ export function App() {
   onMount(() => {
     window.addEventListener("keydown", onKey);
     window.addEventListener("mouseup", onMouseNav);
+    // Une autre app passe devant (le DAW) : on coupe, si le réglage le demande.
+    const onBlur = () => app.stopOnBlur() && app.playingId() !== null && app.stop();
+    window.addEventListener("blur", onBlur);
+    onCleanup(() => window.removeEventListener("blur", onBlur));
     onCleanup(() => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("mouseup", onMouseNav);

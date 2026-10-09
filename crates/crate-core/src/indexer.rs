@@ -42,6 +42,26 @@ pub struct Indexer {
     thread: Option<JoinHandle<()>>,
 }
 
+/// Calcule les pics d'un lot de fichiers qui n'en ont pas (en parallèle). Renvoie le nombre traité.
+/// Un fichier illisible reçoit des pics vides (pas de nouvel essai avant qu'il change).
+pub fn peaks_batch(conn: &rusqlite::Connection) -> rusqlite::Result<usize> {
+    use rayon::prelude::*;
+    let todo: Vec<(u32, String)> = conn
+        .prepare("SELECT id, path FROM files WHERE peaks IS NULL AND missing = 0 LIMIT 64")?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let done: Vec<(u32, Vec<u8>)> = todo
+        .par_iter()
+        .map(|(id, path)| (*id, crate::audio::compute_peaks(std::path::Path::new(path)).unwrap_or_default()))
+        .collect();
+    let tx = conn.unchecked_transaction()?;
+    for (id, p) in &done {
+        tx.execute("UPDATE files SET peaks = ?1 WHERE id = ?2", rusqlite::params![p, id])?;
+    }
+    tx.commit()?;
+    Ok(done.len())
+}
+
 impl Indexer {
     pub fn start(db_path: PathBuf, sink: StatusSink, changes: Arc<Changes>) -> Self {
         let (tx, rx) = channel::<Msg>();
@@ -67,12 +87,17 @@ impl Indexer {
                 let mut roots: HashMap<u32, PathBuf> = HashMap::new();
                 let mut due: HashMap<u32, Instant> = HashMap::new();
                 let mut queue: VecDeque<u32> = VecDeque::new();
+                // Pics de waveform encore à calculer : par lots, entre deux messages, quand rien d'autre n'attend.
+                let mut peaks_pending = true;
                 loop {
-                    let wait = due
-                        .values()
-                        .min()
-                        .map(|t| t.saturating_duration_since(Instant::now()))
-                        .unwrap_or(Duration::from_secs(3600));
+                    let wait = if peaks_pending {
+                        Duration::ZERO
+                    } else {
+                        due.values()
+                            .min()
+                            .map(|t| t.saturating_duration_since(Instant::now()))
+                            .unwrap_or(Duration::from_secs(3600))
+                    };
                     match rx.recv_timeout(wait) {
                         Ok(Msg::Scan(id)) => {
                             due.remove(&id);
@@ -123,6 +148,16 @@ impl Indexer {
                             Err(e) => eprintln!("[crate] scan {id} : {e}"),
                         }
                         changes.urgent.store(true, Ordering::Release);
+                        peaks_pending = true;
+                    }
+                    if peaks_pending && due.is_empty() {
+                        peaks_pending = match peaks_batch(&conn) {
+                            Ok(n) => n > 0,
+                            Err(e) => {
+                                eprintln!("[crate] pics : {e}");
+                                false
+                            }
+                        };
                     }
                 }
             })

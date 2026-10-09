@@ -62,6 +62,9 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
       tombent dans les 72 px réservés à gauche de « Crate ».
 - [ ] La fenêtre se déplace en tirant la barre titre.
 - [ ] Avec `CRATE_DEMO=1`, le panneau est identique au navigateur, sans la barre de démo (touches de scénario actives).
+- [ ] Phase 4 (sur Mac) : Espace joue avec le son, ⌥⌘D affiche « son … ms » sous 30 ms ; clic dans la waveform ;
+      ⌘L ; volume ; ⌘⇧Espace ; glisser un sample dans Ableton Live 12 et dans Logic (piste audio créée) ; glisser
+      sur une collection ou « Favoris » dans la fenêtre ; passer au DAW coupe la lecture.
 - [ ] Phase 3 : ⌥⌘D affiche les mesures ; sur une grosse bibliothèque, taper « kick » reste sous 16 ms au total ; défiler
       jusqu'en bas d'un dossier de 5 000 samples ne montre pas de ligne vide plus d'un instant ; Réglages › Synonymes.
 - [ ] Sans `CRATE_DEMO` (phase 2) : premier lancement vide ; un dossier glissé sur la fenêtre (ou ⌘O) apparaît tout de

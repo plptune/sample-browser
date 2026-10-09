@@ -103,6 +103,11 @@ impl SqliteLibrary {
         &self.cat
     }
 
+    /// Fichier d'un sample, pour la lecture (`None` s'il est introuvable).
+    pub fn sample_file(&self, id: SampleId) -> Option<(PathBuf, u32)> {
+        self.cat.sample_file(id)
+    }
+
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
@@ -192,7 +197,25 @@ impl Backend for SqliteLibrary {
     }
 
     fn tree(&self, req: &TreeRequest) -> TreePage {
-        self.cat.tree(req)
+        let mut page = self.cat.tree(req);
+        if req.peaks {
+            // Les pics restent en base (256 octets par fichier) : seulement ceux de la page affichée.
+            let mut stmt = match self
+                .conn
+                .prepare_cached("SELECT peaks FROM files WHERE id = ? AND length(peaks) > 0")
+            {
+                Ok(s) => s,
+                Err(_) => return page,
+            };
+            for row in &mut page.rows {
+                if let TreeRow::Sample(r) = row {
+                    if let Ok(p) = stmt.query_row([r.sample.id], |x| x.get::<_, Vec<u8>>(0)) {
+                        r.sample.peaks = crate::audio::peaks_to_f64(&p);
+                    }
+                }
+            }
+        }
+        page
     }
 
     fn set_favorite(&mut self, ids: &[SampleId], fav: bool) {
@@ -347,8 +370,21 @@ impl Backend for SqliteLibrary {
         self.cat.ancestors(key)
     }
 
+    /// Pics en base ; calculés tout de suite s'ils manquent encore (le tiroir n'attend pas la tâche de fond).
     fn peaks(&self, id: SampleId) -> Vec<f64> {
-        self.cat.peaks(id)
+        let row: Option<(String, Option<Vec<u8>>)> = self
+            .conn
+            .query_row("SELECT path, peaks FROM files WHERE id = ?", [id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .ok();
+        match row {
+            Some((_, Some(p))) => crate::audio::peaks_to_f64(&p),
+            Some((path, None)) => {
+                let p = crate::audio::compute_peaks(Path::new(&path)).unwrap_or_default();
+                log(self.conn.execute("UPDATE files SET peaks = ?1 WHERE id = ?2", params![p, id]));
+                crate::audio::peaks_to_f64(&p)
+            }
+            None => vec![],
+        }
     }
 
     fn synonyms(&self) -> Vec<Vec<String>> {

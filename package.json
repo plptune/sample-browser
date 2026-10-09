@@ -14,6 +14,7 @@
     "parity:fixture": "tsx scripts/parity-fixture.ts"
   },
   "dependencies": {
+    "@crabnebula/tauri-plugin-drag": "^2.1.0",
     "@tanstack/solid-virtual": "^3.13.41",
     "@tauri-apps/api": "2.12.2",
     "solid-js": "^1.9.17"

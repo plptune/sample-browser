@@ -47,6 +47,14 @@ export const tauriBackend: Backend = {
     return () => void off.then((un) => un());
   },
   revealInFinder: (path) => commands.revealInFinder(path),
+  play: (id, startMs) => commands.play(id, startMs),
+  stop: () => commands.stop(),
+  seek: (ms) => commands.seek(ms),
+  setPlayback: (options) => commands.setPlayback(options),
+  onPlayback: (cb) => {
+    const off = events.playbackEvent.listen((e) => cb(e.payload));
+    return () => void off.then((un) => un());
+  },
 };
 
 /** Démo uniquement : marque des fichiers comme introuvables côté Rust. */

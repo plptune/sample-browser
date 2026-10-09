@@ -718,6 +718,12 @@ impl Catalog {
 
     // ---------- requêtes utilisées par la bibliothèque réelle ----------
 
+    /// Chemin et durée d'un sample présent sur le disque (lecture).
+    pub fn sample_file(&self, id: SampleId) -> Option<(std::path::PathBuf, u32)> {
+        let s = &self.samples[*self.by_id.get(&id)?];
+        (!s.missing).then(|| (s.path.clone().into(), s.duration_ms))
+    }
+
     pub(crate) fn has_sample(&self, id: SampleId) -> bool {
         self.by_id.contains_key(&id)
     }

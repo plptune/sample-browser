@@ -315,6 +315,16 @@
   border-top: var(--cr-border) solid var(--cr-line);
 }
 
+/* Volume : piste fine, curseur neutre (l'ambre reste à la lecture en cours). */
+.cr-range {
+  width: 112px;
+  accent-color: var(--cr-text-2);
+}
+
+.cr-wave canvas[data-seekable] {
+  cursor: pointer;
+}
+
 .cr-synonyms__field {
   flex: 1;
 }

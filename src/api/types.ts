@@ -153,6 +153,22 @@ export interface ScanStatus {
   finished: boolean;
 }
 
+/** État de la lecture (événement ~30 fois par seconde pendant la lecture, puis un dernier à l'arrêt). */
+export interface PlaybackStatus {
+  id: SampleId;
+  positionMs: number;
+  durationMs: number;
+  playing: boolean;
+  looping: boolean;
+  latencyMs?: number | null; // délai demande → premier son (une fois par lecture)
+  error: boolean; // fichier illisible
+}
+
+export interface PlaybackOptions {
+  volume: number; // 0..1
+  looping: boolean;
+}
+
 export interface Backend {
   library(): Promise<Library>;
   sources(): Promise<Source[]>;
@@ -206,4 +222,12 @@ export interface Backend {
   onScanStatus(cb: (s: ScanStatus) => void): () => void;
   /** Dossier : l'ouvre dans le Finder. Fichier : ouvre son dossier et le sélectionne. */
   revealInFinder(path: string): Promise<void>;
+  /** Lit un sample (un seul à la fois) à partir de `startMs`. */
+  play(id: SampleId, startMs: number): Promise<void>;
+  stop(): Promise<void>;
+  /** Se place à `ms` dans le sample en cours. */
+  seek(ms: number): Promise<void>;
+  setPlayback(options: PlaybackOptions): Promise<void>;
+  /** S'abonne à la position de lecture ; renvoie la fonction de désabonnement. */
+  onPlayback(cb: (s: PlaybackStatus) => void): () => void;
 }

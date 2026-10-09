@@ -32,16 +32,16 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | Accent | `--cr-accent` · `--cr-accent-soft` · `--cr-on-accent` |
 | Système | `--cr-danger` (fichier introuvable, source déconnectée — texte seulement) |
 | Waveform | `--cr-wave` · `--cr-wave-played` · `--cr-wave-mini` |
-| Typo | `--cr-font`, `--cr-font-mono`, tailles `xs 10` · `sm 11` · `md 12` · `lg 13` · `search 15` |
+| Typo | `--cr-font`, `--cr-font-mono`, tailles `xs 10` · `sm 11` · `md 12` · `lg 13` |
 | Espace | `--cr-space-0..6` = 2 · 4 · 8 · 12 · 16 · 24 px |
-| Hauteurs | `--cr-titlebar-h 28` · `--cr-search-h 36` · `--cr-row-h 24` · `--cr-row-h-wave 36` · `--cr-item-h 22` · `--cr-header-h 20` |
+| Hauteurs | `--cr-titlebar-h 28` · `--cr-search-h 30` · `--cr-row-h 24` · `--cr-row-h-wave 36` · `--cr-item-h 22` · `--cr-header-h 20` |
 
 ## Composants
 
 | Composant | Classe | États | Notes |
 | --- | --- | --- | --- |
 | PanelShell | `cr-panel`, `cr-titlebar` | `data-density` | Barre titre overlay : 72 px réservés aux feux macOS. Container query `panel`. |
-| SearchField | `cr-search` | `data-focused` | Grand champ (36 px, texte 15 px) : c'est l'élément principal du panneau. Chips + champ. ⌫ au début supprime la dernière chip, Échap efface, ↓ / ⏎ va dans la liste. |
+| SearchField | `cr-search` | `data-focused` | Champ plus haut que le reste (30 px), texte à 12 px. Chips + champ. ⌫ au début supprime la dernière chip, Échap efface, ↓ / ⏎ va dans la liste. |
 | QueryChip | `cr-chip` | `data-kind=tag/filter/exclude`, `data-pending` | Clé en `text-2`, valeur en `text-strong`. Clic = repasser en édition. |
 | Autocomplete | `cr-ac` | `data-active` sur l'item | Après `#`, `key:`, `in:`. ↑↓ ⏎/Tab, Échap ferme. |
 | ScanStatus | `cr-scan` | — | Barre de progression de 1 px en accent sous le libellé. |

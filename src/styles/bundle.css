@@ -141,7 +141,7 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-2);
-  padding: 0 var(--cr-space-1) 0 var(--cr-space-3);
+  padding: 0 var(--cr-space-1) 0 var(--cr-space-2);
   background: var(--cr-surface-raised);
   border: var(--cr-border) solid transparent;
   border-radius: var(--cr-radius-lg);
@@ -150,11 +150,6 @@
 
 .cr-search[data-focused] {
   border-color: var(--cr-text-3);
-}
-
-.cr-search__icon {
-  width: var(--cr-search-icon);
-  height: var(--cr-search-icon);
 }
 
 .cr-search__chips {
@@ -170,12 +165,12 @@
 .cr-search__input {
   flex: 1;
   min-width: var(--cr-input-min);
-  height: var(--cr-chip-h-lg);
+  height: var(--cr-chip-h);
   border: 0;
   padding: 0;
   background: none;
   font: inherit;
-  font-size: var(--cr-fs-search);
+  font-size: var(--cr-fs-md);
   color: var(--cr-text-strong);
   user-select: text;
   -webkit-user-select: text;
@@ -198,12 +193,6 @@
   color: var(--cr-text-strong);
   font-size: var(--cr-fs-sm);
   white-space: nowrap;
-}
-
-.cr-search .cr-chip {
-  height: var(--cr-chip-h-lg);
-  padding: 0 var(--cr-space-1);
-  font-size: var(--cr-fs-md);
 }
 
 .cr-chip:hover {

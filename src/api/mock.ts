@@ -2,8 +2,8 @@
 // Remplacé en phase 1 par src/api/tauri.ts (invoke) — l'UI ne change pas.
 
 import { parseLine, type QueryToken } from "../lib/query";
-import { COLLECTIONS, COLLECTION_ITEMS, SAMPLES, SOURCES, TAGS, type FolderNode } from "../mock/generate";
-import type { Backend, FolderRow, Library, NodeKey, NodeKind, Sample, TreePage, TreeRequest, TreeRow } from "./types";
+import { COLLECTIONS, COLLECTION_ITEMS, ROOT_PATHS, SAMPLES, SOURCES, TAGS, type FolderNode } from "../mock/generate";
+import type { Backend, Collection, FolderRow, Library, NodeKey, NodeKind, Sample, TreePage, TreeRequest, TreeRow } from "./types";
 
 function parseRange(v: string, unit = ""): (n: number) => boolean {
   const s = v.replace(unit, "");
@@ -109,7 +109,8 @@ const byId = new Map(SAMPLES.map((s) => [s.id, s]));
 
 export const mockBackend: Backend = {
   async library(): Promise<Library> {
-    const tags = TAGS.map((name) => ({ name, count: SAMPLES.filter((s) => s.tags.includes(name)).length })).sort(
+    const names = [...new Set<string>([...TAGS, ...SAMPLES.flatMap((s) => s.tags)])];
+    const tags = names.map((name) => ({ name, count: SAMPLES.filter((s) => s.tags.includes(name)).length })).sort(
       (a, b) => b.count - a.count,
     );
     return { total: SAMPLES.length, tags, collections: COLLECTIONS.map((c) => ({ ...c })) };
@@ -168,9 +169,39 @@ export const mockBackend: Backend = {
     }
   },
 
+  async sources() {
+    return SOURCES.map((f) => ({ id: f.id, name: f.name, path: ROOT_PATHS[f.id], offline: !!f.offline }));
+  },
+
+  async createCollection(name, query) {
+    const c: Collection = { id: Math.max(0, ...COLLECTIONS.map((c) => c.id)) + 1, name, kind: query ? "smart" : "manual", query };
+    COLLECTIONS.push(c);
+    if (!query) COLLECTION_ITEMS[c.id] = [];
+    return { ...c };
+  },
+
   async renameCollection(id, name) {
     const c = COLLECTIONS.find((c) => c.id === id);
     if (c) c.name = name;
+  },
+
+  async deleteCollection(id) {
+    const i = COLLECTIONS.findIndex((c) => c.id === id);
+    if (i >= 0) COLLECTIONS.splice(i, 1);
+  },
+
+  async addToCollection(id, ids) {
+    const items = (COLLECTION_ITEMS[id] ??= []);
+    for (const s of ids) if (!items.includes(s)) items.push(s);
+  },
+
+  async removeSource(id) {
+    const i = SOURCES.findIndex((f) => f.id === id);
+    if (i >= 0) SOURCES.splice(i, 1);
+  },
+
+  async revealInFinder() {
+    // Phase 0 : rien. Phase 1 : commande Rust (opener).
   },
 };
 

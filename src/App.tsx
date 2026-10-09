@@ -1,4 +1,4 @@
-import { Show, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { PanelShell } from "./components/PanelShell";
 import { DemoBar } from "./demo/DemoBar";
 import { SCENARIOS, acOpen } from "./demo/scenarios";
@@ -7,27 +7,53 @@ import { app } from "./state/app";
 const isField = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA");
 
+/** Dans la fenêtre Tauri : le panneau seul, plein cadre. Dans le navigateur : la scène de démo. */
+const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
 export function App() {
   const [scenario, setScenario] = createSignal(3);
   let search: HTMLInputElement | undefined;
 
+  // Les scénarios s'enchaînent : deux touches rapides ne mélangent pas leurs états.
+  let queue: Promise<void> = Promise.resolve();
   const runScenario = (id: number) => {
     setScenario(id);
-    SCENARIOS.find((s) => s.id === id)?.run();
+    queue = queue.then(async () => {
+      await SCENARIOS.find((s) => s.id === id)?.run();
+    });
   };
 
   function onKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "f") {
+    const key = e.key.toLowerCase();
+    if (mod && key === "f") {
       e.preventDefault();
-      search?.focus();
+      app.setView("browser");
+      queueMicrotask(() => search?.focus());
+      return;
+    }
+    if (mod && key === "s") {
+      e.preventDefault();
+      app.openSaveSearch();
+      return;
+    }
+    if (mod && e.key === ",") {
+      e.preventDefault();
+      app.setView(app.view() === "settings" ? "browser" : "settings");
       return;
     }
     if (isField(e.target)) return;
-
-    const tree = () => document.querySelector<HTMLElement>(".cr-tree");
     if (mod) return;
 
+    if (e.key === "Escape") {
+      if (app.menu() || app.tagging() || app.saving() !== null) app.closeOverlays();
+      else if (app.view() === "settings") app.setView("browser");
+      else app.stop();
+      return;
+    }
+    if (app.view() === "settings") return;
+
+    const tree = () => document.querySelector<HTMLElement>(".cr-tree");
     switch (e.key) {
       case "ArrowDown":
       case "ArrowUp":
@@ -53,8 +79,10 @@ export function App() {
         e.preventDefault();
         app.activate();
         return;
-      case "Escape":
-        app.stop();
+      case "t":
+      case "T":
+        e.preventDefault();
+        app.openTagging();
         return;
       case "/":
         e.preventDefault();
@@ -62,19 +90,25 @@ export function App() {
         return;
     }
     const sc = SCENARIOS.find((s) => s.key === e.key);
-    if (sc) runScenario(sc.id);
+    if (sc) {
+      e.preventDefault(); // sinon le caractère atterrit dans le champ que le scénario vient de focaliser
+      runScenario(sc.id);
+    }
   }
+
+  // Le thème s'applique à toute la page (fond de fenêtre compris).
+  createEffect(() => document.documentElement.setAttribute("data-theme", app.theme()));
 
   onMount(() => {
     window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("keydown", onKey);
-    });
+    onCleanup(() => window.removeEventListener("keydown", onKey));
     runScenario(scenario());
   });
 
+  const panel = () => <PanelShell searchRef={(el) => (search = el)} forceAc={acOpen()} />;
+
   return (
-    <>
+    <Show when={!inTauri} fallback={<div class="app-window">{panel()}</div>}>
       <div class="demo-page" data-theme={app.theme()}>
         <DemoBar scenario={scenario()} onScenario={runScenario} />
         <div class="demo-stage">
@@ -84,13 +118,13 @@ export function App() {
               <i />
               <i />
             </div>
-            <PanelShell searchRef={(el) => (search = el)} forceAc={acOpen()} />
+            {panel()}
             <Show when={app.grid()}>
               <div class="demo-grid" />
             </Show>
           </div>
         </div>
       </div>
-    </>
+    </Show>
   );
 }

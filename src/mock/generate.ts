@@ -79,7 +79,7 @@ export const SOURCES: FolderNode[] = [
   },
 ];
 
-const ROOT_PATHS: Record<number, string> = {
+export const ROOT_PATHS: Record<number, string> = {
   1: "~/Splice/sounds",
   10: "~/Music/Samples",
   20: "/Volumes/Field SSD",

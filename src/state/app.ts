@@ -1,10 +1,17 @@
 // État de l'app (signaux Solid). Toute donnée vient de `api` ; ici on ne garde que l'état d'UI.
 
 import { batch, createRoot, createSignal } from "solid-js";
-import { api, type Library, type NodeKey, type Sample, type SampleId, type TreeRow } from "../api";
+import { api, type Library, type NodeKey, type Sample, type SampleId, type Source, type TreeRow } from "../api";
 import { isChip } from "../lib/query";
 
 export type Density = "compact" | "wave";
+export type ThemePref = "dark" | "light" | "system";
+
+export interface MenuState {
+  x: number;
+  y: number;
+  rowKey: string;
+}
 
 function createAppState() {
   // --- données reçues du backend
@@ -34,8 +41,24 @@ function createAppState() {
   const [scan, setScan] = createSignal<{ done: number; total: number; folder: string } | null>(null);
   const [visibleLimit, setVisibleLimit] = createSignal<number | null>(null); // arbre qui se remplit pendant le scan
 
-  // --- réglages d'affichage (démo)
-  const [theme, setTheme] = createSignal<"dark" | "light">("dark");
+  // --- surcouches (une seule à la fois) et vues
+  const [view, setView] = createSignal<"browser" | "settings">("browser");
+  const [tagging, setTagging] = createSignal(false); // popover de tags sur la sélection
+  const [saving, setSaving] = createSignal<string | null>(null); // nom en cours pour ⌘S, null = fermé
+  const [menu, setMenu] = createSignal<MenuState | null>(null);
+  const [renamingKey, setRenamingKey] = createSignal<NodeKey | null>(null);
+  const [sources, setSources] = createSignal<Source[]>([]);
+  const [alwaysOnTop, setAlwaysOnTop] = createSignal(false);
+
+  // --- réglages d'affichage
+  const [themePref, setThemePref] = createSignal<ThemePref>("dark");
+  const theme = (): "dark" | "light" =>
+    themePref() === "system"
+      ? window.matchMedia?.("(prefers-color-scheme: light)").matches
+        ? "light"
+        : "dark"
+      : (themePref() as "dark" | "light");
+  const setTheme = (t: ThemePref) => setThemePref(t);
   const [width, setWidth] = createSignal(320);
   const [density, setDensity] = createSignal<Density>("compact");
   const [grid, setGrid] = createSignal(false);
@@ -57,7 +80,11 @@ function createAppState() {
   }
 
   async function reloadLibrary() {
-    setLibrary(await api.library());
+    const [lib, src] = await Promise.all([api.library(), api.sources()]);
+    batch(() => {
+      setLibrary(lib);
+      setSources(src);
+    });
   }
 
   const visible = () => {
@@ -220,7 +247,105 @@ function createAppState() {
     playingId() === s.id ? stop() : play(s.id);
   }
 
+  // --- sélection effective : la multi-sélection, sinon la ligne sous le curseur
+  const selectedSamples = (): Sample[] => {
+    const keys = selection().length ? selection() : cursor() ? [cursor()!] : [];
+    return keys.map(rowByKey).flatMap((r) => (r?.type === "sample" ? [r.sample] : []));
+  };
+
+  function closeOverlays() {
+    batch(() => {
+      setTagging(false);
+      setSaving(null);
+      setMenu(null);
+    });
+  }
+
+  // --- tags
+  function openTagging() {
+    if (!selectedSamples().length) return;
+    closeOverlays();
+    setTagging(true);
+  }
+
+  async function toggleTag(tag: string) {
+    const samples = selectedSamples();
+    const ids = samples.map((s) => s.id);
+    const all = samples.every((s) => s.tags.includes(tag));
+    await (all ? api.removeTag(ids, tag) : api.addTag(ids, tag));
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  // --- collections
+  function openSaveSearch() {
+    if (!searchLine()) return;
+    closeOverlays();
+    setSaving(queryLine());
+  }
+
+  async function saveSearch(name: string) {
+    const query = searchLine();
+    setSaving(null);
+    if (!name.trim() || !query) return;
+    const c = await api.createCollection(name.trim(), query);
+    batch(() => {
+      setChips([]);
+      setDraft("");
+      setExpanded([...new Set([...expanded(), "g:collections"])]);
+    });
+    await Promise.all([refresh(), reloadLibrary()]);
+    select(`c:${c.id}`);
+  }
+
+  /** Nouvelle collection manuelle, aussitôt en renommage. */
+  async function newCollection() {
+    const c = await api.createCollection("Nouvelle collection");
+    setExpanded([...new Set([...expanded(), "g:collections"])]);
+    await Promise.all([refresh(), reloadLibrary()]);
+    select(`c:${c.id}`);
+    setRenamingKey(`c:${c.id}`);
+  }
+
+  async function renameCollection(key: NodeKey, name: string) {
+    setRenamingKey(null);
+    if (name.trim()) await api.renameCollection(+key.slice(2), name.trim());
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  async function deleteCollection(key: NodeKey) {
+    await api.deleteCollection(+key.slice(2));
+    if (cursor() === key) setCursor(null);
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  async function dropOnCollection(key: NodeKey) {
+    const ids = selectedSamples().map((s) => s.id);
+    batch(() => {
+      setDropTarget(null);
+      setDraggingKey(null);
+    });
+    if (!ids.length) return;
+    await api.addToCollection(+key.slice(2), ids);
+    await refresh();
+  }
+
+  async function removeSource(id: number) {
+    await api.removeSource(id);
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  function openMenu(x: number, y: number, rowKey: string) {
+    closeOverlays();
+    const row = rowByKey(rowKey);
+    // Clic droit hors sélection : la ligne devient la sélection, comme dans le Finder.
+    if (row && !(row.type === "sample" && selection().includes(rowKey))) select(rowKey);
+    setMenu({ x, y, rowKey });
+  }
+
   return {
+    view, setView, tagging, setTagging, saving, setSaving, menu, setMenu, renamingKey, setRenamingKey,
+    sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
+    openSaveSearch, saveSearch, newCollection, renameCollection, deleteCollection, dropOnCollection, removeSource, openMenu,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,

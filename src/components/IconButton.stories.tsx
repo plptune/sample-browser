@@ -6,7 +6,7 @@ const meta = {
   component: IconButton,
   args: { icon: "play", label: "Lire" },
   argTypes: {
-    icon: { control: "select", options: ["search", "chevron", "play", "stop", "close", "plus", "settings", "sidebar", "loop"] },
+    icon: { control: "select", options: ["search", "chevron", "back", "play", "stop", "close", "plus", "settings", "loop", "check", "minus"] },
   },
   parameters: { panel: false },
 } satisfies Meta<typeof IconButton>;

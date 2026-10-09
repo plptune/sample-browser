@@ -1,5 +1,6 @@
 // Scénarios de démo : chacun remet l'app dans un état précis et reproductible.
 import { batch, createSignal } from "solid-js";
+import { api } from "../api";
 import { mockSetMissing } from "../api/mock";
 import { SAMPLES } from "../mock/generate";
 import { app } from "../state/app";
@@ -39,7 +40,11 @@ async function reset(expanded: string[] = []) {
     app.setCurrent(null);
     app.setAutoPlay(false);
     app.setDropTarget(null);
+    app.setDraggingKey(null);
     app.setDensity("compact");
+    app.setView("browser");
+    app.closeOverlays();
+    app.setRenamingKey(null);
   });
   await Promise.all([app.refresh(), app.reloadLibrary()]);
 }
@@ -116,6 +121,43 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    id: 7, key: "7", label: "Tagging",
+    run: async () => {
+      await reset(["f:10", "f:11", "f:12"]);
+      // Multi-sélection de 4 kicks, puis T.
+      const kicks = app.visible().filter((r) => r.type === "sample").slice(2, 6);
+      // Un tag commun aux 4 (coché) à côté de tags partiels (–).
+      await api.addTag(kicks.flatMap((r) => (r.type === "sample" ? [r.sample.id] : [])), "punchy");
+      await app.refresh();
+      app.select(kicks[0].key);
+      app.select(kicks[3].key, "range");
+      app.openTagging();
+    },
+  },
+  {
+    id: 8, key: "8", label: "Collections",
+    run: async () => {
+      // Recherche en cours d'enregistrement comme collection smart (⌘S). L'arbre montre ce qui sera enregistré ;
+      // une recherche masque les collections, donc la collection manuelle ouverte est montrée par les scénarios 6 et 9.
+      await reset(["g:collections", "c:2"]);
+      app.setChips(["#dark", "dur:<1s"]);
+      await app.refresh();
+      app.openSaveSearch();
+      app.setSaving("Courts & sombres 2");
+    },
+  },
+  {
+    id: 9, key: "9", label: "Drag en cours",
+    run: async () => {
+      // État figé : un sample de « Textures » glissé au-dessus de la collection « Go-to kicks ».
+      await reset(["g:collections", "c:3"]);
+      const s = selectSample("Texture", 1);
+      const row = app.visible().find((r) => r.type === "sample" && r.sample.id === s?.id);
+      if (row) app.setDraggingKey(row.key);
+      app.setDropTarget("c:2");
+    },
+  },
+  {
     id: 10, key: "0", label: "Erreurs",
     run: async () => {
       const claps = SAMPLES.filter((s) => s.name.startsWith("Clap") && s.folderId === 13);
@@ -124,6 +166,13 @@ export const SCENARIOS: Scenario[] = [
       await app.refresh();
       const row = app.visible().find((r) => r.type === "sample" && r.sample.id === claps[2].id);
       if (row) app.select(row.key);
+    },
+  },
+  {
+    id: 11, key: "-", label: "Réglages",
+    run: async () => {
+      await reset();
+      app.setView("settings");
     },
   },
   {

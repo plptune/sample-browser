@@ -28,19 +28,33 @@ pnpm build        # typecheck + build
 | ← | Fermer un dossier, sinon remonter au dossier parent |
 | Espace | Lecture / stop du sample courant (fausse lecture) |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample |
+| T | Taguer la sélection (popover) |
+| ⌘S | Enregistrer la recherche comme collection smart |
+| ⌘, | Réglages (Échap pour revenir) |
+| Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
 | ⌫ en début de champ | Supprimer la dernière chip |
-| 1–6, 0, = | Scénarios de démo |
+| 1–9, 0, -, = | Scénarios de démo 1 à 12 |
 
 Souris : clic sur le chevron = ouvrir / fermer ; clic, ⇧-clic, ⌘-clic = sélection ; double-clic = ouvrir un dossier
-ou lire un sample ; glisser un sample sur une collection manuelle (état visuel).
+ou lire un sample ; glisser des samples sur une collection manuelle les y ajoute ; clic droit = menu contextuel
+(lire, taguer, ajouter à une collection, renommer / supprimer une collection, retirer une source).
 
 ## Scénarios livrés
 
-1 Premier lancement · 2 Indexation en cours · 3 Navigation · 4 Recherche active · 5 Aucun résultat ·
-6 Lecture · 10 Erreurs · 12 Mode waveform.
-Pas encore faits : 7 Tagging (popover), 8 Collections / création smart (⌘S), 9 Drag (scénario figé),
-11 Réglages, menu contextuel, renommage de collection (retiré avec la sidebar).
+Les 12 scénarios du plan : 1 Premier lancement · 2 Indexation · 3 Navigation · 4 Recherche active · 5 Aucun résultat ·
+6 Lecture · 7 Tagging · 8 Collections (⌘S) · 9 Drag en cours · 10 Erreurs · 11 Réglages · 12 Mode waveform.
+Validation : [`docs/phase0-checklist.md`](docs/phase0-checklist.md).
+
+## Fenêtre Tauri
+
+```bash
+pnpm tauri dev      # fenêtre 320 × 760, barre titre overlay, prototype sans la barre de démo
+pnpm tauri build    # Crate.app (macOS)
+```
+
+Phase 0 : aucune commande Rust (`src-tauri` = fenêtre seulement). Chaque push construit aussi un `Crate.app` sur macOS
+(workflow « Tauri (macOS) », artefact `Crate-macos`, non signé : clic droit → Ouvrir au premier lancement).
 
 ## Structure
 
@@ -53,6 +67,7 @@ src/
   components/   un fichier par composant du design system
   styles/       tokens.css + bundle.css (design system)
   demo/         barre de démo et scénarios (hors design system)
+src-tauri/      fenêtre Tauri 2 (aucune commande en phase 0)
   stories/      fondations Storybook (introduction, tokens) ; les stories des composants sont à côté de chaque composant
 .storybook/     configuration Storybook (framework storybook-solidjs-vite)
 docs/design-system.md
@@ -71,6 +86,10 @@ Les composants, le CSS et le state ne bougent pas.
 
 ## Captures
 
-| Navigation | Recherche | Lecture | Waveform | Clair 260 px | Erreurs |
+| Navigation | Recherche | Lecture | Tagging | ⌘S | Drag |
 | --- | --- | --- | --- | --- | --- |
-| ![](docs/screens/03-nav.png) | ![](docs/screens/04-search.png) | ![](docs/screens/06-playing.png) | ![](docs/screens/12-wave.png) | ![](docs/screens/03-nav-light-260.png) | ![](docs/screens/10-errors.png) |
+| ![](docs/screens/03-nav.png) | ![](docs/screens/04-search.png) | ![](docs/screens/06-playing.png) | ![](docs/screens/07-tagging.png) | ![](docs/screens/08-collections.png) | ![](docs/screens/09-drag.png) |
+
+| Erreurs | Réglages | Waveform | Clair 260 px | Fenêtre Tauri (Linux) |
+| --- | --- | --- | --- | --- |
+| ![](docs/screens/10-errors.png) | ![](docs/screens/11-settings.png) | ![](docs/screens/12-wave.png) | ![](docs/screens/03-nav-light-260.png) | ![](docs/screens/tauri-linux.png) |

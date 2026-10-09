@@ -32,6 +32,7 @@ export const Sample: Story = { args: sample(loop) };
 export const Selectionne: Story = { args: { ...sample(kick), selected: true } };
 export const EnLecture: Story = { args: { ...sample(loop), selected: true, playing: true, progress: 0.4 } };
 export const Introuvable: Story = { args: { ...sample(missing), missing: true } };
+export const Renommage: Story = { args: { kind: "collection", label: "Night Drive", depth: 1, renaming: true } };
 export const EnDrag: Story = { args: { ...sample(kick), dragging: true } };
 export const Waveform: Story = { args: { ...sample(loop), wave: true, playing: true, progress: 0.4 } };
 

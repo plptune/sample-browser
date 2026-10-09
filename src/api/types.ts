@@ -86,10 +86,24 @@ export interface Library {
   collections: Collection[];
 }
 
+export interface Source {
+  id: number;
+  name: string;
+  path: string;
+  offline: boolean;
+}
+
 export interface Backend {
   library(): Promise<Library>;
+  sources(): Promise<Source[]>;
   tree(req: TreeRequest): Promise<TreePage>;
   addTag(ids: SampleId[], tag: string): Promise<void>;
   removeTag(ids: SampleId[], tag: string): Promise<void>;
+  /** Collection manuelle si `query` est absent, smart sinon (la ligne de recherche brute). */
+  createCollection(name: string, query?: string): Promise<Collection>;
   renameCollection(id: number, name: string): Promise<void>;
+  deleteCollection(id: number): Promise<void>;
+  addToCollection(id: number, ids: SampleId[]): Promise<void>;
+  removeSource(id: number): Promise<void>;
+  revealInFinder(path: string): Promise<void>;
 }

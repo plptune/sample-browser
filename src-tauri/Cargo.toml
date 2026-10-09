@@ -1,0 +1,15 @@
+[package]
+name = "crate-app"
+version = "0.0.1"
+description = "Crate — navigateur de samples (phase 0 : fenêtre seulement, aucune commande Rust)"
+edition = "2021"
+
+[lib]
+name = "crate_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

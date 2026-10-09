@@ -1,0 +1,38 @@
+# Build de la fenêtre Tauri sur macOS (cible réelle) : vérifie la compilation et
+# publie un Crate.app non signé en artefact téléchargeable.
+name: Tauri (macOS)
+
+on:
+  push:
+    branches: [main, "claude/magical-cannon-voq3it"]
+  workflow_dispatch:
+
+concurrency:
+  group: tauri-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm tauri build --bundles app
+      - name: Zipper Crate.app
+        run: ditto -c -k --keepParent src-tauri/target/release/bundle/macos/Crate.app Crate-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Crate-macos
+          path: Crate-macos.zip
+          retention-days: 14

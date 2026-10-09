@@ -6,7 +6,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 
 1. **Gris d'abord, un seul accent.** L'ambre (`--cr-accent`) n'apparaît que pour : la lecture en cours,
    une progression, le focus clavier, une cible de dépôt. Jamais en aplat décoratif.
-2. **Pas d'icône sans fonction.** 9 icônes au total (`Icon.tsx`), trait 1,2 px sur 12 × 12.
+2. **Pas d'icône sans fonction.** 11 icônes au total (`Icon.tsx`), trait 1,2 px sur 12 × 12.
    Pas d'icône de dossier ni de fichier : le chevron suffit à distinguer un dossier d'un sample.
 3. **La hiérarchie vient du texte**, pas des couleurs : `--cr-text` → `-2` → `-3` → `-disabled`.
 4. **Grille de 4 px**, hauteurs fixes (ligne 24 px, 36 px avec waveform, item 22 px, en-tête 20 px).
@@ -52,10 +52,16 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | Autocomplete | `cr-ac` | `data-active` sur l'item | Après `#`, `key:`, `in:`. ↑↓ ⏎/Tab, Échap ferme. |
 | ScanStatus | `cr-scan` | — | Barre de progression de 1 px en accent sous le libellé. |
 | Browser (arbre) | `cr-tree` | `data-focused` | **La seule vue.** Sources à la racine, puis « Collections ». Chaque dossier liste ses sous-dossiers puis ses samples, au même retrait. |
-| TreeRow | `cr-node` | `data-kind=folder/group/collection/smart/sample`, `data-selected`, `data-playing`, `data-missing`, `data-offline`, `data-drop-target`, `data-dragging`, `data-wave`, `--depth` | Une seule hauteur (24 px). `cr-node__slot` (12 px) : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide. Samples : BPM et clé à droite, BPM masqué sous 280 px. |
+| TreeRow | `cr-node` | `data-kind=folder/group/collection/smart/sample`, `data-selected`, `data-playing`, `data-missing`, `data-offline`, `data-drop-target`, `data-dragging`, `data-wave`, `--depth`, renommage en place (`cr-node__input`) | Une seule hauteur (24 px). `cr-node__slot` (12 px) : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide. Samples : BPM et clé à droite, BPM masqué sous 280 px. |
 | Waveform | `cr-wave` (canvas) | progression | Barres 2 px, partie lue en accent + tête de lecture 1 px. |
 | PreviewDrawer | `cr-drawer` | vide / arrêt / lecture / introuvable | Uniquement ▶, nom du sample courant, temps / durée et waveform. |
-| TagPill | `cr-tag` | `data-active`, `data-variant=add` | Contour 1 px, pas de couleur par tag. Plus affiché dans le panneau (v0.4) ; gardé pour le futur popover de tags. |
+| TagPill | `cr-tag` | `data-active`, `data-variant=add` | Contour 1 px, pas de couleur par tag. Plus affiché dans le panneau (v0.4), gardé dans le DS. |
+| TagPopover | `cr-popover` | item `data-state=all/some/none`, `data-active` | Touche T sur la sélection. ✓ = tous les samples ont le tag, – = certains. Saisie = filtre ; un nom inconnu propose « Créer ». Coche sur la colonne des icônes. |
+| SaveSearch | `cr-save` | — | ⌘S sur une recherche : nom de la collection smart, ⏎ enregistre, Échap annule. Seul champ à contour accent avec le renommage. |
+| ContextMenu | `cr-menu` | item `data-active`, `data-danger`, `data-disabled` ; séparateur, en-tête | Clic droit. Contenu selon la ligne : sample, source, sous-dossier, groupe Collections, collection. ↑↓ ⏎ Échap. Reste dans le panneau. |
+| SettingsView | `cr-settings`, `cr-setting`, `cr-source` | — | Remplace l'arbre dans la même colonne (⌘, / Échap). Sources, Apparence, Fenêtre et lecture. Libellés sur la colonne des libellés de l'arbre. |
+| Toggle | `cr-switch` | `data-on` | 24 × 14. Gris, pas d'accent (l'accent reste réservé à la lecture). |
+| Segmented | `cr-seg` | item `data-active` | 2 à 3 options courtes. |
 | IconButton | `cr-icon-btn` | survol, pressé, `data-active`, `data-accent`, désactivé | 20 × 20, icône 12. |
 | EmptyState | `cr-empty` | `data-variant=drop/noresults`, `data-over` | Exemples de syntaxe en mono. |
 
@@ -70,4 +76,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
   (la recherche et `is:untagged` les remplacent). Le bouton d'auto-play a disparu avec la méta du tiroir.
 - **Épuré (v0.2)** : pas de compteurs dans la sidebar ni dans l'en-tête de liste, pas de colonne Durée
   (la durée reste dans le tiroir), pas d'extension de fichier, méta du tiroir réduite.
+- **Réglages dans la colonne (v0.5)** : pas de fenêtre de préférences ; la vue Réglages remplace l'arbre. L'auto-play y revient.
+- **Une recherche masque les collections** : le scénario 8 (⌘S) montre donc la recherche à enregistrer, pas une collection ouverte.
+- **Ajouter à une collection** se fait par glisser-déposer ou par le menu contextuel (pas de sous-menu : en-tête « Ajouter à » + collections manuelles).
 - **Les tokens spéciaux en cours de frappe ne filtrent pas** (`#ta` ne vide pas la liste) ; seuls les mots libres filtrent en direct.

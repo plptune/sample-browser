@@ -1,5 +1,5 @@
 // Une ligne de l'arbre : dossier (chevron) ou sample (▶ quand lu). Même hauteur, même grille.
-import { Show } from "solid-js";
+import { Show, onMount } from "solid-js";
 import { Chevron, Icon } from "./Icon";
 import { Waveform } from "./Waveform";
 
@@ -23,7 +23,10 @@ export function TreeRow(props: {
   wave?: boolean;
   themeKey?: string;
   title?: string;
+  renaming?: boolean;
+  onRename?: (name: string) => void;
   ref?: (el: HTMLDivElement) => void;
+  onContextMenu?: (e: MouseEvent) => void;
   onMouseDown?: (e: MouseEvent) => void;
   onDblClick?: () => void;
   onToggle?: () => void;
@@ -55,6 +58,11 @@ export function TreeRow(props: {
       title={props.title}
       onMouseDown={(e) => props.onMouseDown?.(e)}
       onDblClick={() => props.onDblClick?.()}
+      onContextMenu={(e) => {
+        if (!props.onContextMenu) return;
+        e.preventDefault();
+        props.onContextMenu(e);
+      }}
       onDragStart={(e) => props.onDragStart?.(e)}
       onDragEnd={() => props.onDragEnd?.()}
       onDragOver={(e) => props.onDragOver?.(e)}
@@ -81,7 +89,9 @@ export function TreeRow(props: {
         </Show>
       </span>
       <div class="cr-node__main">
-        <span class="cr-node__label">{props.label}</span>
+        <Show when={props.renaming} fallback={<span class="cr-node__label">{props.label}</span>}>
+          <RenameInput value={props.label} onDone={(v) => props.onRename?.(v)} />
+        </Show>
         <Show when={isSample() && props.wave && props.peaks}>
           <Waveform
             class="cr-node__wave"
@@ -100,5 +110,36 @@ export function TreeRow(props: {
         <span class="cr-col-key cr-node__meta">{props.keyName ?? ""}</span>
       </Show>
     </div>
+  );
+}
+
+/** Renommage en place : ⏎ valide, Échap annule, perte de focus valide. */
+function RenameInput(props: { value: string; onDone: (v: string) => void }) {
+  let input!: HTMLInputElement;
+  let done = false;
+  const finish = (v: string) => {
+    if (done) return;
+    done = true;
+    props.onDone(v);
+  };
+  onMount(() => {
+    input.focus({ preventScroll: true });
+    input.select();
+  });
+  return (
+    <input
+      ref={input}
+      class="cr-node__input"
+      value={props.value}
+      spellcheck={false}
+      aria-label="Nouveau nom"
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(input.value);
+        if (e.key === "Escape") finish(props.value);
+      }}
+      onBlur={() => finish(input.value)}
+    />
   );
 }

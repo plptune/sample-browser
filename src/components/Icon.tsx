@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "play" | "stop" | "close" | "plus" | "settings" | "sidebar" | "loop";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -12,17 +12,14 @@ const PATHS: Record<IconName, () => JSX.Element> = {
     </>
   ),
   chevron: () => <path d="M4.5 2.8 7.7 6 4.5 9.2" />,
+  back: () => <path d="M7.5 2.8 4.3 6l3.2 3.2" />,
+  check: () => <path d="M2.8 6.2 5 8.4l4.2-4.8" />,
+  minus: () => <path d="M3 6h6" />,
   play: () => <path d="M3.5 2.2v7.6L9.8 6z" fill="currentColor" stroke="none" />,
   stop: () => <rect x="3" y="3" width="6" height="6" fill="currentColor" stroke="none" />,
   close: () => <path d="M3.2 3.2l5.6 5.6M8.8 3.2 3.2 8.8" />,
   plus: () => <path d="M6 2.5v7M2.5 6h7" />,
   settings: () => <path d="M2 3.5h8M2 8.5h8M4.5 2v3M7.5 7v3" />,
-  sidebar: () => (
-    <>
-      <rect x="1.6" y="2.1" width="8.8" height="7.8" rx="1" />
-      <path d="M1.6 5h8.8" />
-    </>
-  ),
   loop: () => <path d="M2.5 6.5V5.5a2 2 0 0 1 2-2h4.5M7.5 2l1.5 1.5L7.5 5M9.5 5.5v1a2 2 0 0 1-2 2H3M4.5 10 3 8.5 4.5 7" />,
 };
 

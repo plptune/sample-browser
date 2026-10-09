@@ -3,6 +3,12 @@ import { For, createEffect } from "solid-js";
 import { app } from "../state/app";
 import { TreeRow } from "./TreeRow";
 
+/** Coordonnées d'un clic relatives au panneau (le menu y est positionné en absolu). */
+function panelPoint(e: MouseEvent) {
+  const panel = (e.currentTarget as HTMLElement).closest(".cr-panel")!.getBoundingClientRect();
+  return { x: e.clientX - panel.left, y: e.clientY - panel.top };
+}
+
 export function Browser() {
   return (
     <div
@@ -33,6 +39,12 @@ export function Browser() {
                 offline={row.offline}
                 selected={app.cursor() === row.key}
                 dropTarget={app.dropTarget() === row.key}
+                renaming={app.renamingKey() === row.key}
+                onRename={(name) => app.renameCollection(row.key, name)}
+                onContextMenu={(e) => {
+                  const p = panelPoint(e);
+                  app.openMenu(p.x, p.y, row.key);
+                }}
                 onToggle={() => app.toggleNode(row.key)}
                 onMouseDown={(e) => e.button === 0 && app.select(row.key)}
                 onDblClick={() => app.toggleNode(row.key)}
@@ -44,7 +56,7 @@ export function Browser() {
                 onDragLeave={() => app.setDropTarget(null)}
                 onDrop={(e) => {
                   e.preventDefault();
-                  app.setDropTarget(null);
+                  if (manual) app.dropOnCollection(row.key);
                 }}
               />
             );
@@ -72,8 +84,14 @@ export function Browser() {
                 app.select(row.key, e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace");
               }}
               onDblClick={() => app.togglePlay()}
+              onContextMenu={(e) => {
+                const p = panelPoint(e);
+                app.openMenu(p.x, p.y, row.key);
+              }}
               onDragStart={(e) => {
                 e.dataTransfer?.setData("text/plain", s.path);
+                // Glisser une ligne hors sélection la sélectionne d'abord, comme dans le Finder.
+                if (!app.selection().includes(row.key)) app.select(row.key);
                 app.setDraggingKey(row.key);
               }}
               onDragEnd={() => {

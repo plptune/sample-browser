@@ -39,6 +39,8 @@ pub struct Catalog {
     pub(crate) pinned_folders: Vec<u32>,
     /// Tags proposés même sans fichier (ordre d'apparition).
     pub(crate) known_tags: Vec<String>,
+    /// Dossiers masqués par l'utilisateur (leur contenu l'est aussi).
+    pub(crate) hidden_folders: HashSet<u32>,
     /// Groupes de synonymes (minuscules) appliqués aux mots libres.
     pub(crate) synonyms: Vec<Vec<String>>,
     /// Taille réelle des fichiers (vide en démo : taille estimée d'après la durée).
@@ -48,6 +50,9 @@ pub struct Catalog {
     by_folder: HashMap<u32, Vec<usize>>,
     /// Texte de recherche en minuscules : nom, chemin, tags.
     hay: Vec<String>,
+    /// Masqué, lui-même ou par un dossier parent.
+    hidden_eff: Vec<bool>,
+    hidden_count: usize,
     cache: RefCell<Option<TreeCache>>,
 }
 
@@ -58,6 +63,7 @@ pub(crate) struct NodeInfo {
     pub offline: bool,
     pub pinned: bool,
     pub target: Option<NodeKey>,
+    pub hidden: bool,
 }
 
 /// Fichier à copier : sous-dossier relatif dans le nouveau dossier, et le sample.
@@ -100,6 +106,7 @@ enum Cond {
     Kind(SampleKind),
     Fav,
     Untagged,
+    Hidden,
     Never,
     /// Appartenance (`in:` collection ou dossier virtuel), par index de sample.
     In(Vec<bool>),
@@ -111,8 +118,13 @@ pub(crate) struct Matcher(Vec<(Cond, bool)>);
 
 impl Matcher {
     /// Sans `&Catalog` (qui n'est pas partageable entre threads) : pour la recherche en parallèle.
-    fn matches_parts(&self, s: &Sample, hay: &str, i: usize) -> bool {
-        self.0.iter().all(|(c, negated)| cond(c, s, hay, i) != *negated)
+    fn matches_parts(&self, s: &Sample, hay: &str, i: usize, hidden: bool) -> bool {
+        self.0.iter().all(|(c, negated)| cond(c, s, hay, i, hidden) != *negated)
+    }
+
+    /// `is:hidden` (non nié) : les éléments masqués redeviennent visibles.
+    fn reveals_hidden(&self) -> bool {
+        self.0.iter().any(|(c, negated)| matches!(c, Cond::Hidden) && !negated)
     }
 }
 
@@ -143,7 +155,7 @@ pub(crate) struct TreeCache {
     matches: u32,
 }
 
-fn cond(c: &Cond, s: &Sample, hay: &str, i: usize) -> bool {
+fn cond(c: &Cond, s: &Sample, hay: &str, i: usize, hidden: bool) -> bool {
     match c {
         Cond::Text(v) => hay.contains(v.as_str()),
         Cond::AnyText(words) => words.iter().any(|w| hay.contains(w.as_str())),
@@ -159,6 +171,7 @@ fn cond(c: &Cond, s: &Sample, hay: &str, i: usize) -> bool {
         Cond::Kind(k) => s.kind == *k,
         Cond::Fav => s.fav,
         Cond::Untagged => s.tags.is_empty(),
+        Cond::Hidden => hidden,
         Cond::Never => false,
         Cond::In(member) => member[i],
         Cond::InPath(v) => s.path.to_lowercase().contains(v.as_str()),
@@ -197,6 +210,40 @@ impl Catalog {
         }
         self.by_folder = by_folder;
         self.hay = self.samples.iter().map(haystack).collect();
+        self.reindex_hidden();
+    }
+
+    /// Masquage effectif (le sample, ou un de ses dossiers parents).
+    pub(crate) fn reindex_hidden(&mut self) {
+        self.touch();
+        let mut memo: HashMap<u32, bool> = HashMap::new();
+        let eff: Vec<bool> = self
+            .samples
+            .iter()
+            .map(|s| s.hidden || self.folder_hidden_memo(s.folder_id, &mut memo))
+            .collect();
+        self.hidden_count = eff.iter().filter(|&&h| h).count();
+        self.hidden_eff = eff;
+    }
+
+    fn folder_hidden_memo(&self, id: u32, memo: &mut HashMap<u32, bool>) -> bool {
+        if let Some(&v) = memo.get(&id) {
+            return v;
+        }
+        let v = self.hidden_folders.contains(&id)
+            || self
+                .folder_parent
+                .get(&id)
+                .copied()
+                .flatten()
+                .is_some_and(|p| self.folder_hidden_memo(p, memo));
+        memo.insert(id, v);
+        v
+    }
+
+    /// Dossier masqué, lui-même ou par un parent.
+    pub(crate) fn folder_hidden(&self, id: u32) -> bool {
+        self.folder_hidden_memo(id, &mut HashMap::new())
     }
 
     /// Oublie l'arbre en cache (à appeler à chaque modification).
@@ -324,6 +371,7 @@ impl Catalog {
                         FilterKey::Is => match t.value.as_str() {
                             "fav" => Cond::Fav,
                             "untagged" => Cond::Untagged,
+                            "hidden" => Cond::Hidden,
                             _ => Cond::Never,
                         },
                         FilterKey::In => {
@@ -347,11 +395,11 @@ impl Catalog {
 
     /// Résultat de la recherche pour chaque sample, calculé en parallèle (100 000 fichiers : quelques ms).
     fn hits(&self, m: &Matcher) -> Vec<bool> {
-        let (samples, hay) = (&self.samples, &self.hay);
+        let (samples, hay, hidden) = (&self.samples, &self.hay, &self.hidden_eff);
         (0..samples.len())
             .into_par_iter()
             .with_min_len(4096)
-            .map(|i| m.matches_parts(&samples[i], &hay[i], i))
+            .map(|i| m.matches_parts(&samples[i], &hay[i], i, hidden.get(i).copied().unwrap_or(false)))
             .collect()
     }
 
@@ -365,6 +413,7 @@ impl Catalog {
             offline: f.offline,
             pinned: false,
             target: None,
+            hidden: false,
         }
     }
 
@@ -376,6 +425,7 @@ impl Catalog {
             offline: false,
             pinned: false,
             target: Some(format!("f:{}", f.id)),
+            hidden: false,
         }
     }
 
@@ -387,6 +437,7 @@ impl Catalog {
             offline: false,
             pinned: self.favorites_pinned,
             target: None,
+            hidden: false,
         }
     }
 
@@ -403,6 +454,7 @@ impl Catalog {
             offline: false,
             pinned: c.pinned,
             target: None,
+            hidden: false,
         }
     }
 
@@ -414,6 +466,7 @@ impl Catalog {
             offline: false,
             pinned: f.pinned,
             target: None,
+            hidden: false,
         }
     }
 
@@ -431,6 +484,7 @@ impl Catalog {
                         offline: false,
                         pinned: false,
                         target: None,
+                        hidden: false,
                     },
                 ];
                 v.extend(self.vf_children(None).into_iter().map(Self::vf_info));
@@ -438,7 +492,14 @@ impl Catalog {
             }
             None => {
                 // Bibliothèque : sources, puis (hors recherche, pour éviter les doublons) les éléments épinglés.
-                let mut v: Vec<NodeInfo> = self.sources.iter().map(Self::folder_info).collect();
+                let mut v: Vec<NodeInfo> = self
+                    .sources
+                    .iter()
+                    .map(|f| NodeInfo {
+                        hidden: self.hidden_folders.contains(&f.id),
+                        ..Self::folder_info(f)
+                    })
+                    .collect();
                 if searching {
                     return v;
                 }
@@ -460,7 +521,15 @@ impl Catalog {
             Some(k) if k.starts_with("f:") => self
                 .folders
                 .get(&node_id(k))
-                .map(|f| f.children.iter().map(Self::folder_info).collect())
+                .map(|f| {
+                    f.children
+                        .iter()
+                        .map(|c| NodeInfo {
+                            hidden: self.hidden_folders.contains(&c.id),
+                            ..Self::folder_info(c)
+                        })
+                        .collect()
+                })
                 .unwrap_or_default(),
             Some(k) if k.starts_with("v:") => self.vf_children(Some(node_id(k))).into_iter().map(Self::vf_info).collect(),
             _ => vec![],
@@ -504,15 +573,24 @@ impl Catalog {
     /// contiennent au moins un résultat, tous ouverts.
     fn build_tree(&self, root: TreeRoot, q: &str, expanded: &[NodeKey]) -> TreeCache {
         let searching = !q.is_empty();
-        let hits: Option<Vec<bool>> = searching.then(|| {
-            let m = self.compile(q);
-            self.hits(&m)
-        });
+        let m = self.compile(q);
+        // Masqués : invisibles partout, sauf si la recherche demande `is:hidden`.
+        let reveal = searching && m.reveals_hidden();
+        let mut hits: Option<Vec<bool>> = searching.then(|| self.hits(&m));
+        if !reveal && self.hidden_count > 0 {
+            let h = hits.get_or_insert_with(|| vec![true; self.samples.len()]);
+            for (x, hid) in h.iter_mut().zip(&self.hidden_eff) {
+                *x &= !hid;
+            }
+        }
         let matches = hits.as_ref().map_or(self.samples.len(), |h| h.iter().filter(|&&b| b).count());
 
         struct Walk<'a> {
             lib: &'a Catalog,
             root: TreeRoot,
+            searching: bool,
+            reveal: bool,
+            /// Samples à montrer (résultats de la recherche et / ou non masqués) ; `None` = tous.
             hits: Option<&'a [bool]>,
             expanded: HashSet<&'a str>,
             memo: HashMap<String, bool>,
@@ -536,9 +614,13 @@ impl Catalog {
             }
 
             fn walk(&mut self, key: Option<&str>, slot: Option<u32>, depth: u32) {
-                let searching = self.hits.is_some();
+                let searching = self.searching;
                 for n in self.lib.child_nodes(self.root, key, searching) {
-                    if let Some(h) = self.hits {
+                    // Dossier masqué (ou raccourci vers lui) : absent, sauf avec `is:hidden`.
+                    if !self.reveal && (n.key.starts_with("f:") || n.key.starts_with("p:")) && self.lib.folder_hidden(node_id(&n.key)) {
+                        continue;
+                    }
+                    if let (true, Some(h)) = (searching, self.hits) {
                         if !self.has_match(&n.key, h) {
                             continue;
                         }
@@ -586,6 +668,8 @@ impl Catalog {
         let mut w = Walk {
             lib: self,
             root,
+            searching,
+            reveal,
             hits: hits.as_deref(),
             expanded: expanded.iter().map(String::as_str).collect(),
             memo: HashMap::new(),
@@ -621,6 +705,7 @@ impl Catalog {
             tags: s.tags.clone(),
             missing: s.missing,
             fav: s.fav,
+            hidden: s.hidden,
             peaks: if peaks { s.peaks.clone() } else { vec![] },
         }
     }
@@ -637,6 +722,7 @@ impl Catalog {
                 open: *open,
                 offline: info.offline.then_some(true),
                 pinned: info.pinned.then_some(true),
+                hidden: info.hidden.then_some(true),
                 target: info.target.clone(),
             }),
             RowRef::Sample { idx, parent, depth } => {
@@ -762,6 +848,7 @@ impl Backend for Catalog {
             virtual_folders: self.virtual_folders.clone(),
             favorites_pinned: self.favorites_pinned,
             pinned_folders: self.pinned_folders.clone(),
+            hidden: self.hidden_count as u32,
         }
     }
 
@@ -1016,6 +1103,24 @@ impl Backend for Catalog {
         }
         chain.reverse();
         chain
+    }
+
+    fn set_hidden(&mut self, ids: &[SampleId], hidden: bool) {
+        for id in ids {
+            if let Some(&i) = self.by_id.get(id) {
+                self.samples[i].hidden = hidden;
+            }
+        }
+        self.reindex_hidden();
+    }
+
+    fn set_folder_hidden(&mut self, id: u32, hidden: bool) {
+        if hidden {
+            self.hidden_folders.insert(id);
+        } else {
+            self.hidden_folders.remove(&id);
+        }
+        self.reindex_hidden();
     }
 
     fn peaks(&self, id: SampleId) -> Vec<f64> {

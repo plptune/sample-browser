@@ -29,7 +29,7 @@ const samples = SAMPLES.map((s) => ({
 type Page = Awaited<ReturnType<typeof mockBackend.tree>>;
 const rowsOf = (page: Page) =>
   page.rows.map(
-    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") : ""}`,
+    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") + (r.hidden ? "|hidden" : "") : ""}`,
   );
 
 const trees = [];
@@ -61,6 +61,19 @@ for (const f of FOCUS) {
   focus.push({ ...f, focusIndex: page.focusIndex ?? null });
 }
 
+// Masquage : samples et dossier masqués, retrouvés avec is:hidden, puis ré-affichés.
+const HIDE_QUERIES = ["", "is:hidden", "kick", "kick is:hidden", "-is:hidden", "in:go"];
+const HIDE_EXPANDED = ["f:10", "f:11", "f:12", "f:13", "c:fav", "c:1"];
+await mockBackend.setHidden([1, 2, 3, 5, 11], true);
+await mockBackend.setFolderHidden(12, true);
+const hidden = { library: (await mockBackend.library()).hidden, trees: [] as unknown[] };
+for (const query of HIDE_QUERIES) {
+  const page = await mockBackend.tree({ root: "library", query, expanded: HIDE_EXPANDED, offset: 0, limit: 100000 });
+  hidden.trees.push({ query, totalRows: page.totalRows, matches: page.matches, rows: rowsOf(page) });
+}
+await mockBackend.setHidden([1, 2, 3, 5, 11], false);
+await mockBackend.setFolderHidden(12, false);
+
 const library = await mockBackend.library();
 const sources = await mockBackend.sources();
 
@@ -91,6 +104,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, focus, library, sources, ancestors, nodePaths, pins, after };
+const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, pins, after };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

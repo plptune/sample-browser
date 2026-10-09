@@ -22,6 +22,7 @@ export interface Sample {
   tags: string[];
   missing: boolean;
   fav: boolean;
+  hidden: boolean; // masqué lui-même (pas via son dossier) : invisible sauf avec `is:hidden`
   peaks: number[]; // 256 valeurs 0..1
 }
 
@@ -73,6 +74,8 @@ export interface FolderRow {
   offline?: boolean | null;
   /** Collection ou dossier virtuel épinglé (marqué d'une icône dans l'onglet Bibliothèque). */
   pinned?: boolean | null;
+  /** Dossier masqué (n'apparaît qu'avec `is:hidden`). */
+  hidden?: boolean | null;
   /** Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
   target?: NodeKey | null;
 }
@@ -116,6 +119,7 @@ export interface Library {
   virtualFolders: VirtualFolder[];
   favoritesPinned: boolean;
   pinnedFolders: number[]; // dossiers sources épinglés comme raccourcis dans Bibliothèque
+  hidden: number; // samples masqués (eux-mêmes ou par leur dossier)
 }
 
 /** Ce que « Créer un vrai dossier » copierait (dossier virtuel, collection ou favoris). */
@@ -135,6 +139,11 @@ export interface CommitResult {
   destination: string;
   copied: number;
   skipped: number;
+}
+
+export interface CommitProgress {
+  done: number;
+  total: number;
 }
 
 export interface Source {
@@ -194,6 +203,10 @@ export interface Backend {
   setPinned(key: NodeKey, pinned: boolean): Promise<void>;
   /** Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre). */
   ancestors(key: NodeKey): Promise<NodeKey[]>;
+  /** Masque (ou ré-affiche) des samples ; rien n'est touché sur le disque. */
+  setHidden(ids: SampleId[], hidden: boolean): Promise<void>;
+  /** Masque (ou ré-affiche) un dossier source et tout ce qu'il contient. */
+  setFolderHidden(id: number, hidden: boolean): Promise<void>;
   /** Pics de waveform d'un sample (256 valeurs 0..1 ; vide tant qu'ils ne sont pas calculés). */
   peaks(id: SampleId): Promise<number[]>;
   /** Groupes de synonymes : un mot libre d'un groupe trouve aussi les autres (« kick » trouve « bd »). */
@@ -207,6 +220,8 @@ export interface Backend {
    * Rejetée (message lisible) si la destination existe et n'est pas vide.
    */
   commitToFolder(key: NodeKey, destination: string, options: CommitOptions): Promise<CommitResult>;
+  /** Avancement de la copie en cours (fichiers copiés / à copier) ; renvoie la fonction de désabonnement. */
+  onCommitProgress(cb: (p: CommitProgress) => void): () => void;
   /** Ajoute un dossier comme source et lance son indexation. Rejetée (message lisible) s'il est déjà couvert. */
   addSource(path: string): Promise<Source>;
   /** Relance l'indexation d'une source (rescan incrémental). */

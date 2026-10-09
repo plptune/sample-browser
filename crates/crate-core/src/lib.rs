@@ -16,6 +16,6 @@ pub mod scan;
 pub mod synonyms;
 
 pub use catalog::Catalog;
-pub use library::SqliteLibrary;
+pub use library::{CommitJob, SqliteLibrary};
 pub use mock::MockLibrary;
 pub use model::*;

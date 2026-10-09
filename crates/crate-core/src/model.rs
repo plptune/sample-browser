@@ -37,6 +37,8 @@ pub struct Sample {
     pub tags: Vec<String>,
     pub missing: bool,
     pub fav: bool,
+    /// Masqué par l'utilisateur (lui-même, pas via son dossier) : invisible sauf avec `is:hidden`.
+    pub hidden: bool,
     /// 256 valeurs 0..1, toujours finies. Déclaré `number[]` côté TypeScript (specta y verrait `number | null`,
     /// à cause de NaN, qui n'arrive jamais ici).
     #[cfg_attr(feature = "specta", specta(type = Vec<u32>))]
@@ -144,6 +146,10 @@ pub struct FolderRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub pinned: Option<bool>,
+    /// Dossier masqué (invisible sauf avec `is:hidden`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub hidden: Option<bool>,
     /// Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
@@ -226,6 +232,8 @@ pub struct Library {
     pub favorites_pinned: bool,
     /// Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque.
     pub pinned_folders: Vec<u32>,
+    /// Samples masqués (eux-mêmes ou par leur dossier).
+    pub hidden: u32,
 }
 
 /// Ce que « Créer un vrai dossier » copierait.
@@ -300,6 +308,14 @@ pub struct PlaybackStatus {
     pub error: bool,
 }
 
+/// Avancement de « Créer un vrai dossier » (fichiers copiés / à copier).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CommitProgress {
+    pub done: u32,
+    pub total: u32,
+}
+
 /// Réglages de lecture.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -335,6 +351,10 @@ pub trait Backend {
     fn set_pinned(&mut self, key: &str, pinned: bool);
     /// Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre).
     fn ancestors(&self, key: &str) -> Vec<NodeKey>;
+    /// Masque (ou ré-affiche) des samples. Rien n'est touché sur le disque.
+    fn set_hidden(&mut self, ids: &[SampleId], hidden: bool);
+    /// Masque (ou ré-affiche) un dossier source et tout ce qu'il contient.
+    fn set_folder_hidden(&mut self, id: u32, hidden: bool);
     /// Pics de waveform d'un sample (256 valeurs 0..1, vide tant qu'ils ne sont pas calculés).
     fn peaks(&self, id: SampleId) -> Vec<f64>;
     /// Groupes de synonymes appliqués aux mots libres de la recherche.

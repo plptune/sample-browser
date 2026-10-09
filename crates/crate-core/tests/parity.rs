@@ -19,7 +19,7 @@ fn rows_of(page: &TreePage) -> Vec<String> {
                 if n.open { "open" } else { "closed" },
                 if n.offline == Some(true) { "|offline" } else { "" },
                 if n.pinned == Some(true) { "|pinned" } else { "" },
-                n.target.as_ref().map(|t| format!("|->{t}")).unwrap_or_default()
+                n.target.as_ref().map(|t| format!("|->{t}")).unwrap_or_default() + if n.hidden == Some(true) { "|hidden" } else { "" }
             ),
             TreeRow::Sample(s) => format!("{}|{}", s.depth, s.key),
         })
@@ -167,6 +167,26 @@ fn memes_parents() {
     for (key, want) in fx["ancestors"].as_object().unwrap() {
         assert_eq!(lib.ancestors(key), strings(want), "ancestors({key})");
     }
+}
+
+#[test]
+fn meme_masquage() {
+    let fx = fixture();
+    let h = &fx["hidden"];
+    let mut lib = MockLibrary::demo();
+    lib.set_hidden(&[1, 2, 3, 5, 11], true);
+    lib.set_folder_hidden(12, true);
+    assert_eq!(lib.library().hidden as u64, h["library"].as_u64().unwrap());
+    let expanded: Vec<String> = ["f:10", "f:11", "f:12", "f:13", "c:fav", "c:1"].map(String::from).to_vec();
+    for t in h["trees"].as_array().unwrap() {
+        let q = t["query"].as_str().unwrap();
+        let page = lib.tree(&req(TreeRoot::Library, q, expanded.clone()));
+        assert_eq!(rows_of(&page), strings(&t["rows"]), "masquage, {q:?}");
+        assert_eq!(page.matches as u64, t["matches"].as_u64().unwrap(), "masquage, {q:?}");
+    }
+    lib.set_hidden(&[1, 2, 3, 5, 11], false);
+    lib.set_folder_hidden(12, false);
+    assert_eq!(lib.library().hidden, 0);
 }
 
 #[test]

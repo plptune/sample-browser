@@ -9,7 +9,7 @@ import {
   type FolderNode,
 } from "../mock/generate";
 import type {
-  Backend, Collection, CommitOptions, CommitPlan, FolderRow, Library, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
+  Backend, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
   TreeRow,
   VirtualFolder,
 } from "./types";
@@ -59,6 +59,7 @@ function matchToken(s: Sample, t: QueryToken): boolean {
           return s.kind === (t.value === "one-shot" ? "oneshot" : t.value);
         case "is":
           if (t.value === "fav") return s.fav;
+          if (t.value === "hidden") return hiddenEff(s);
           return t.value === "untagged" ? s.tags.length === 0 : false;
         case "in": {
           const v = t.value.toLowerCase();
@@ -130,9 +131,28 @@ interface NodeInfo {
   offline?: boolean;
   pinned?: boolean;
   target?: NodeKey;
+  hidden?: boolean;
 }
 
-const folderInfo = (f: FolderNode): NodeInfo => ({ key: `f:${f.id}`, name: f.name, kind: "folder", offline: f.offline });
+// ---------- Masquage (fichiers et dossiers ; jamais de suppression) ----------
+
+const HIDDEN_FOLDERS = new Set<number>();
+
+function folderHidden(id: number): boolean {
+  for (let f: number | null | undefined = id; f !== null && f !== undefined; f = folderParent.get(f)) if (HIDDEN_FOLDERS.has(f)) return true;
+  return false;
+}
+
+/** Masqué, lui-même ou par un dossier parent. */
+const hiddenEff = (s: Sample) => s.hidden || folderHidden(s.folderId);
+
+const folderInfo = (f: FolderNode): NodeInfo => ({
+  key: `f:${f.id}`,
+  name: f.name,
+  kind: "folder",
+  offline: f.offline,
+  hidden: HIDDEN_FOLDERS.has(f.id),
+});
 const shortcutInfo = (f: FolderNode): NodeInfo => ({ key: `p:${f.id}`, name: f.name, kind: "shortcut", target: `f:${f.id}` });
 const favInfo = (): NodeInfo => ({ key: "c:fav", name: "Favoris", kind: "favorites", pinned: FAVORITES.pinned });
 const collInfo = (c: Collection): NodeInfo => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection", pinned: c.pinned });
@@ -205,6 +225,8 @@ const byId = new Map(SAMPLES.map((s) => [s.id, s]));
 const basename = (p: string) => p.replace(/\/+$/, "").split("/").pop() ?? p;
 const nextId = (xs: { id: number }[]) => Math.max(0, ...xs.map((x) => x.id)) + 1;
 
+const commitListeners = new Set<(p: CommitProgress) => void>();
+
 // ---------- Lecture factice (navigateur) : même déroulé que le lecteur Rust, sans son ----------
 
 const listeners = new Set<(s: PlaybackStatus) => void>();
@@ -247,6 +269,7 @@ export const mockBackend: Backend = {
       virtualFolders: VIRTUAL_FOLDERS.map((f) => ({ ...f })),
       favoritesPinned: FAVORITES.pinned,
       pinnedFolders: [...PINNED_FOLDERS],
+      hidden: SAMPLES.filter(hiddenEff).length,
     };
   },
 
@@ -258,7 +281,9 @@ export const mockBackend: Backend = {
     const t0 = performance.now();
     const q = req.query.trim();
     const searching = q !== "";
-    const match = (s: Sample) => !searching || matchLine(s, q);
+    // Masqués : invisibles partout, sauf si la recherche demande `is:hidden`.
+    const reveal = searching && parseLine(q).some((t) => t.kind === "filter" && t.key === "is" && t.value === "hidden" && !t.negated);
+    const match = (s: Sample) => (reveal || !hiddenEff(s)) && (!searching || matchLine(s, q));
 
     // Un nœud reste visible en recherche s'il contient au moins un résultat (mémoïsé par requête).
     const memo = new Map<NodeKey, boolean>();
@@ -270,12 +295,14 @@ export const mockBackend: Backend = {
     const rows: TreeRow[] = [];
     const walk = (key: NodeKey | null, depth: number) => {
       for (const n of childNodes(req.root, key, searching)) {
+        if (!reveal && /^[fp]:/.test(n.key) && folderHidden(+n.key.slice(2))) continue;
         if (searching && !hasMatch(n.key)) continue;
         // Un raccourci ne se déplie jamais : il saute au dossier visé.
         const open = n.kind !== "shortcut" && (searching || req.expanded.includes(n.key));
         const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
         if (n.offline) row.offline = true;
         if (n.pinned) row.pinned = true;
+        if (n.hidden) row.hidden = true;
         if (n.target) row.target = n.target;
         rows.push(row);
         if (open) walk(n.key, depth + 1);
@@ -293,7 +320,7 @@ export const mockBackend: Backend = {
     return {
       rows: rows.slice(req.offset, req.offset + req.limit),
       totalRows: rows.length,
-      matches: searching ? SAMPLES.filter(match).length : SAMPLES.length,
+      matches: SAMPLES.filter(match).length,
       ...(focus >= 0 ? { focusIndex: focus } : {}),
       micros: Math.round((performance.now() - t0) * 1000),
     };
@@ -428,6 +455,18 @@ export const mockBackend: Backend = {
     return chain;
   },
 
+  async setHidden(ids, hidden) {
+    for (const id of ids) {
+      const s = byId.get(id);
+      if (s) s.hidden = hidden;
+    }
+  },
+
+  async setFolderHidden(id, hidden) {
+    if (hidden) HIDDEN_FOLDERS.add(id);
+    else HIDDEN_FOLDERS.delete(id);
+  },
+
   async peaks(id) {
     return byId.get(id)?.peaks ?? [];
   },
@@ -467,10 +506,14 @@ export const mockBackend: Backend = {
   },
 
   async commitToFolder(key, destination, options) {
-    // Phases 0 / 1 : aucun fichier n'est écrit. On simule le résultat et, si demandé, une nouvelle source
-    // qui reflète l'arborescence copiée (indexation réelle en phase 2, copie réelle en phase 5).
+    // Navigateur : aucun fichier n'est écrit. Progression simulée (~1,2 s), puis le résultat et, si demandé,
+    // une nouvelle source qui reflète l'arborescence copiée (la fenêtre copie vraiment, voir library.rs).
     const all = commitEntries(key, options);
     const entries = all.filter((e) => !e.sample.missing);
+    for (let i = 1; i <= 12; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      for (const l of commitListeners) l({ done: Math.round((entries.length * i) / 12), total: entries.length });
+    }
     const dest = destination.replace(/\/+$/, "");
     if (options.addAsSource) {
       let nextFolder = Math.max(999, ...folders.keys()) + 1;
@@ -562,6 +605,11 @@ export const mockBackend: Backend = {
 
   async setPlayback(options) {
     Object.assign(playback, options);
+  },
+
+  onCommitProgress(cb) {
+    commitListeners.add(cb);
+    return () => commitListeners.delete(cb);
   },
 
   onPlayback(cb) {

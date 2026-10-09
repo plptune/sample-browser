@@ -84,7 +84,13 @@ function menuFor(row: Row | undefined): MenuItem[] {
         shortcut: "⌘D",
         action: () => app.toggleFavorite(),
       },
-      ...(removable ? [{ label: `Retirer de « ${app.nodeName(parent)} »`, action: () => app.removeSelectionFrom(parent) } as MenuItem] : []),
+      ...(removable
+        ? [{ label: `Retirer de « ${app.nodeName(parent)} »`, shortcut: "⌘⌫", action: () => app.removeSelectionFrom(parent) } as MenuItem]
+        : []),
+      // Masquer : jamais de suppression ; « is:hidden » les retrouve, « Afficher » annule.
+      app.selectedSamples().every((s) => s.hidden)
+        ? { label: "Afficher", action: () => app.hideSelection(false) }
+        : { label: n > 1 ? `Masquer ${n} samples` : "Masquer", shortcut: removable ? undefined : "⌘⌫", action: () => app.hideSelection(true) },
       { type: "separator" },
       { type: "header", label: "Ajouter à une collection" },
       ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.addSelectionTo(`c:${c.id}`) })),
@@ -119,23 +125,45 @@ function menuFor(row: Row | undefined): MenuItem[] {
         toggle,
         { label: pinned ? "Retirer de Bibliothèque" : "Épingler dans Bibliothèque", action: () => app.togglePin(row.key) },
         { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
+        { type: "separator" },
+        row.hidden
+          ? { label: "Afficher le dossier", action: () => app.hideFolder(row.key, false) }
+          : { label: "Masquer le dossier", shortcut: "⌘⌫", action: () => app.hideFolder(row.key, true) },
       ];
     }
     case "favorites":
       return [toggle, pinItem(row.key, row.pinned), { type: "separator" }, commitItem(row.key)];
     case "group":
       return [toggle, { type: "separator" }, { label: "Nouvelle collection", action: () => app.newCollection() }];
-    case "virtual":
+    case "virtual": {
+      // « Déplacer dans » : le pendant clavier du glisser (ni soi-même, ni un descendant, ni le parent actuel).
+      const all = app.library()?.virtualFolders ?? [];
+      const id = +row.key.slice(2);
+      const self = all.find((f) => f.id === id);
+      const inside = (f: { id: number; parentId: number | null }): boolean => {
+        for (let p: typeof f | undefined = f; p; p = p.parentId === null ? undefined : all.find((x) => x.id === p!.parentId)) if (p.id === id) return true;
+        return false;
+      };
+      const dests = all
+        .filter((f) => !inside(f) && f.id !== self?.parentId)
+        .map((f) => ({ id: f.id, path: vfPath(f.id) }))
+        .sort((a, b) => a.path.localeCompare(b.path));
+      const moves: MenuItem[] = [
+        ...(self?.parentId != null ? [{ label: "Racine", action: () => app.moveVirtualFolderTo(row.key, null) } as MenuItem] : []),
+        ...dests.map((f): MenuItem => ({ label: f.path, action: () => app.moveVirtualFolderTo(row.key, `v:${f.id}`) })),
+      ];
       return [
         toggle,
         { label: "Nouveau dossier virtuel dedans", action: () => app.newVirtualFolder(row.key) },
         { label: "Renommer", action: () => app.setRenamingKey(row.key) },
         pinItem(row.key, row.pinned),
+        ...(moves.length ? [{ type: "separator" } as MenuItem, { type: "header", label: "Déplacer dans" } as MenuItem, ...moves] : []),
         { type: "separator" },
         commitItem(row.key),
         { type: "separator" },
         { label: "Supprimer le dossier virtuel", danger: true, action: () => app.deleteNode(row.key) },
       ];
+    }
     default:
       return [
         toggle,

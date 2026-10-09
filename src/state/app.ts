@@ -250,6 +250,13 @@ function createAppState() {
     return cur?.id === id ? cur : undefined;
   };
 
+  // Toujours au premier plan : appliqué à la vraie fenêtre.
+  createEffect(
+    on(alwaysOnTop, (v) => {
+      if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setAlwaysOnTop(v));
+    }),
+  );
+
   // Pics du sample du tiroir (les lignes ne les transportent qu'en densité « waveform »).
   const [currentPeaks, setCurrentPeaks] = createSignal<number[]>([]);
   createEffect(
@@ -465,6 +472,13 @@ function createAppState() {
       setProgress(fraction);
       void api.seek(Math.round(ms));
     } else play(s.id, ms);
+  }
+
+  /** ⇧← / ⇧→ : recule ou avance d'un dixième du sample courant (lit depuis ce point s'il ne joue pas). */
+  function nudge(delta: number) {
+    const s = current();
+    if (!s) return;
+    seekTo((playingId() === s.id ? progress() : 0) + delta);
   }
 
   function setLooping(v: boolean) {
@@ -752,6 +766,14 @@ function createAppState() {
     await addSelectionTo(target);
   }
 
+  /** Déplace un dossier virtuel sous un autre (null = racine) : le pendant clavier du glisser. */
+  async function moveVirtualFolderTo(key: NodeKey, parent: NodeKey | null) {
+    await api.moveVirtualFolder(nodeId(key), parent === null ? null : nodeId(parent));
+    if (parent !== null) setExpanded([...new Set([...expanded(), parent])]);
+    setCursor(key);
+    await Promise.all([refresh(key), reloadLibrary()]);
+  }
+
   async function addSelectionTo(target: NodeKey) {
     const ids = selectedSamples().map((s) => s.id);
     if (!ids.length) return;
@@ -759,6 +781,37 @@ function createAppState() {
     else if (target.startsWith("c:")) await api.addToCollection(nodeId(target), ids);
     else if (target.startsWith("v:")) await api.addToVirtualFolder(nodeId(target), ids);
     await refresh();
+  }
+
+  // --- masquer (jamais de suppression ; « is:hidden » les retrouve)
+  async function hideSelection(hidden: boolean) {
+    const ids = selectedSamples().map((s) => s.id);
+    if (!ids.length) return;
+    await api.setHidden(ids, hidden);
+    if (hidden) setSelected([]);
+    await Promise.all([refresh(), reloadLibrary()]);
+    if (hidden) setNotice(`${ids.length > 1 ? `${ids.length} samples masqués` : "Sample masqué"} : « is:hidden » pour les retrouver.`);
+  }
+
+  async function hideFolder(key: NodeKey, hidden: boolean) {
+    if (!key.startsWith("f:")) return;
+    await api.setFolderHidden(+key.slice(2), hidden);
+    await Promise.all([refresh(), reloadLibrary()]);
+    if (hidden) setNotice(`Dossier « ${rowByKey(key)?.type === "node" ? (rowByKey(key) as { name: string }).name : ""} » masqué : « is:hidden » pour le retrouver.`);
+  }
+
+  /** ⌘⌫ : retire de la collection / du dossier virtuel ; ailleurs, masque. Jamais de suppression de fichier. */
+  async function removeOrHide() {
+    const row = rowByKey(cursor());
+    if (!row) return;
+    if (row.type === "node") {
+      if (row.key.startsWith("f:") && row.parent !== null && !row.hidden) await hideFolder(row.key, true);
+      return;
+    }
+    const p = row.parent;
+    const manual = p.startsWith("c:") && (p === "c:fav" || library()?.collections.find((c) => `c:${c.id}` === p)?.kind === "manual");
+    if (p.startsWith("v:") || manual) await removeSelectionFrom(p);
+    else if (!row.sample.hidden) await hideSelection(true);
   }
 
   /** Retire la sélection de la collection / du dossier virtuel qui la contient (jamais du disque). */
@@ -804,23 +857,17 @@ function createAppState() {
     const c = commit();
     if (!c || c.status !== "idle" || !c.destination.trim()) return;
     setCommit({ ...c, status: "running", progress: 0, error: null });
-    // Progression simulée (phases 0 / 1). Phase 5 : événements de copie envoyés par Rust.
-    const t0 = performance.now();
-    await new Promise<void>((done) => {
-      const tick = (now: number) => {
-        const p = Math.min(1, (now - t0) / 1200);
-        setCommit((x) => (x ? { ...x, progress: p } : x));
-        p < 1 ? requestAnimationFrame(tick) : done();
-      };
-      requestAnimationFrame(tick);
-    });
+    // Progression envoyée par la copie elle-même (Rust dans la fenêtre, simulée dans le navigateur).
+    const off = api.onCommitProgress((p) => setCommit((x) => (x ? { ...x, progress: p.total ? p.done / p.total : 1 } : x)));
     let result: CommitResult;
     try {
       result = await api.commitToFolder(c.key, c.destination.trim(), c.options);
     } catch (e) {
+      off();
       setCommit((x) => (x ? { ...x, status: "idle", progress: 0, error: e instanceof Error ? e.message : String(e) } : x));
       return;
     }
+    off();
     setCommit((x) => (x ? { ...x, status: "done", progress: 1, result } : x));
     if (c.options.addAsSource) await Promise.all([refresh(), reloadLibrary()]);
   }
@@ -893,10 +940,65 @@ function createAppState() {
     await refresh();
   }
 
+  // --- réglages d'interface, gardés d'un lancement à l'autre (stockage local de la fenêtre)
+  const PREFS_KEY = "crate.prefs";
+  interface Prefs {
+    theme: ThemePref;
+    density: Density;
+    autoPlay: boolean;
+    alwaysOnTop: boolean;
+    looping: boolean;
+    volume: number;
+    stopOnDrag: boolean;
+    stopOnBlur: boolean;
+  }
+  function loadPrefs() {
+    let p: Partial<Prefs> = {};
+    try {
+      p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
+    } catch {
+      /* stockage indisponible : réglages par défaut */
+    }
+    batch(() => {
+      if (p.theme) setThemePref(p.theme);
+      if (p.density) setDensitySignal(p.density);
+      if (typeof p.autoPlay === "boolean") setAutoPlay(p.autoPlay);
+      if (typeof p.alwaysOnTop === "boolean") setAlwaysOnTop(p.alwaysOnTop);
+      if (typeof p.looping === "boolean") setLoopingSignal(p.looping);
+      if (typeof p.volume === "number") setVolumeSignal(Math.max(0, Math.min(1, p.volume)));
+      if (typeof p.stopOnDrag === "boolean") setStopOnDrag(p.stopOnDrag);
+      if (typeof p.stopOnBlur === "boolean") setStopOnBlur(p.stopOnBlur);
+    });
+  }
+  function savePrefs() {
+    const p: Prefs = {
+      theme: themePref(),
+      density: density(),
+      autoPlay: autoPlay(),
+      alwaysOnTop: alwaysOnTop(),
+      looping: looping(),
+      volume: volume(),
+      stopOnDrag: stopOnDrag(),
+      stopOnBlur: stopOnBlur(),
+    };
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    } catch {
+      /* pas de stockage : tant pis, rien de critique */
+    }
+  }
+
   /** Démarrage : démo (scénarios) ou vraie bibliothèque (premier lancement si aucune source). */
   async function start(): Promise<boolean> {
     void api.synonyms().then(setSynonyms);
-    const isDemo = await api.isDemo();
+    // Réglages : seulement dans la vraie bibliothèque (la démo repart toujours des mêmes réglages).
+    const isDemoMode = await api.isDemo();
+    if (!isDemoMode) {
+      loadPrefs();
+      createRoot(() => createEffect(savePrefs));
+      void api.setPlayback({ volume: volume(), looping: looping() });
+    }
+    const isDemo = isDemoMode;
     setDemo(isDemo);
     if (isDemo) return true;
     api.onScanStatus(onScanStatus);
@@ -940,7 +1042,7 @@ function createAppState() {
     view, setView, tagging, setTagging, saving, setSaving, menu, setMenu, renamingKey, setRenamingKey,
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
-    tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, addSelectionTo,
+    tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
@@ -949,7 +1051,8 @@ function createAppState() {
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
     select, move, right, left, activate, play, stop, togglePlay, selectKey,
     total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms,
-    looping, setLooping, volume, setVolume, stopOnDrag, setStopOnDrag, stopOnBlur, setStopOnBlur, latency, seekTo, playRandom, metrics, debug, setDebug,
+    hideSelection, hideFolder, removeOrHide,
+    looping, setLooping, volume, setVolume, stopOnDrag, setStopOnDrag, stopOnBlur, setStopOnBlur, latency, seekTo, nudge, playRandom, metrics, debug, setDebug,
     jumpTo, back, forward, clearHistory, canBack, canForward,
     demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, showInFinder, openFolderInFinder, finderForSelection, chooseCommitParent,
   };

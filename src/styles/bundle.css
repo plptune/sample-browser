@@ -438,6 +438,12 @@
   opacity: 0.5;
 }
 
+/* Masqué (affiché seulement avec « is:hidden ») : atténué, sans barre (le fichier existe). */
+.cr-node[data-hidden] .cr-node__label {
+  color: var(--cr-text-3);
+  font-style: italic;
+}
+
 .cr-node[data-missing] .cr-node__label {
   color: var(--cr-text-3);
   text-decoration: line-through;

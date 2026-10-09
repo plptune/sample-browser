@@ -144,6 +144,7 @@ function NodeRowView(props: { row: FolderRow }) {
         open={props.row.open}
         title={props.row.target ? "Aller au dossier" : undefined}
         offline={props.row.offline ?? undefined}
+        hidden={props.row.hidden ?? undefined}
         marker={markerFor(props.row)}
         selected={app.cursor() === props.row.key}
         draggable={props.row.kind === "virtual"}
@@ -197,6 +198,7 @@ function SampleRowView(props: { row: SampleRow }) {
       playing={app.playingId() === s().id}
       progress={app.progress()}
       missing={s().missing}
+      hidden={s().hidden}
       dragging={app.draggingKey() === props.row.key}
       bpm={s().bpm}
       keyName={s().key}

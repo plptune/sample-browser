@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Fenêtre principale : permissions de base + déplacement par la barre titre + glisser natif de fichiers (DAW, Finder)",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-start-dragging", "drag:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging", "core:window:allow-set-always-on-top", "drag:default"]
 }

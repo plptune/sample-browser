@@ -58,10 +58,15 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 
 ## Fenêtre Tauri
 
+La liste complète de ce qui reste à vérifier sur Mac, phases 0 à 5, est dans
+[`verification-mac.md`](verification-mac.md) ; les cases ci-dessous en sont le résumé.
+
 - [ ] `pnpm tauri dev` ouvre une fenêtre 320 × 760, largeur minimale 260, barre titre overlay : les feux macOS
       tombent dans les 72 px réservés à gauche de « Crate ».
 - [ ] La fenêtre se déplace en tirant la barre titre.
 - [ ] Avec `CRATE_DEMO=1`, le panneau est identique au navigateur, sans la barre de démo (touches de scénario actives).
+- [ ] Phase 5 : tout au clavier (⇧F10, ⌘⌫, ⌘⇧N, ⇧← / ⇧→) ; masquer / `is:hidden` / afficher ; réglages retrouvés
+      après relance ; « Toujours au premier plan » au-dessus du DAW ; vraie progression d'une grosse copie.
 - [ ] Phase 4 (sur Mac) : Espace joue avec le son, ⌥⌘D affiche « son … ms » sous 30 ms ; clic dans la waveform ;
       ⌘L ; volume ; ⌘⇧Espace ; glisser un sample dans Ableton Live 12 et dans Logic (piste audio créée) ; glisser
       sur une collection ou « Favoris » dans la fenêtre ; passer au DAW coupe la lecture.

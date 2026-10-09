@@ -9,7 +9,7 @@ use crate::catalog::{Catalog, FolderNode};
 use crate::model::*;
 use crate::natural;
 
-const MIGRATIONS: &[&str] = &[include_str!("schema.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("schema.sql"), include_str!("schema2.sql")];
 
 pub type DbResult<T> = Result<T, rusqlite::Error>;
 
@@ -102,7 +102,7 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
 
     // Fichiers
     let mut stmt = conn.prepare(
-        "SELECT id, folder_id, path, name, ext, duration_ms, sample_rate, bit_depth, channels, bpm, musical_key, kind, fav, missing, size
+        "SELECT id, folder_id, path, name, ext, duration_ms, sample_rate, bit_depth, channels, bpm, musical_key, kind, fav, missing, size, hidden
          FROM files ORDER BY id",
     )?;
     let mut sizes = HashMap::new();
@@ -126,6 +126,7 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
                 tags: vec![],
                 missing: r.get(13)?,
                 fav: r.get(12)?,
+                hidden: r.get(15)?,
                 peaks: vec![],
             })
         })?
@@ -193,6 +194,10 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
         .query_map([], |r| r.get(0))?
         .collect::<DbResult<_>>()?;
     c.favorites_pinned = setting(conn, "favorites_pinned")?.as_deref() != Some("0");
+    c.hidden_folders = conn
+        .prepare("SELECT id FROM folders WHERE hidden = 1")?
+        .query_map([], |r| r.get(0))?
+        .collect::<DbResult<_>>()?;
     c.synonyms = match setting(conn, "synonyms")? {
         Some(text) => crate::synonyms::from_text(&text),
         None => crate::synonyms::defaults(),

@@ -442,6 +442,7 @@ pub fn samples() -> Vec<Sample> {
                 missing: false,
                 // Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
                 fav: id % 11 == 0,
+                hidden: false,
                 peaks,
             });
             id += 1;

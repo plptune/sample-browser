@@ -27,12 +27,17 @@ export const commands = {
 	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
 	ancestors: (key: string) => __TAURI_INVOKE<string[]>("ancestors", { key }),
 	nodePath: (key: string) => __TAURI_INVOKE<string | null>("node_path", { key }),
+	setHidden: (ids: number[], hidden: boolean) => __TAURI_INVOKE<void>("set_hidden", { ids, hidden }),
+	setFolderHidden: (id: number, hidden: boolean) => __TAURI_INVOKE<void>("set_folder_hidden", { id, hidden }),
 	/**  Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ». */
 	peaks: (id: number) => __TAURI_INVOKE<(number | null)[]>("peaks", { id }),
 	synonyms: () => __TAURI_INVOKE<string[][]>("synonyms"),
 	setSynonyms: (groups: string[][]) => __TAURI_INVOKE<void>("set_synonyms", { groups }),
 	planCommit: (key: string, options: CommitOptions) => __TAURI_INVOKE<CommitPlan>("plan_commit", { key, options }),
-	/**  Copie réelle (simulée en démo). Phase 5 : progression par événement. */
+	/**
+	 *  Copie réelle, sur un thread et hors du verrou (la fenêtre reste utilisable), avec sa progression.
+	 *  En démo : simulée par la bibliothèque factice.
+	 */
 	commitToFolder: (key: string, destination: string, options: CommitOptions) => typedError<CommitResult, string>(__TAURI_INVOKE("commit_to_folder", { key, destination, options })),
 	addSource: (path: string) => typedError<Source, string>(__TAURI_INVOKE("add_source", { path })),
 	refreshSource: (id: number) => __TAURI_INVOKE<void>("refresh_source", { id }),
@@ -63,6 +68,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	commitProgressEvent: makeEvent<CommitProgressEvent>("commit-progress-event"),
 	playbackEvent: makeEvent<PlaybackEvent_Deserialize>("playback-event"),
 	scanEvent: makeEvent<ScanEvent>("scan-event"),
 };
@@ -114,6 +120,15 @@ export type CommitPlan = {
 	missing: number,
 };
 
+/**  Avancement de « Créer un vrai dossier » (fichiers copiés / à copier). */
+export type CommitProgress = {
+	done: number,
+	total: number,
+};
+
+/**  Avancement de la copie de « Créer un vrai dossier » (au plus 20 par seconde, plus le dernier). */
+export type CommitProgressEvent = CommitProgress;
+
 export type CommitResult = {
 	destination: string,
 	copied: number,
@@ -133,6 +148,8 @@ export type FolderRow_Deserialize = {
 	offline?: boolean | null,
 	/**  Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque). */
 	pinned?: boolean | null,
+	/**  Dossier masqué (invisible sauf avec `is:hidden`). */
+	hidden?: boolean | null,
 	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
 	target?: string | null,
 };
@@ -148,6 +165,8 @@ export type FolderRow_Serialize = {
 	offline?: boolean | null,
 	/**  Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque). */
 	pinned?: boolean | null,
+	/**  Dossier masqué (invisible sauf avec `is:hidden`). */
+	hidden?: boolean | null,
 	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
 	target?: string | null,
 };
@@ -162,6 +181,8 @@ export type Library_Deserialize = {
 	favoritesPinned: boolean,
 	/**  Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque. */
 	pinnedFolders: number[],
+	/**  Samples masqués (eux-mêmes ou par leur dossier). */
+	hidden: number,
 };
 
 export type Library_Serialize = {
@@ -172,6 +193,8 @@ export type Library_Serialize = {
 	favoritesPinned: boolean,
 	/**  Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque. */
 	pinnedFolders: number[],
+	/**  Samples masqués (eux-mêmes ou par leur dossier). */
+	hidden: number,
 };
 
 export type NodeKind = "folder" | "shortcut" | "favorites" | "group" | "collection" | "smart" | "virtual";
@@ -241,6 +264,8 @@ export type Sample = {
 	tags: string[],
 	missing: boolean,
 	fav: boolean,
+	/**  Masqué par l'utilisateur (lui-même, pas via son dossier) : invisible sauf avec `is:hidden`. */
+	hidden: boolean,
 	/**
 	 *  256 valeurs 0..1, toujours finies. Déclaré `number[]` côté TypeScript (specta y verrait `number | null`,
 	 *  à cause de NaN, qui n'arrive jamais ici).

@@ -219,6 +219,7 @@ function makeSamples(): Sample[] {
         tags: [...tags].sort(),
         missing: false,
         fav: false,
+        hidden: false,
         peaks: peaksFor(cat.shape, beats),
       });
     }

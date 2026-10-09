@@ -108,6 +108,10 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘S | Recherche → collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
 | ⌘N | Nouveau dossier virtuel |
+| ⌘⇧N | Nouvelle collection |
+| ⌘⌫ | Retirer de la collection / du dossier virtuel ; ailleurs, masquer |
+| ⇧F10 | Menu de la ligne courante (clic droit au clavier) |
+| ⇧← / ⇧→ | Reculer / avancer d'un dixième dans le sample |
 | ⌘O | Ajouter un dossier |
 | ⌥⌘R | Afficher la sélection dans le Finder |
 | ⌥⌘D | Mesures (arbre, échange, rendu, son) |
@@ -131,7 +135,7 @@ Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Ru
 | `dur:` | `dur:<2s`, `dur:1-4s` | Durée |
 | `in:` | `in:Drums` | Collection, sinon dossier virtuel (et ses sous-dossiers), sinon chemin |
 | `type:` | `type:loop`, `type:oneshot` | Loop / one-shot |
-| `is:` | `is:fav`, `is:untagged` | Raccourcis |
+| `is:` | `is:fav`, `is:untagged`, `is:hidden` | Raccourcis ; `is:hidden` montre les éléments masqués (sinon jamais affichés) |
 
 Autocomplétion après `#`, `key:` et `in:`. ⌘S enregistre la ligne brute comme collection smart.
 
@@ -212,6 +216,21 @@ Tout est dans le dépôt `plptune/sample-browser` :
 - Mesures (conteneur, sans carte son) : premier son prêt en < 30 ms (lecture muette, au tick près). **À valider sur
   Mac** : latence réelle (⌥⌘D affiche « son … ms ») et dépôt dans Ableton Live 12 et Logic.
 
+### Phase 5 — Tags, collections, favoris ✅ terminée (à valider sur Mac)
+
+- Toutes les mutations du contrat écrites en base dès la phase 2 ; la phase 5 ajoute **masquer** : « Masquer » dans le
+  menu d'un sample ou d'un sous-dossier (⌘⌫ dans la Bibliothèque), `is:hidden` pour les retrouver (en italique gris),
+  « Afficher » pour annuler. Un élément masqué disparaît de l'arbre, de la recherche, des collections et des
+  dossiers virtuels ; rien n'est supprimé ni déplacé sur le disque, et le masquage survit aux rescans.
+- Tout au clavier : ⇧F10 (ou la touche Menu) ouvre le menu de la ligne courante, ⌘⇧N crée une collection, ⌘⌫ retire
+  de la collection ou du dossier virtuel (ailleurs : masque), « Déplacer dans » remplace le glisser d'un dossier
+  virtuel, ⇧← / ⇧→ remplacent le clic dans la waveform.
+- Réglages mémorisés (thème, densité, lecture, fenêtre) ; « Toujours au premier plan » agit vraiment sur la fenêtre ;
+  « Créer un vrai dossier » affiche la vraie progression de la copie (événements), sans bloquer l'app.
+- Preuve « rien n'est écrit » : un test photographie les dossiers de l'utilisateur (chemins, tailles, dates,
+  contenus) avant et après toutes les mutations, un rescan, le calcul des pics, une copie et le retrait d'une source.
+- **Ce qui reste à vérifier sur Mac, toutes phases confondues : [`docs/verification-mac.md`](verification-mac.md).**
+
 ### Phases 2 à 6 — Le moteur
 
 Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
@@ -224,7 +243,7 @@ Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
    - Sortie : < 16 ms par frappe et par ouverture de dossier sur 100 000 fichiers.
 4. ✅ **Preview + drag & drop** — lecture côté Rust (cpal + symphonia), commandes play / stop / seek et événement de position (~30 Hz) qui remplacent la fausse lecture, pics de waveform, drag vers Ableton / Logic / Finder. Avec : **clic dans la waveform** du tiroir = lire depuis ce point ; **boucle** et **volume** (Réglages, plus ⌘L pour la boucle) ; **lecture aléatoire** ⌘⇧Espace (un sample au hasard parmi les lignes visibles) ; **arrêter la lecture** au début d'un glisser et quand l'app perd le focus (deux réglages, activés par défaut).
    - Sortie : son en < 30 ms ; drop fonctionnel dans Ableton Live 12 et Logic.
-5. **Tags, collections, favoris** — toutes les mutations du contrat en base (tags, favoris, collections manuelles et smart, renommage, suppression, ajout, raccourcis), révéler dans le Finder. **Masquer des fichiers** : « Masquer » dans le menu d'un sample ou d'un dossier, `is:hidden` pour les retrouver, « Afficher » pour annuler (jamais de suppression).
+5. ✅ **Tags, collections, favoris** — toutes les mutations du contrat en base (tags, favoris, collections manuelles et smart, renommage, suppression, ajout, raccourcis), révéler dans le Finder. **Masquer des fichiers** : « Masquer » dans le menu d'un sample ou d'un dossier, `is:hidden` pour les retrouver, « Afficher » pour annuler (jamais de suppression).
    - Sortie : tout est faisable sans souris ; rien n'est écrit dans les dossiers de l'utilisateur.
 6. **Analyse de fond** — BPM, tonalité, type loop / one-shot ; file de priorité basse, reprise après redémarrage.
    - Sortie : filtres `bpm:` et `key:` fiables sur un jeu test annoté.
@@ -344,3 +363,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.8 | Idées reprises de Sononym, en version simple : raccourcis vers des sous-dossiers, historique ⌥← / ⌥→ ; planifiés : masquer, lecture aléatoire, boucle + volume, lecture depuis un point, arrêt au drag / perte de focus, synonymes, actualiser une source ; en attente : taper pour sauter |
 | v0.9 | Phase 3 : arbre virtualisé par pages, synonymes dans les Réglages, overlay de mesures ⌥⌘D |
 | v1.0 | Phase 4 : son réel, waveforms réelles, glisser natif vers le DAW, boucle / volume / aléatoire |
+| v1.1 | Phase 5 : masquer (`is:hidden`), tout au clavier (⇧F10, ⌘⌫, ⌘⇧N, ⇧← / ⇧→), réglages mémorisés, vraie progression de copie |

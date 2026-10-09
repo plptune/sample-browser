@@ -27,6 +27,8 @@ export function TreeRow(props: {
   progress?: number;
   missing?: boolean;
   offline?: boolean;
+  /** Masqué (visible seulement avec « is:hidden ») : atténué. */
+  hidden?: boolean;
   marker?: TreeRowMarker;
   draggable?: boolean;
   dropTarget?: boolean;
@@ -66,6 +68,7 @@ export function TreeRow(props: {
       data-selected={props.selected || undefined}
       data-playing={props.playing || undefined}
       data-missing={props.missing || undefined}
+      data-hidden={props.hidden || undefined}
       data-offline={props.offline || undefined}
       data-drop-target={props.dropTarget || undefined}
       data-dragging={props.dragging || undefined}

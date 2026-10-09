@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate_core::audio::Player;
 use crate_core::{
-    Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitResult, Library, PlaybackOptions, PlaybackStatus, SampleId, ScanStatus,
-    Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder,
+    Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, PlaybackOptions, PlaybackStatus,
+    SampleId, ScanStatus, Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -263,6 +263,18 @@ fn set_synonyms(lib: State<'_, Lib>, groups: Vec<Vec<String>>) {
 
 #[tauri::command]
 #[specta::specta]
+fn set_hidden(lib: State<'_, Lib>, ids: Vec<SampleId>, hidden: bool) {
+    lib.lock().set_hidden(&ids, hidden)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn set_folder_hidden(lib: State<'_, Lib>, id: u32, hidden: bool) {
+    lib.lock().set_folder_hidden(id, hidden)
+}
+
+#[tauri::command]
+#[specta::specta]
 fn node_path(lib: State<'_, Lib>, key: String) -> Option<String> {
     lib.lock().node_path(&key)
 }
@@ -273,12 +285,45 @@ fn plan_commit(lib: State<'_, Lib>, key: String, options: CommitOptions) -> Comm
     lib.lock().plan_commit(&key, options)
 }
 
-/// Copie réelle (simulée en démo). Phase 5 : progression par événement.
+/// Avancement de la copie de « Créer un vrai dossier » (au plus 20 par seconde, plus le dernier).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct CommitProgressEvent(CommitProgress);
+
+/// Copie réelle, sur un thread et hors du verrou (la fenêtre reste utilisable), avec sa progression.
+/// En démo : simulée par la bibliothèque factice.
 #[tauri::command]
 #[specta::specta]
-fn commit_to_folder(lib: State<'_, Lib>, key: String, destination: String, options: CommitOptions) -> Result<CommitResult, String> {
+async fn commit_to_folder(app: tauri::AppHandle, key: String, destination: String, options: CommitOptions) -> Result<CommitResult, String> {
     trace(|| format!("commit_to_folder {key} → {destination:?} {options:?}"));
-    lib.lock().commit_to_folder(&key, &destination, options)
+    let job = {
+        let lib = app.state::<Lib>();
+        let mut g = lib.0.lock().unwrap_or_else(|e| e.into_inner());
+        match &mut *g {
+            Inner::Demo(c) => return c.commit_to_folder(&key, &destination, options),
+            Inner::Real(l) => {
+                l.sync();
+                l.prepare_commit(&key, &destination, options)?
+            }
+        }
+    };
+    let h = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut last = std::time::Instant::now();
+        job.run(&mut |done, total| {
+            if done == total || last.elapsed() >= std::time::Duration::from_millis(50) {
+                last = std::time::Instant::now();
+                let _ = CommitProgressEvent(CommitProgress { done, total }).emit(&h);
+            }
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    if options.add_as_source {
+        if let Inner::Real(l) = &mut *app.state::<Lib>().0.lock().unwrap_or_else(|e| e.into_inner()) {
+            let _ = l.add_source(&result.destination);
+        }
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -358,7 +403,7 @@ fn demo_set_missing(lib: State<'_, Lib>, ids: Vec<SampleId>) {
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![ScanEvent, PlaybackEvent])
+        .events(tauri_specta::collect_events![ScanEvent, PlaybackEvent, CommitProgressEvent])
         .commands(tauri_specta::collect_commands![
             library,
             sources,
@@ -380,6 +425,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_pinned,
             ancestors,
             node_path,
+            set_hidden,
+            set_folder_hidden,
             peaks,
             synonyms,
             set_synonyms,

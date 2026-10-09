@@ -299,6 +299,7 @@ fn tout_est_persistant() {
         lib.set_pinned(&format!("c:{}", c.id), true);
         lib.set_pinned("c:fav", false);
         lib.set_synonyms(&[vec!["Kick".into(), "boum".into()], vec!["seul".into()]]);
+        lib.set_hidden(&[snare], true);
         let kick_folder = lib.catalog().samples().iter().find(|s| s.name == "Kick 2").unwrap().folder_id;
         lib.set_pinned(&format!("f:{kick_folder}"), true);
         let expanded = vec![
@@ -321,6 +322,8 @@ fn tout_est_persistant() {
     assert_eq!(page(&lib, TreeRoot::Library, &before.3), before.1);
     assert_eq!(page(&lib, TreeRoot::Virtual, &before.3), before.2);
     assert_eq!(lib.synonyms(), [["kick", "boum"]], "synonymes normalisés et gardés");
+    assert_eq!(lib.library().hidden, 1, "masquage gardé");
+    assert!(lib.catalog().samples().iter().find(|s| s.name == "Snare").unwrap().hidden);
     assert_eq!(
         lib.tree(&TreeRequest {
             query: "boum".into(),
@@ -452,10 +455,10 @@ fn migrations_idempotentes() {
     let tmp = Tmp::new("migr");
     let path = tmp.join("crate.db");
     let conn = crate_core::db::open(&path).unwrap();
-    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 1);
+    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 2);
     drop(conn);
     let conn = crate_core::db::open(&path).unwrap();
-    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 1);
+    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 2);
 }
 
 /// Attend qu'une condition devienne vraie (les scans tournent sur le thread de l'indexeur).
@@ -552,4 +555,140 @@ fn pics_a_la_demande_et_en_tache_de_fond() {
 
 fn library_at(path: &Path) -> SqliteLibrary {
     SqliteLibrary::open_inline(path).unwrap()
+}
+
+#[test]
+fn masquer_un_dossier_et_rescanner() {
+    let tmp = Tmp::new("hide");
+    let root = tmp.join("Samples");
+    pack(&root);
+    let mut lib = library(&tmp);
+    let src = lib.add_source(&root.to_string_lossy()).unwrap();
+    let kicks = lib.catalog().samples().iter().find(|s| s.name == "Kick 2").unwrap().folder_id;
+    lib.set_folder_hidden(kicks, true);
+    assert_eq!(
+        outline(&lib),
+        ["0|Samples/", "1|Drums/", "2|Snare", "1|Bass Loop 120"],
+        "dossier masqué absent"
+    );
+    assert_eq!(lib.library().hidden, 2);
+    let page = lib.tree(&TreeRequest {
+        query: "is:hidden".into(),
+        ..req(&[])
+    });
+    assert_eq!(page.matches, 2, "is:hidden les retrouve");
+    // Un rescan ne ré-affiche rien ; le disque n'est pas touché.
+    lib.scan_inline(src.id).unwrap();
+    assert_eq!(lib.library().hidden, 2);
+    assert!(root.join("Drums/Kicks/Kick 2.wav").is_file());
+    lib.set_folder_hidden(kicks, false);
+    assert_eq!(lib.library().hidden, 0);
+}
+
+#[test]
+fn copie_avec_progression() {
+    let tmp = Tmp::new("progress");
+    let root = tmp.join("Samples");
+    pack(&root);
+    let mut lib = library(&tmp);
+    lib.add_source(&root.to_string_lossy()).unwrap();
+    let ids: Vec<u32> = lib.catalog().samples().iter().map(|s| s.id).collect();
+    let c = lib.create_collection("Tout", None);
+    lib.add_to_collection(c.id, &ids);
+    let opts = CommitOptions {
+        keep_hierarchy: false,
+        add_as_source: false,
+    };
+    let job = lib
+        .prepare_commit(&format!("c:{}", c.id), &tmp.join("Out").to_string_lossy(), opts)
+        .unwrap();
+    assert_eq!(job.total(), 4);
+    let mut seen = vec![];
+    let res = job.run(&mut |done, total| seen.push((done, total))).unwrap();
+    assert_eq!(seen, [(1, 4), (2, 4), (3, 4), (4, 4)]);
+    assert_eq!((res.copied, res.skipped), (4, 0));
+    // Destination maintenant non vide : refusée dès la préparation, rien n'est copié.
+    assert!(lib
+        .prepare_commit(&format!("c:{}", c.id), &tmp.join("Out").to_string_lossy(), opts)
+        .is_err());
+}
+
+/// Empreinte d'un dossier : chemins, tailles, dates et contenus (rien ne doit changer).
+fn snapshot(root: &Path) -> Vec<(String, u64, std::time::SystemTime, Vec<u8>)> {
+    let mut out = vec![];
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in fs::read_dir(&d).unwrap().flatten() {
+            let p = e.path();
+            let m = fs::symlink_metadata(&p).unwrap();
+            if m.is_dir() {
+                stack.push(p.clone());
+                out.push((p.to_string_lossy().into_owned(), 0, m.modified().unwrap(), vec![]));
+            } else {
+                out.push((
+                    p.to_string_lossy().into_owned(),
+                    m.len(),
+                    m.modified().unwrap(),
+                    fs::read(&p).unwrap(),
+                ));
+            }
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// Critère de sortie de la phase 5 : toutes les modifications vivent dans la base, rien n'est écrit dans les
+/// dossiers de l'utilisateur (seul « Créer un vrai dossier » écrit, dans un nouveau dossier choisi).
+#[test]
+fn rien_n_est_ecrit_dans_les_dossiers_de_l_utilisateur() {
+    let tmp = Tmp::new("readonly");
+    let root = tmp.join("Samples");
+    pack(&root);
+    let before = snapshot(&root);
+    let mut lib = SqliteLibrary::open(&tmp.join("db/crate.db"), Arc::new(|_| {})).unwrap();
+    let src = lib.add_source(&root.to_string_lossy()).unwrap();
+    wait_for(&mut lib, "scan", |l| l.library().total == 4);
+    let ids: Vec<u32> = lib.catalog().samples().iter().map(|s| s.id).collect();
+    let kicks = lib.catalog().samples().iter().find(|s| s.name == "Kick 2").unwrap().folder_id;
+    lib.set_favorite(&ids, true);
+    lib.add_tag(&ids, "dark");
+    lib.remove_tag(&ids[..1], "dark");
+    let c = lib.create_collection("C", None);
+    lib.add_to_collection(c.id, &ids);
+    lib.rename_collection(c.id, "C2");
+    lib.create_collection("S", Some("#dark"));
+    let v = lib.create_virtual_folder("V", None);
+    lib.add_to_virtual_folder(v.id, &ids);
+    lib.set_pinned(&format!("v:{}", v.id), true);
+    lib.set_pinned(&format!("f:{kicks}"), true);
+    lib.set_hidden(&ids[..2], true);
+    lib.set_folder_hidden(kicks, true);
+    lib.set_synonyms(&[vec!["kick".into(), "boum".into()]]);
+    lib.refresh_source(src.id);
+    for id in &ids {
+        lib.peaks(*id);
+    }
+    lib.plan_commit(
+        &format!("v:{}", v.id),
+        CommitOptions {
+            keep_hierarchy: true,
+            add_as_source: false,
+        },
+    );
+    lib.commit_to_folder(
+        &format!("c:{}", c.id),
+        &tmp.join("Export").to_string_lossy(),
+        CommitOptions {
+            keep_hierarchy: false,
+            add_as_source: false,
+        },
+    )
+    .unwrap();
+    lib.remove_from_collection(c.id, &ids);
+    lib.delete_virtual_folder(v.id);
+    lib.remove_source(src.id);
+    drop(lib);
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(snapshot(&root) == before, "le dossier de l'utilisateur a changé");
 }

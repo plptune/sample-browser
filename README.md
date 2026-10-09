@@ -1,4 +1,4 @@
-# Crate — navigateur de samples (phase 2 : vraie bibliothèque)
+# Crate — navigateur de samples (phase 5 : bibliothèque réelle, son, glisser, tout au clavier)
 
 Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton) :
 une arborescence de dossiers qui s'ouvre sur les samples, un second onglet pour les favoris, collections et dossiers
@@ -6,7 +6,7 @@ virtuels (qu'on peut transformer en vrai dossier), et en bas le sample courant a
 La fenêtre indexe de **vrais dossiers** (SQLite, scan incrémental, surveillance des changements), les **joue**
 (son réel, waveform réelle, clic dans la waveform pour lire depuis un point) et les **glisse vers le DAW** ou le Finder. Le prototype en ligne et Storybook restent sur des données factices.
 
-**Plan et prompts à jour :** [`docs/plan.md`](docs/plan.md) · **Validation phase 0 :** [`docs/phase0-checklist.md`](docs/phase0-checklist.md)
+**Plan et prompts à jour :** [`docs/plan.md`](docs/plan.md) · **À vérifier sur Mac :** [`docs/verification-mac.md`](docs/verification-mac.md) · **Validation phase 0 :** [`docs/phase0-checklist.md`](docs/phase0-checklist.md)
 
 **En ligne :** [design system (Storybook)](https://plptune.github.io/sample-browser/storybook/) ·
 [prototype](https://plptune.github.io/sample-browser/) — redéployé par `.github/workflows/pages.yml` à chaque push.
@@ -30,7 +30,8 @@ pnpm build        # typecheck + build
 | ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre |
 | → | Ouvrir un dossier, y entrer s'il est ouvert, lire un sample |
 | ← | Fermer un dossier, sinon remonter au dossier parent |
-| Espace | Lecture / stop du sample courant (fausse lecture) |
+| Espace | Lecture / stop du sample courant |
+| ⇧← / ⇧→ | Reculer / avancer d'un dixième dans le sample |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |
 | ⌥← / ⌥→, ⌘[ / ⌘] | Historique : saut précédent / suivant (aussi les boutons de la souris) |
 | T | Taguer la sélection (popover) |
@@ -38,6 +39,9 @@ pnpm build        # typecheck + build
 | ⌘S | Enregistrer la recherche comme collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
 | ⌘N | Nouveau dossier virtuel |
+| ⌘⇧N | Nouvelle collection |
+| ⌘⌫ | Retirer de la collection / du dossier virtuel ouvert ; dans la Bibliothèque, masquer |
+| ⇧F10 (ou touche Menu) | Menu contextuel de la ligne courante |
 | ⌘O | Ajouter un dossier (fenêtre) |
 | ⌥⌘R | Afficher le sample (ou ouvrir le dossier) dans le Finder ; aussi au clic droit |
 | ⌥⌘D | Mesures en direct : calcul de l'arbre, échange, rendu (budget 16 ms par frappe), latence du son |
@@ -51,7 +55,8 @@ pnpm build        # typecheck + build
 
 Souris : clic sur le chevron = ouvrir / fermer ; clic, ⇧-clic, ⌘-clic = sélection ; double-clic = ouvrir un dossier
 ou lire un sample ; glisser des samples sur une collection manuelle les y ajoute ; clic droit = menu contextuel
-(lire, taguer, ajouter à une collection, renommer / supprimer une collection, retirer une source).
+(lire, taguer, ajouter à une collection, masquer / afficher, renommer / supprimer une collection, déplacer un dossier
+virtuel, retirer une source). Tout ce que fait la souris se fait aussi au clavier, sauf glisser vers le DAW.
 
 ## Scénarios livrés
 
@@ -81,6 +86,8 @@ Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une c
 Lecture : Espace, ⏎ ou → ; clic dans la waveform du tiroir pour lire depuis ce point ; boucle, volume et arrêt
 automatique (au glisser, en arrière-plan) dans les Réglages. Glisser un sample (ou la sélection) hors de la fenêtre :
 le fichier part vers Ableton, Logic ou le Finder.
+Masquer (⌘⌫ ou clic droit) retire un sample ou un sous-dossier de partout sans toucher au disque ; `is:hidden` les
+retrouve, « Afficher » annule. Les réglages (thème, densité, lecture, fenêtre) sont gardés d'un lancement à l'autre.
 Recherche : un mot d'un groupe de synonymes trouve aussi les autres (`kick` trouve `bd`) ; les groupes se modifient
 dans Réglages › Synonymes. Prototype : `?overscan=1000` dans l'URL monte toutes les lignes (utile aux tests).
 Chaque push construit aussi un `Crate.app` sur macOS (workflow « Tauri (macOS) », artefact `Crate-macos`,

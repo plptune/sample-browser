@@ -117,7 +117,7 @@ apparaissent d'un coup.
 | Pics : 256 octets par fichier dans `files.peaks`, **normalisés** sur le maximum du fichier ; jamais dans le catalogue en mémoire. Tiroir : `peaks(id)` les calcule tout de suite s'ils manquent ; densité « Waveform » : lus en base pour la seule page ; l'indexeur calcule les autres par lots de 64, en parallèle, quand il n'a rien d'autre à faire. Un fichier illisible reçoit des pics vides (pas de nouvel essai avant qu'il change). | 25 Mo pour 100 000 fichiers en base, rien en mémoire ; un sample discret reste lisible. |
 | Glisser natif avec **tauri-plugin-drag** (CrabNebula), icône « nombre de fichiers » dessinée à la volée ; seulement dans la fenêtre sur de vrais fichiers (le navigateur et la démo gardent le glisser HTML). | Seul moyen fiable de déposer des fichiers dans Ableton, Logic ou le Finder depuis une webview. |
 | Dans la fenêtre, le même glisser natif sert aux dépôts internes : la cible est retrouvée sous le pointeur à partir des événements de dépôt de Tauri ; le dernier glisser est gardé 1,5 s, car la fin du glisser arrive avant l'événement de dépôt, qui peut en plus être livré deux fois. | Un seul geste pour le DAW et pour les collections ; aucun dépôt pris pour un dossier venu du Finder. |
-| Boucle, volume et arrêts automatiques réglés en mémoire (pas encore persistés, comme le thème). | La persistance des réglages d'UI viendra avec la phase 5. |
+| Boucle, volume et arrêts automatiques réglés en mémoire (pas encore persistés, comme le thème). | La persistance des réglages d'UI viendra avec la phase 5 (faite). |
 | Nouvelles dépendances : cpal (citée dans le plan), tauri-plugin-drag + @crabnebula/tauri-plugin-drag (« plugin drag de CrabNebula » du plan). CI Linux : `libasound2-dev`. | — |
 
 Vérifié dans le conteneur : décodage, rééchantillonnage, boucle, déplacement, arrêt, fichier illisible (tests),
@@ -125,11 +125,32 @@ latence de démarrage < 30 ms en lecture muette (au pas de 33 ms près), wavefor
 waveform, glisser natif sur « Favoris » dans la fenêtre (GTK, Xvfb). **Pas vérifiable ici** : le son réel, la latence
 réelle et le dépôt dans Ableton / Logic (sur Mac, avec ⌥⌘D qui affiche « son … ms »).
 
+## Phase 5 — Tags, collections, favoris (9 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Tags, favoris, collections, dossiers virtuels, raccourcis et synonymes étaient déjà écrits en base dès la phase 2 ; la phase 5 ajoute **masquer**. | — |
+| Masquer = une colonne `hidden` sur `files` et `folders` (migration 2). Masquage effectif : le sample ou un de ses dossiers parents ; calculé une fois par modification (`hidden_eff`), appliqué à toute la marche de l'arbre (dossiers, collections, dossiers virtuels, recherche). Seul un `is:hidden` non nié dans la recherche les fait réapparaître, en italique gris. Une source ne se masque pas (on la retire). | Un seul filtre au même endroit que la recherche : rien à garder cohérent ailleurs. Le masquage tient au fichier, il survit aux rescans et aux déplacements dans les collections. |
+| ⌘⌫ : dans une collection manuelle, « Favoris » ou un dossier virtuel → retirer de là ; ailleurs → masquer (sample ou sous-dossier). Jamais de suppression de fichier. | Le geste « supprimer » du Finder, sans danger : tout se défait avec « Afficher ». |
+| Tout au clavier : ⇧F10 et la touche Menu ouvrent le menu de la ligne courante (positionné sous la ligne) ; ⌘⇧N nouvelle collection ; « Déplacer dans » (menu d'un dossier virtuel) remplace le glisser ; ⇧← / ⇧→ remplacent le clic dans la waveform. | Conventions connues (⇧F10 vient de Windows / Linux, ⌘⇧N du Finder). Glisser vers le DAW reste à la souris par nature. |
+| Réglages d'UI (thème, densité, lecture auto, premier plan, boucle, volume, arrêts automatiques) dans le `localStorage` de la webview (`crate.prefs`), seulement dans la fenêtre sur une vraie bibliothèque. Le prototype, la démo et Storybook partent toujours des valeurs par défaut. | Lus au démarrage sans passer par la base ; propres à la machine. Les scénarios et tests du prototype restent déterministes. |
+| « Toujours au premier plan » appelle `setAlwaysOnTop` de Tauri (permission `core:window:allow-set-always-on-top`). | Le réglage existait depuis la phase 0 sans effet. |
+| Copie (« Créer un vrai dossier ») en deux temps : plan préparé sous le verrou de la bibliothèque (`prepare_commit`, refuse une destination non vide), puis copie hors verrou sur un thread bloquant (`CommitJob::run`), avec un événement `CommitProgressEvent` au plus toutes les 50 ms. Jamais d'écrasement (« nom 2 »). | L'app reste utilisable pendant une grosse copie ; la barre suit la vraie progression. |
+| Preuve « rien n'est écrit dans les dossiers de l'utilisateur » : un test photographie chemins, tailles, dates et contenus d'une source avant et après toutes les mutations, un rescan, le calcul des pics, une copie vers un autre dossier et le retrait de la source. | Le critère de sortie, vérifié à chaque push plutôt qu'affirmé. |
+
+Ce qui reste à vérifier sur Mac (toutes phases) : `docs/verification-mac.md`.
+
 ### Risques ouverts
 
 - tauri-specta est en RC : surveiller la sortie de la 2.0 stable et lever l'épinglage.
-- Phase 4 à valider sur Mac : latence du son (< 30 ms), dépôt dans Ableton Live 12 et Logic, glisser HTML des
-  dossiers virtuels toujours actif à côté du glisser natif.
+- Phases 4 et 5 à valider sur Mac (`docs/verification-mac.md`) : latence du son (< 30 ms), dépôt dans Ableton Live 12
+  et Logic, glisser HTML des dossiers virtuels toujours actif à côté du glisser natif, « Toujours au premier plan »
+  au-dessus d'un DAW en plein écran.
+- macOS ne fait passer Tab sur les boutons d'une page web que si « Navigation au clavier » est activée : les Réglages
+  et « Créer un vrai dossier » peuvent être inaccessibles au clavier sans elle. À mesurer avant d'ajouter une
+  navigation au clavier propre à ces vues.
+- Les MacBook n'ont pas de F10 sans fn : ⇧F10 peut être pénible ; à revoir après usage.
+- Réglages dans le `localStorage` de WKWebView : à vérifier qu'ils survivent à une mise à jour de l'app.
 - En développement, recharger la page (F5) laisse d'anciens écouteurs d'événements Tauri actifs (dépôts reçus en
   double ou triple) ; sans effet dans l'app livrée, qui ne recharge pas sa page.
 - Rendu : ~27 ms dans le conteneur sans GPU quand ~70 lignes nouvelles apparaissent ; à mesurer sur Mac (⌥⌘D).

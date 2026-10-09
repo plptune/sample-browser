@@ -70,6 +70,22 @@ export function App() {
       app.finderForSelection();
       return;
     }
+    // Menu contextuel au clavier : ⇧F10 ou la touche « menu », sur la ligne du curseur.
+    if ((e.key === "F10" && e.shiftKey) || e.key === "ContextMenu") {
+      e.preventDefault();
+      openMenuAtCursor();
+      return;
+    }
+    if (mod && e.shiftKey && key === "n") {
+      e.preventDefault();
+      void app.newCollection();
+      return;
+    }
+    if (mod && e.key === "Backspace" && !isField(e.target)) {
+      e.preventDefault();
+      void app.removeOrHide();
+      return;
+    }
     if (mod && key === "l" && !isField(e.target)) {
       e.preventDefault();
       app.setLooping(!app.looping());
@@ -125,11 +141,13 @@ export function App() {
       case "ArrowRight":
         e.preventDefault();
         tree()?.focus();
+        if (e.shiftKey) return app.nudge(0.1);
         app.right();
         return;
       case "ArrowLeft":
         e.preventDefault();
         tree()?.focus();
+        if (e.shiftKey) return app.nudge(-0.1);
         app.left();
         return;
       case " ":
@@ -150,6 +168,16 @@ export function App() {
         search?.focus();
         return;
     }
+  }
+
+  function openMenuAtCursor() {
+    const key = app.cursor();
+    const panel = document.querySelector<HTMLElement>(".cr-panel")?.getBoundingClientRect();
+    const row = key ? document.querySelector<HTMLElement>(`.cr-tree__row[data-key="${CSS.escape(key)}"]`) : null;
+    if (!panel) return;
+    if (!row || !key) return app.openMenu(24, 120, "root");
+    const r = row.getBoundingClientRect();
+    app.openMenu(r.left - panel.left + 24, r.bottom - panel.top, key);
   }
 
   // Dossiers glissés depuis le Finder sur la fenêtre : chacun devient une source.

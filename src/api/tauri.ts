@@ -31,6 +31,8 @@ export const tauriBackend: Backend = {
   setPinned: (key, pinned) => commands.setPinned(key, pinned),
   ancestors: (key) => commands.ancestors(key),
   nodePath: (key) => commands.nodePath(key),
+  setHidden: (ids, hidden) => commands.setHidden(ids, hidden),
+  setFolderHidden: (id, hidden) => commands.setFolderHidden(id, hidden),
   peaks: async (id) => (await commands.peaks(id)) as number[],
   synonyms: () => commands.synonyms(),
   setSynonyms: (groups) => commands.setSynonyms(groups),
@@ -51,6 +53,10 @@ export const tauriBackend: Backend = {
   stop: () => commands.stop(),
   seek: (ms) => commands.seek(ms),
   setPlayback: (options) => commands.setPlayback(options),
+  onCommitProgress: (cb) => {
+    const off = events.commitProgressEvent.listen((e) => cb(e.payload));
+    return () => void off.then((un) => un());
+  },
   onPlayback: (cb) => {
     const off = events.playbackEvent.listen((e) => cb(e.payload));
     return () => void off.then((un) => un());

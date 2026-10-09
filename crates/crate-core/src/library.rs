@@ -187,6 +187,79 @@ impl SqliteLibrary {
     }
 }
 
+/// « Créer un vrai dossier », préparé sous le verrou de la bibliothèque puis exécuté sans lui (l'app reste
+/// utilisable pendant une longue copie, avec sa progression).
+pub struct CommitJob {
+    dest: PathBuf,
+    dirs: Vec<PathBuf>,
+    /// (fichier source, dossier de destination, nom sans extension, extension)
+    files: Vec<(PathBuf, PathBuf, String, String)>,
+    missing: u32,
+}
+
+impl CommitJob {
+    pub fn total(&self) -> u32 {
+        self.files.len() as u32
+    }
+
+    /// Copie ; `progress(fait, total)` après chaque fichier. Jamais d'écrasement : « nom 2 », « nom 3 »…
+    pub fn run(&self, progress: &mut dyn FnMut(u32, u32)) -> Result<CommitResult, String> {
+        std::fs::create_dir_all(&self.dest).map_err(|e| format!("Impossible de créer « {} » : {e}", self.dest.display()))?;
+        for d in &self.dirs {
+            let _ = std::fs::create_dir_all(d);
+        }
+        let (mut copied, mut skipped) = (0, self.missing);
+        let total = self.total();
+        for (i, (src, dir, name, ext)) in self.files.iter().enumerate() {
+            let mut target = dir.join(format!("{name}.{ext}"));
+            let mut n = 2;
+            while target.exists() {
+                target = dir.join(format!("{name} {n}.{ext}"));
+                n += 1;
+            }
+            match std::fs::copy(src, &target) {
+                Ok(_) => copied += 1,
+                Err(_) => skipped += 1,
+            }
+            progress(i as u32 + 1, total);
+        }
+        Ok(CommitResult {
+            destination: self.dest.to_string_lossy().into_owned(),
+            copied,
+            skipped,
+        })
+    }
+}
+
+impl SqliteLibrary {
+    /// Vérifie la destination (refus d'un dossier existant non vide) et liste ce qu'il faut copier.
+    pub fn prepare_commit(&self, key: &str, destination: &str, options: CommitOptions) -> Result<CommitJob, String> {
+        let dest = expand_home(destination.trim().trim_end_matches('/'));
+        if dest.exists() {
+            let empty = dest.is_dir() && std::fs::read_dir(&dest).map(|mut d| d.next().is_none()).unwrap_or(false);
+            if !empty {
+                return Err(format!("« {} » existe déjà et n'est pas vide.", dest.display()));
+            }
+        }
+        let join = |rel: &[String]| rel.iter().fold(dest.clone(), |p, part| p.join(part));
+        let dirs = self.cat.commit_folders(key, options).iter().map(|r| join(r)).collect();
+        let (mut files, mut missing) = (vec![], 0);
+        for (rel, s) in self.cat.commit_entries(key, options) {
+            if s.missing {
+                missing += 1;
+            } else {
+                files.push((PathBuf::from(&s.path), join(&rel), s.name.clone(), s.ext.clone()));
+            }
+        }
+        Ok(CommitJob {
+            dest,
+            dirs,
+            files,
+            missing,
+        })
+    }
+}
+
 impl Backend for SqliteLibrary {
     fn library(&self) -> Library {
         self.cat.library()
@@ -371,6 +444,25 @@ impl Backend for SqliteLibrary {
     }
 
     /// Pics en base ; calculés tout de suite s'ils manquent encore (le tiroir n'attend pas la tâche de fond).
+    fn set_hidden(&mut self, ids: &[SampleId], hidden: bool) {
+        self.cat.set_hidden(ids, hidden);
+        let r = (|| {
+            let tx = self.conn.unchecked_transaction()?;
+            for id in ids {
+                tx.execute("UPDATE files SET hidden = ?1 WHERE id = ?2", params![hidden, id])?;
+            }
+            tx.commit()
+        })();
+        log(r);
+    }
+
+    fn set_folder_hidden(&mut self, id: u32, hidden: bool) {
+        self.cat.set_folder_hidden(id, hidden);
+        log(self
+            .conn
+            .execute("UPDATE folders SET hidden = ?1 WHERE id = ?2", params![hidden, id]));
+    }
+
     fn peaks(&self, id: SampleId) -> Vec<f64> {
         let row: Option<(String, Option<Vec<u8>>)> = self
             .conn
@@ -414,45 +506,13 @@ impl Backend for SqliteLibrary {
     }
 
     fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> Result<CommitResult, String> {
-        let dest = expand_home(destination.trim().trim_end_matches('/'));
-        if dest.exists() {
-            let empty = dest.is_dir() && std::fs::read_dir(&dest).map(|mut d| d.next().is_none()).unwrap_or(false);
-            if !empty {
-                return Err(format!("« {} » existe déjà et n'est pas vide.", dest.display()));
-            }
-        }
-        std::fs::create_dir_all(&dest).map_err(|e| format!("Impossible de créer « {} » : {e}", dest.display()))?;
-        for rel in self.cat.commit_folders(key, options) {
-            let _ = std::fs::create_dir_all(rel.iter().fold(dest.clone(), |p, part| p.join(part)));
-        }
-        let (mut copied, mut skipped) = (0, 0);
-        for (rel, s) in self.cat.commit_entries(key, options) {
-            if s.missing {
-                skipped += 1;
-                continue;
-            }
-            let dir = rel.iter().fold(dest.clone(), |p, part| p.join(part));
-            // Jamais d'écrasement : deux fichiers de même nom (copie à plat) → « nom 2 ».
-            let mut target = dir.join(format!("{}.{}", s.name, s.ext));
-            let mut n = 2;
-            while target.exists() {
-                target = dir.join(format!("{} {n}.{}", s.name, s.ext));
-                n += 1;
-            }
-            match std::fs::copy(&s.path, &target) {
-                Ok(_) => copied += 1,
-                Err(_) => skipped += 1,
-            }
-        }
+        let job = self.prepare_commit(key, destination, options)?;
+        let result = job.run(&mut |_, _| {})?;
         if options.add_as_source {
             // Refusé si la copie est déjà dans une source : notify l'indexera de toute façon.
-            let _ = self.add_source(&dest.to_string_lossy());
+            let _ = self.add_source(&result.destination);
         }
-        Ok(CommitResult {
-            destination: dest.to_string_lossy().into_owned(),
-            copied,
-            skipped,
-        })
+        Ok(result)
     }
 
     fn add_source(&mut self, path: &str) -> Result<Source, String> {

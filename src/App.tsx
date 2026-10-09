@@ -27,25 +27,34 @@ export function App() {
     }
     if (isField(e.target)) return;
 
-    const list = () => document.querySelector<HTMLElement>(".cr-list");
+    const tree = () => document.querySelector<HTMLElement>(".cr-tree");
     if (mod) return;
 
     switch (e.key) {
       case "ArrowDown":
       case "ArrowUp":
         e.preventDefault();
-        list()?.focus();
+        tree()?.focus();
         app.move(e.key === "ArrowDown" ? 1 : -1, e.shiftKey);
+        return;
+      case "ArrowRight":
+        e.preventDefault();
+        tree()?.focus();
+        app.right();
+        return;
+      case "ArrowLeft":
+        e.preventDefault();
+        tree()?.focus();
+        app.left();
         return;
       case " ":
         e.preventDefault();
         app.togglePlay();
         return;
-      case "ArrowRight":
+      case "Enter":
         e.preventDefault();
-        if (app.cursor() !== null) app.play(app.cursor()!);
+        app.activate();
         return;
-      case "ArrowLeft":
       case "Escape":
         app.stop();
         return;

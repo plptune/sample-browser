@@ -1,7 +1,15 @@
 // Données factices déterministes (graine fixe) : mêmes samples à chaque chargement,
 // pour des captures stables. Aucun aléa au rendu.
 
-import type { Collection, FolderNode, Sample, SampleKind } from "../api/types";
+import type { Collection, Sample, SampleKind } from "../api/types";
+
+export interface FolderNode {
+  id: number;
+  name: string;
+  count: number;
+  offline?: boolean;
+  children: FolderNode[];
+}
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -239,7 +247,7 @@ export const COLLECTION_ITEMS: Record<number, number[]> = {
   4: byPrefix("Vox_Chop", 14, 1),
 };
 
-export const COLLECTIONS: Omit<Collection, "count">[] = [
+export const COLLECTIONS: Collection[] = [
   { id: 1, name: "Night Drive", kind: "manual" },
   { id: 2, name: "Go-to kicks", kind: "manual" },
   { id: 3, name: "Textures", kind: "manual" },
@@ -247,6 +255,3 @@ export const COLLECTIONS: Omit<Collection, "count">[] = [
   { id: 5, name: "Loops en Am", kind: "smart", query: "type:loop key:Am" },
   { id: 6, name: "Courts & sombres", kind: "smart", query: "#dark dur:<1s" },
 ];
-
-// « Récents » : sous-ensemble fixe
-export const RECENT_IDS = SAMPLES.filter((s) => s.id % 17 === 3).map((s) => s.id);

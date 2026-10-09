@@ -1,25 +1,17 @@
 import { Match, Show, Switch } from "solid-js";
 import { app } from "../state/app";
+import { Browser } from "./Browser";
 import { EmptyState } from "./EmptyState";
 import { IconButton } from "./IconButton";
 import { PreviewDrawer } from "./PreviewDrawer";
-import { SampleList } from "./SampleList";
 import { ScanStatus } from "./ScanStatus";
 import { SearchField } from "./SearchField";
-import { Sidebar } from "./Sidebar";
 
 export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
-  const current = () => app.byId(app.cursor());
   return (
     <div class="cr-panel cr-root" data-density={app.density()}>
       <header class="cr-titlebar">
         <span class="cr-titlebar__title">Crate</span>
-        <IconButton
-          icon="sidebar"
-          label="Afficher / masquer la navigation"
-          active={!app.sidebarCollapsed()}
-          onClick={() => app.setSidebarCollapsed(!app.sidebarCollapsed())}
-        />
         <IconButton icon="settings" label="Réglages" />
       </header>
 
@@ -40,31 +32,25 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
         <Match when={!app.empty()}>
           <SearchField ref={props.searchRef} forceAc={props.forceAc} />
           <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
-          <Show when={!app.sidebarCollapsed()}>
-            <Sidebar />
-          </Show>
           <Show
-            when={app.visible().length || app.scan()}
+            when={app.visible().length}
             fallback={
               <EmptyState
                 variant="noresults"
                 title="Aucun résultat"
-                body={app.queryLine() ? <>Rien ne correspond à « {app.queryLine()} ».</> : "Ce dossier est vide."}
+                body={<>Rien ne correspond à « {app.queryLine()} ».</>}
                 hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
               />
             }
           >
-            <SampleList />
+            <Browser />
           </Show>
           <PreviewDrawer
-            sample={current()}
-            selectedCount={app.selection().length}
-            playing={app.playingId() !== null && app.playingId() === app.cursor()}
+            sample={app.current()}
+            playing={app.playingId() !== null && app.playingId() === app.current()?.id}
             progress={app.progress()}
-            autoPlay={app.autoPlay()}
             themeKey={app.theme()}
             onTogglePlay={() => app.togglePlay()}
-            onToggleAuto={() => app.setAutoPlay(!app.autoPlay())}
           />
         </Match>
       </Switch>

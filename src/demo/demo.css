@@ -248,7 +248,7 @@ body {
   background: var(--cr-surface);
 }
 
-.tok-grid .cr-item__slot {
+.tok-grid .cr-node__slot {
   color: var(--cr-text-3);
 }
 

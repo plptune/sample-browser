@@ -2,10 +2,8 @@
 // Remplacé en phase 1 par src/api/tauri.ts (invoke) — l'UI ne change pas.
 
 import { parseLine, type QueryToken } from "../lib/query";
-import { COLLECTIONS, COLLECTION_ITEMS, RECENT_IDS, SAMPLES, SOURCES, TAGS, isInFolder } from "../mock/generate";
-import type { Backend, Library, Sample, Scope, SearchPage, SearchRequest, SortKey } from "./types";
-
-const NOTE_ORDER = ["C", "C#", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+import { COLLECTIONS, COLLECTION_ITEMS, SAMPLES, SOURCES, TAGS, type FolderNode } from "../mock/generate";
+import type { Backend, FolderRow, Library, NodeKey, NodeKind, Sample, TreePage, TreeRequest, TreeRow } from "./types";
 
 function parseRange(v: string, unit = ""): (n: number) => boolean {
   const s = v.replace(unit, "");
@@ -47,12 +45,11 @@ function matchToken(s: Sample, t: QueryToken): boolean {
         case "type":
           return s.kind === (t.value === "one-shot" ? "oneshot" : t.value);
         case "is":
-          if (t.value === "untagged") return s.tags.length === 0;
-          return false;
+          return t.value === "untagged" ? s.tags.length === 0 : false;
         case "in": {
           const v = t.value.toLowerCase();
           const c = COLLECTIONS.find((c) => c.name.toLowerCase().startsWith(v));
-          if (c) return inScope(s, { type: "collection", id: c.id });
+          if (c) return collectionSamples(c.id).includes(s);
           return s.path.toLowerCase().includes(v);
         }
       }
@@ -63,33 +60,50 @@ function matchLine(s: Sample, line: string): boolean {
   return parseLine(line).every((t) => matchToken(s, t) !== t.negated);
 }
 
-function inScope(s: Sample, scope: Scope): boolean {
-  switch (scope.type) {
-    case "all":
-      return true;
-    case "untagged":
-      return s.tags.length === 0;
-    case "recent":
-      return RECENT_IDS.includes(s.id);
-    case "folder":
-      return isInFolder(s.folderId, scope.id);
-    case "collection": {
-      const c = COLLECTIONS.find((c) => c.id === scope.id);
-      if (!c) return false;
-      if (c.kind === "smart") return matchLine(s, c.query ?? "");
-      return COLLECTION_ITEMS[c.id]?.includes(s.id) ?? false;
-    }
+// ---------- Arbre ----------
+
+const folders = new Map<number, FolderNode>();
+(function index(nodes: FolderNode[]) {
+  for (const n of nodes) {
+    folders.set(n.id, n);
+    index(n.children);
   }
+})(SOURCES);
+
+const byName = (a: Sample, b: Sample) => a.name.localeCompare(b.name, "en", { numeric: true });
+
+function collectionSamples(id: number): Sample[] {
+  const c = COLLECTIONS.find((c) => c.id === id);
+  if (!c) return [];
+  if (c.kind === "smart") return SAMPLES.filter((s) => matchLine(s, c.query ?? ""));
+  const ids = COLLECTION_ITEMS[c.id] ?? [];
+  return SAMPLES.filter((s) => ids.includes(s.id));
 }
 
-const keyIndex = (k: string | null) => (k ? NOTE_ORDER.indexOf(k.replace(/m$/, "")) * 2 + (k.endsWith("m") ? 1 : 0) : 999);
+interface NodeInfo {
+  key: NodeKey;
+  name: string;
+  kind: NodeKind;
+  offline?: boolean;
+}
 
-const SORTERS: Record<SortKey, (a: Sample, b: Sample) => number> = {
-  name: (a, b) => a.name.localeCompare(b.name, "en", { numeric: true }),
-  bpm: (a, b) => (a.bpm ?? 999) - (b.bpm ?? 999),
-  key: (a, b) => keyIndex(a.key) - keyIndex(b.key),
-  dur: (a, b) => a.durationMs - b.durationMs,
-};
+function childNodes(key: NodeKey | null): NodeInfo[] {
+  const folderInfo = (f: FolderNode): NodeInfo => ({ key: `f:${f.id}`, name: f.name, kind: "folder", offline: f.offline });
+  if (key === null) return [...SOURCES.map(folderInfo), { key: "g:collections", name: "Collections", kind: "group" }];
+  if (key === "g:collections")
+    return COLLECTIONS.map((c) => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection" }));
+  if (key.startsWith("f:")) return folders.get(+key.slice(2))?.children.map(folderInfo) ?? [];
+  return [];
+}
+
+function childSamples(key: NodeKey): Sample[] {
+  if (key.startsWith("f:")) {
+    const id = +key.slice(2);
+    return SAMPLES.filter((s) => s.folderId === id).sort(byName);
+  }
+  if (key.startsWith("c:")) return collectionSamples(+key.slice(2)).sort(byName);
+  return [];
+}
 
 const byId = new Map(SAMPLES.map((s) => [s.id, s]));
 
@@ -98,23 +112,46 @@ export const mockBackend: Backend = {
     const tags = TAGS.map((name) => ({ name, count: SAMPLES.filter((s) => s.tags.includes(name)).length })).sort(
       (a, b) => b.count - a.count,
     );
-    return {
-      total: SAMPLES.length,
-      untaggedCount: SAMPLES.filter((s) => s.tags.length === 0).length,
-      recentCount: RECENT_IDS.length,
-      tags,
-      collections: COLLECTIONS.map((c) => ({
-        ...c,
-        count: SAMPLES.filter((s) => inScope(s, { type: "collection", id: c.id })).length,
-      })),
-      sources: SOURCES,
-    };
+    return { total: SAMPLES.length, tags, collections: COLLECTIONS.map((c) => ({ ...c })) };
   },
 
-  async search(req: SearchRequest): Promise<SearchPage> {
-    const all = SAMPLES.filter((s) => inScope(s, req.scope) && matchLine(s, req.query)).sort(SORTERS[req.sort]);
-    // copies : l'UI reçoit des valeurs, comme à travers l'IPC Tauri
-    return { items: all.slice(req.offset, req.offset + req.limit).map((s) => ({ ...s })), total: all.length };
+  async tree(req: TreeRequest): Promise<TreePage> {
+    const q = req.query.trim();
+    const searching = q !== "";
+    const match = (s: Sample) => !searching || matchLine(s, q);
+
+    // Un nœud reste visible en recherche s'il contient au moins un résultat (mémoïsé par requête).
+    const memo = new Map<NodeKey, boolean>();
+    const hasMatch = (key: NodeKey): boolean => {
+      if (!memo.has(key)) memo.set(key, childSamples(key).some(match) || childNodes(key).some((n) => hasMatch(n.key)));
+      return memo.get(key)!;
+    };
+
+    const rows: TreeRow[] = [];
+    const walk = (key: NodeKey | null, depth: number) => {
+      for (const n of childNodes(key)) {
+        // En recherche : on masque les collections (doublons) et les dossiers sans résultat.
+        if (searching && (n.kind === "group" || !hasMatch(n.key))) continue;
+        const open = searching || req.expanded.includes(n.key);
+        const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
+        if (n.offline) row.offline = true;
+        rows.push(row);
+        if (open) walk(n.key, depth + 1);
+      }
+      if (key === null) return;
+      for (const s of childSamples(key)) {
+        if (!match(s)) continue;
+        // copies : l'UI reçoit des valeurs, comme à travers l'IPC Tauri
+        rows.push({ type: "sample", key: `s:${s.id}@${key}`, parent: key, depth, sample: { ...s } });
+      }
+    };
+    walk(null, 0);
+
+    return {
+      rows: rows.slice(req.offset, req.offset + req.limit),
+      totalRows: rows.length,
+      matches: searching ? SAMPLES.filter(match).length : SAMPLES.length,
+    };
   },
 
   async addTag(ids, tag) {

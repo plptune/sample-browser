@@ -1,5 +1,6 @@
 // Planche des tokens : couleurs (sombre / clair), typographie, espacements et grille d'alignement.
 import { For } from "solid-js";
+import { TreeRow } from "../components/TreeRow";
 
 const COLORS = [
   ["Surfaces", ["--cr-bg", "--cr-surface", "--cr-surface-raised", "--cr-hover", "--cr-selected", "--cr-selected-focus"]],
@@ -21,10 +22,10 @@ const SPACE = ["--cr-space-0", "--cr-space-1", "--cr-space-2", "--cr-space-3", "
 const SIZES = [
   ["--cr-titlebar-h", "barre titre"],
   ["--cr-search-h", "champ de recherche"],
-  ["--cr-row-h", "ligne de sample"],
+  ["--cr-row-h", "ligne de l'arbre"],
   ["--cr-row-h-wave", "ligne avec waveform"],
-  ["--cr-item-h", "item de sidebar"],
-  ["--cr-header-h", "en-tête"],
+  ["--cr-item-h", "item d'autocomplétion"],
+  ["--cr-header-h", "statut d'indexation"],
 ] as const;
 
 export function Tokens() {
@@ -102,18 +103,10 @@ export function Tokens() {
           <div class="tok-title">Alignement (gutter 8 · slot 12 · indent 16)</div>
           <div class="tok-grid">
             <div class="tok-grid__lines" />
-            <div class="cr-item" style={{ "--depth": 0 }}>
-              <span class="cr-item__slot">▸</span>
-              <span class="cr-item__label">Sources</span>
-            </div>
-            <div class="cr-item" style={{ "--depth": 1 }}>
-              <span class="cr-item__slot">▸</span>
-              <span class="cr-item__label">Drums</span>
-            </div>
-            <div class="cr-item" style={{ "--depth": 2 }}>
-              <span class="cr-item__slot" />
-              <span class="cr-item__label">Kicks</span>
-            </div>
+            <TreeRow kind="folder" label="Samples" depth={0} open />
+            <TreeRow kind="folder" label="Drums" depth={1} open />
+            <TreeRow kind="folder" label="Kicks" depth={2} />
+            <TreeRow kind="sample" label="Drum_Loop_Tape_96" depth={2} bpm={96} />
           </div>
         </div>
       </div>

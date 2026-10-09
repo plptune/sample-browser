@@ -114,7 +114,6 @@
   --cr-chip-h: 16px;      /* chips de requête, tags */
   --cr-mark: 6px;         /* repère de collection */
   --cr-input-min: 24px;
-  --cr-sidebar-max: 42%;  /* part max de la colonne prise par la sidebar */
   --cr-empty-max: 220px;
   --cr-wave-h: 44px;      /* waveform du tiroir */
   --cr-wave-mini-h: 12px;

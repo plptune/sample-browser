@@ -29,7 +29,7 @@ function suggestionsFor(token: string): { prefix: string; items: AcItem[] } | nu
     const q = t.slice(3).toLowerCase();
     const items = lib.collections
       .filter((c) => c.name.toLowerCase().startsWith(q))
-      .map((c) => ({ label: `in:${c.name.split(" ")[0]}`, count: c.count }));
+      .map((c) => ({ label: `in:${c.name.split(" ")[0]}` }));
     return { prefix: neg, items };
   }
   return null;
@@ -90,7 +90,7 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
     }
     if (e.key === "ArrowDown" || e.key === "Enter") {
       e.preventDefault();
-      const list = document.querySelector<HTMLElement>(".cr-list");
+      const list = document.querySelector<HTMLElement>(".cr-tree");
       list?.focus();
       if (app.cursor() === null) app.move(0);
     }

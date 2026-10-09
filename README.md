@@ -1,6 +1,7 @@
 # Crate — prototype d'interface (phase 0)
 
-Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton).
+Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton) :
+une seule arborescence de dossiers qui s'ouvre sur les samples, et en bas le sample courant avec sa waveform.
 Ce dépôt ne contient pour l'instant **que l'interface, entièrement factice** : aucun son, aucun fichier lu, aucune base.
 
 **En ligne :** [design system](https://plptune.github.io/sample-browser/#/gallery) ·
@@ -20,21 +21,24 @@ pnpm build        # typecheck + build
 | Touche | Action |
 | --- | --- |
 | ⌘F ou `/` | Recherche |
-| ↑ ↓ (⇧ pour étendre) | Naviguer dans la liste |
-| Espace / → / ← | Lecture-stop / lire / stop (fausse lecture) |
+| ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre |
+| → | Ouvrir un dossier, y entrer s'il est ouvert, lire un sample |
+| ← | Fermer un dossier, sinon remonter au dossier parent |
+| Espace | Lecture / stop du sample courant (fausse lecture) |
+| ⏎ | Ouvrir / fermer un dossier, lire un sample |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
 | ⌫ en début de champ | Supprimer la dernière chip |
 | 1–6, 0, = | Scénarios de démo |
 
-Souris : clic, ⇧-clic, ⌘-clic, double-clic = lecture, glisser une ligne sur une collection manuelle (état visuel),
-double-clic sur une collection = renommer.
+Souris : clic sur le chevron = ouvrir / fermer ; clic, ⇧-clic, ⌘-clic = sélection ; double-clic = ouvrir un dossier
+ou lire un sample ; glisser un sample sur une collection manuelle (état visuel).
 
 ## Scénarios livrés
 
 1 Premier lancement · 2 Indexation en cours · 3 Navigation · 4 Recherche active · 5 Aucun résultat ·
 6 Lecture · 10 Erreurs · 12 Mode waveform.
 Pas encore faits : 7 Tagging (popover), 8 Collections / création smart (⌘S), 9 Drag (scénario figé),
-11 Réglages, menu contextuel.
+11 Réglages, menu contextuel, renommage de collection (retiré avec la sidebar).
 
 ## Structure
 

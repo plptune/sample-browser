@@ -6,10 +6,9 @@ import { Icon } from "../components/Icon";
 import { IconButton } from "../components/IconButton";
 import { PreviewDrawer } from "../components/PreviewDrawer";
 import { QueryChip } from "../components/QueryChip";
-import { SampleRow } from "../components/SampleRow";
 import { ScanStatus } from "../components/ScanStatus";
-import { SidebarItem } from "../components/SidebarItem";
 import { TagPill } from "../components/TagPill";
+import { TreeRow } from "../components/TreeRow";
 import { SAMPLES } from "../mock/generate";
 import { Tokens } from "./Tokens";
 
@@ -143,54 +142,36 @@ export function Gallery() {
       <h2>ScanStatus</h2>
       <Frames render={() => <ScanStatus folder="Samples" done={1240} total={3100} />} />
 
-      <h2>SidebarItem</h2>
-      <Frames
-        render={() => (
-          <div class="cr-sidebar" style={{ "max-height": "none" }}>
-            <button class="cr-section__header">
-              <svg class="cr-chevron" data-open viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
-                <path d="M4.5 2.8 7.7 6 4.5 9.2" />
-              </svg>
-              <span class="cr-section__title">Section ouverte</span>
-            </button>
-            <SidebarItem label="Défaut" />
-            <SidebarItem label="Sélectionné" selected />
-            <SidebarItem label="Collection manuelle" mark="manual" />
-            <SidebarItem label="Collection smart" mark="smart" />
-            <SidebarItem label="Cible de dépôt" mark="manual" dropTarget />
-            <SidebarItem label="Renommage" mark="manual" renaming />
-            <SidebarItem label="Dossier replié" expandable />
-            <SidebarItem label="Dossier ouvert" expandable open />
-            <SidebarItem label="Niveau 2" expandable open depth={1} />
-            <SidebarItem label="Niveau 3" depth={2} />
-            <SidebarItem label="Source déconnectée" expandable offline />
-          </div>
-        )}
-      />
-
-      <h2>SampleRow</h2>
+      <h2>TreeRow · arbre</h2>
       <Frames
         render={(theme) => (
           <>
-            <State label="défaut · sélection (liste non focus)">
-              <div class="cr-list">
-                <SampleRow sample={kick} />
-                <SampleRow sample={kick2} />
-                <SampleRow sample={loop} selected />
+            <State label="dossiers : fermé · ouvert · niveaux · hors ligne · collections">
+              <div class="cr-tree" style={{ flex: "none" }}>
+                <TreeRow kind="folder" label="Splice" depth={0} />
+                <TreeRow kind="folder" label="Samples" depth={0} open />
+                <TreeRow kind="folder" label="Drums" depth={1} open selected />
+                <TreeRow kind="folder" label="Kicks" depth={2} />
+                <TreeRow kind="sample" label={loop.name} depth={2} bpm={loop.bpm} keyName={loop.key} />
+                <TreeRow kind="folder" label="Field Recordings" depth={0} offline />
+                <TreeRow kind="group" label="Collections" depth={0} open />
+                <TreeRow kind="collection" label="Night Drive" depth={1} dropTarget />
+                <TreeRow kind="smart" label="Loops en Am" depth={1} />
               </div>
             </State>
-            <State label="liste focus : sélection · lecture · drag · introuvable">
-              <div class="cr-list" data-focused>
-                <SampleRow sample={kick} selected />
-                <SampleRow sample={loop} playing progress={0.4} />
-                <SampleRow sample={kick2} dragging />
-                <SampleRow sample={missing} />
+            <State label="samples, arbre focus : défaut · sélection · lecture · drag · introuvable">
+              <div class="cr-tree" data-focused style={{ flex: "none" }}>
+                <TreeRow kind="sample" label={kick.name} depth={1} />
+                <TreeRow kind="sample" label={kick2.name} depth={1} selected />
+                <TreeRow kind="sample" label={loop.name} depth={1} bpm={loop.bpm} keyName={loop.key} playing progress={0.4} />
+                <TreeRow kind="sample" label={kick.name} depth={1} dragging />
+                <TreeRow kind="sample" label={missing.name} depth={1} missing />
               </div>
             </State>
             <State label="mode waveform (36 px)">
-              <div class="cr-list" data-focused>
-                <SampleRow sample={kick} wave themeKey={theme} />
-                <SampleRow sample={loop} wave selected playing progress={0.4} themeKey={theme} />
+              <div class="cr-tree" data-focused style={{ flex: "none" }}>
+                <TreeRow kind="sample" label={kick.name} depth={1} wave peaks={kick.peaks} themeKey={theme} />
+                <TreeRow kind="sample" label={loop.name} depth={1} bpm={loop.bpm} keyName={loop.key} wave peaks={loop.peaks} selected playing progress={0.4} themeKey={theme} />
               </div>
             </State>
           </>
@@ -201,14 +182,17 @@ export function Gallery() {
       <Frames
         render={(theme) => (
           <>
+            <State label="aucun sample">
+              <PreviewDrawer playing={false} progress={0} />
+            </State>
             <State label="arrêt">
-              <PreviewDrawer sample={kick} selectedCount={1} playing={false} progress={0} autoPlay={false} themeKey={theme} />
+              <PreviewDrawer sample={kick} playing={false} progress={0} themeKey={theme} />
             </State>
-            <State label="lecture 40 % · auto-play">
-              <PreviewDrawer sample={loop} selectedCount={1} playing progress={0.4} autoPlay themeKey={theme} />
+            <State label="lecture 40 %">
+              <PreviewDrawer sample={loop} playing progress={0.4} themeKey={theme} />
             </State>
-            <State label="multi-sélection">
-              <PreviewDrawer sample={loop} selectedCount={4} playing={false} progress={0} autoPlay={false} />
+            <State label="introuvable">
+              <PreviewDrawer sample={missing} playing={false} progress={0} />
             </State>
           </>
         )}

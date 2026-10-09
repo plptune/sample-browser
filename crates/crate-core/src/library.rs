@@ -347,6 +347,15 @@ impl Backend for SqliteLibrary {
         self.cat.ancestors(key)
     }
 
+    fn node_path(&self, key: &str) -> Option<String> {
+        if !(key.starts_with("f:") || key.starts_with("p:")) {
+            return None;
+        }
+        self.conn
+            .query_row("SELECT path FROM folders WHERE id = ?", [node_id(key)], |r| r.get(0))
+            .ok()
+    }
+
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan {
         self.cat.plan_commit(key, options)
     }

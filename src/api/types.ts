@@ -172,6 +172,8 @@ export interface Backend {
   setPinned(key: NodeKey, pinned: boolean): Promise<void>;
   /** Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre). */
   ancestors(key: NodeKey): Promise<NodeKey[]>;
+  /** Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; null sinon. */
+  nodePath(key: NodeKey): Promise<string | null>;
   planCommit(key: NodeKey, options: CommitOptions): Promise<CommitPlan>;
   /**
    * Copie les fichiers vers un nouveau dossier réel. Ne modifie ni ne déplace jamais les sources.
@@ -191,5 +193,6 @@ export interface Backend {
   scanStatus(): Promise<ScanStatus | null>;
   /** S'abonne à la progression de l'indexation ; renvoie la fonction de désabonnement. */
   onScanStatus(cb: (s: ScanStatus) => void): () => void;
+  /** Dossier : l'ouvre dans le Finder. Fichier : ouvre son dossier et le sélectionne. */
   revealInFinder(path: string): Promise<void>;
 }

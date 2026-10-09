@@ -57,6 +57,12 @@ export function App() {
       e.key === "ArrowLeft" ? app.back() : app.forward();
       return;
     }
+    // ⌥⌘R : e.code, car ⌥ change le caractère tapé sur Mac (« ® »).
+    if (mod && e.altKey && e.code === "KeyR" && !isField(e.target)) {
+      e.preventDefault();
+      app.finderForSelection();
+      return;
+    }
     if (mod && key === "o") {
       e.preventDefault();
       if (!app.demo()) app.addFolder();

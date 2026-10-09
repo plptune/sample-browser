@@ -142,7 +142,7 @@ export function CommitView(props: {
                 </div>
               </section>
               <div class="cr-commit__actions">
-                <Button onClick={() => props.onReveal?.()}>Révéler dans le Finder</Button>
+                <Button onClick={() => props.onReveal?.()}>Ouvrir dans le Finder</Button>
                 <Button variant="primary" onClick={() => props.onBack?.()}>
                   Terminé
                 </Button>

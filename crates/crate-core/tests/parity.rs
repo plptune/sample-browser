@@ -169,6 +169,15 @@ fn memes_parents() {
 }
 
 #[test]
+fn memes_chemins_de_dossiers() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    for (key, want) in fx["nodePaths"].as_object().unwrap() {
+        assert_eq!(serde_json::to_value(lib.node_path(key)).unwrap(), *want, "node_path({key})");
+    }
+}
+
+#[test]
 fn memes_raccourcis() {
     let fx = fixture();
     let mut lib = MockLibrary::demo();

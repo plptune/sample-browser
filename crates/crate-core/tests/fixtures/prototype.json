@@ -19724,6 +19724,19 @@
   "p:3": [],
   "f:999": []
  },
+ "nodePaths": {
+  "f:1": "~/Splice/sounds",
+  "f:3": "~/Splice/sounds/packs/Dusty Tapes Vol.2",
+  "f:12": "~/Music/Samples/Drums/Kicks",
+  "f:18": "~/Music/Samples/Vocals/Chops",
+  "f:22": "/Volumes/Field SSD/Paris/Metro",
+  "v:1": null,
+  "v:2": null,
+  "v:4": null,
+  "c:1": null,
+  "p:3": "~/Splice/sounds/packs/Dusty Tapes Vol.2",
+  "f:999": null
+ },
  "pins": [
   {
    "pinned": [

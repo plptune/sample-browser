@@ -109,6 +109,7 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
 | ⌘N | Nouveau dossier virtuel |
 | ⌘O | Ajouter un dossier |
+| ⌥⌘R | Afficher la sélection dans le Finder |
 | ⌘, | Réglages |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
@@ -175,7 +176,7 @@ Tout est dans le dépôt `plptune/sample-browser` :
 - Scan sur un thread dédié : parcours, en-têtes audio lus en parallèle (symphonia, rayon), rescan incrémental
   (taille + date), introuvables / hors ligne, dossiers sans audio masqués ; `notify` sur chaque source ; « Actualiser ».
 - UI : premier lancement réel, ⌘O (sélecteur natif), dépôt de dossiers depuis le Finder, statut d'indexation par
-  événement, « Créer un vrai dossier » qui copie vraiment, « Révéler dans le Finder ». `CRATE_DEMO=1` = données du prototype.
+  événement, « Créer un vrai dossier » qui copie vraiment, « Afficher / Ouvrir dans le Finder » (clic droit, ⌥⌘R). `CRATE_DEMO=1` = données du prototype.
 - Mesures (conteneur Linux, 4 cœurs, build release, petits WAV) : **100 000 fichiers indexés en 1,1 s** (budget 60 s),
   rescan sans changement 0,6 s, chargement du catalogue 0,19 s, ouverture d'un dossier de 5 000 samples 40 ms ;
   recherche 0,3 à 0,7 s → c'est le chantier de la phase 3 (budget 16 ms).

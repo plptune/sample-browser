@@ -39,6 +39,7 @@ pnpm build        # typecheck + build
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
 | ⌘N | Nouveau dossier virtuel |
 | ⌘O | Ajouter un dossier (fenêtre) |
+| ⌥⌘R | Afficher le sample (ou ouvrir le dossier) dans le Finder ; aussi au clic droit |
 | ⌘, | Réglages (Échap pour revenir) |
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |

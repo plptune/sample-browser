@@ -204,6 +204,12 @@ fn ancestors(lib: State<'_, Lib>, key: String) -> Vec<String> {
 
 #[tauri::command]
 #[specta::specta]
+fn node_path(lib: State<'_, Lib>, key: String) -> Option<String> {
+    lib.lock().node_path(&key)
+}
+
+#[tauri::command]
+#[specta::specta]
 fn plan_commit(lib: State<'_, Lib>, key: String, options: CommitOptions) -> CommitPlan {
     lib.lock().plan_commit(&key, options)
 }
@@ -261,12 +267,18 @@ fn is_demo(lib: State<'_, Lib>) -> bool {
     matches!(&*lib.0.lock().unwrap_or_else(|e| e.into_inner()), Inner::Demo(_))
 }
 
-/// Sélectionne le fichier (ou le dossier) dans le Finder.
+/// Dossier : l'ouvre dans le Finder. Fichier : ouvre son dossier et le sélectionne.
 #[tauri::command]
 #[specta::specta]
 fn reveal_in_finder(path: String) {
     #[cfg(target_os = "macos")]
-    let _ = std::process::Command::new("open").arg("-R").arg(&path).spawn();
+    {
+        let mut cmd = std::process::Command::new("open");
+        if !std::path::Path::new(&path).is_dir() {
+            cmd.arg("-R");
+        }
+        let _ = cmd.arg(&path).spawn();
+    }
     #[cfg(not(target_os = "macos"))]
     {
         let p = std::path::Path::new(&path);
@@ -308,6 +320,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             remove_from_virtual_folder,
             set_pinned,
             ancestors,
+            node_path,
             plan_commit,
             commit_to_folder,
             add_source,

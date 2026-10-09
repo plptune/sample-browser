@@ -75,7 +75,7 @@ crates/crate-core/tests/
 | `notify` sur chaque source ; un changement relance le scan incrémental de la source après 1 s de calme. « Actualiser » (menu de la source) force le même scan. | Simple et sûr ; un scan sans changement ne fait que des `stat`. |
 | Statut d'indexation par événement typé (`scan-status`, tauri-specta), au plus 5 par seconde ; le catalogue est rechargé au plus une fois par seconde pendant un scan. | UI fluide, arbre qui se remplit par paliers. |
 | La fenêtre utilise la vraie bibliothèque (`crate.db` dans le dossier de données de l'app). `CRATE_DEMO=1` la remet sur les données du prototype (scénarios de démo). Le navigateur et Storybook restent sur le mock TypeScript. | Les scénarios restent vérifiables dans la fenêtre. |
-| « Créer un vrai dossier » copie réellement en mode réel (refus d'un dossier existant non vide, jamais d'écrasement), puis « Ajouter aux sources » indexe la copie. « Révéler dans le Finder » : `open -R`. Avancés depuis la phase 5. | Quelques lignes ; la version simulée n'avait pas de sens sur de vrais fichiers. |
+| « Créer un vrai dossier » copie réellement en mode réel (refus d'un dossier existant non vide, jamais d'écrasement), puis « Ajouter aux sources » indexe la copie. « Afficher / Ouvrir dans le Finder » : `open -R` pour un fichier, `open` pour un dossier. Avancés depuis la phase 5. | Quelques lignes ; la version simulée n'avait pas de sens sur de vrais fichiers. |
 | Nouvelles dépendances : rusqlite (bundled), symphonia, rayon, notify (citées dans le plan) ; **tauri-plugin-dialog** pour ⌘O (choisir un dossier). | Sélecteur de dossier natif, sans code Objective-C. |
 
 Mesures (conteneur Linux, 4 cœurs, build release, `tests/bench_scan.rs`, 100 000 petits WAV) : scan complet 1,1 s
@@ -85,6 +85,7 @@ samples 40 ms, recherche 0,3–0,7 s. Fenêtre vérifiée sous écran virtuel : 
 
 | Décision (suite) | Raison |
 | --- | --- |
+| Finder au clic droit : « Afficher dans le Finder » sur un sample (dossier ouvert, fichier sélectionné), « Ouvrir dans le Finder » sur une source, un sous-dossier ou un raccourci ; ⌥⌘R sur la sélection. Le chemin d'un dossier vient du cœur (`nodePath`), même replié ou derrière un raccourci. Pas d'entrée sur les collections et dossiers virtuels (rien sur le disque) : « Créer un vrai dossier » sert à ça. | Demande utilisateur ; libellés de macOS. |
 | Le dernier statut de scan est gardé côté Rust (`scan_status`) et lu par l'UI au démarrage. | Le scan lancé à l'ouverture commence avant que la page n'écoute les événements. |
 | Un refus (source déjà couverte, pas un dossier, copie vers un dossier non vide) remonte comme une erreur lisible, affichée en une ligne sous la recherche (ou dans la vue de copie). | Pas de boîte de dialogue ; le message disparaît seul. |
 

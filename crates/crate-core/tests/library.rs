@@ -136,6 +136,13 @@ fn scan_indexe_les_fichiers_audio() {
     let mut lib = library(&tmp);
     let src = lib.add_source(&root.to_string_lossy()).unwrap();
     assert_eq!(src.name, "Samples");
+    assert_eq!(lib.node_path(&format!("f:{}", src.id)).as_deref(), Some(root.to_str().unwrap()));
+    let kicks = lib.catalog().samples().iter().find(|s| s.name == "Kick 2").unwrap().folder_id;
+    assert_eq!(
+        lib.node_path(&format!("p:{kicks}")),
+        Some(root.join("Drums/Kicks").to_string_lossy().into_owned())
+    );
+    assert_eq!(lib.node_path("v:1"), None);
     assert_eq!(lib.library().total, 4, "caché, illisible et non-audio ignorés");
     assert_eq!(
         outline(&lib),

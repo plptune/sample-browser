@@ -31,7 +31,7 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 | 10 | Erreurs | Fichiers introuvables barrés avec « ! » rouge, tiroir « Fichier introuvable », lecture désactivée. Source « hors ligne » grisée. | Le rouge n'est jamais un aplat : texte et « ! » seulement. |
 | 11 | Réglages | Vue qui remplace l'arbre (‹ pour revenir) : Sources (retirer au survol), Thème, Densité, Toujours au premier plan, Lecture auto. | Pas de fenêtre secondaire. Interrupteurs gris, pas ambre. |
 | 13 | Dossiers virtuels | Onglet Virtuels : Favoris, « Collections » (à plat), Pack 2026 › Drums / Textures, Projets › Night Drive. Épingle à droite de ce qui est aussi affiché dans Bibliothèque. | Les dossiers virtuels sont triés par nom ; les collections dans leur ordre de création. |
-| 14 | Créer un vrai dossier | Résumé (27 fichiers · 2 sous-dossiers · 49,1 Mo), destination, garder l'arborescence, ajouter aux sources, « Créer le dossier » (bouton inversé, sans accent). Puis « fichiers copiés » + Révéler / Terminé. | Copie simulée en phase 1 ; « Ajouter aux sources » crée bien une source qui reproduit l'arborescence. |
+| 14 | Créer un vrai dossier | Résumé (27 fichiers · 2 sous-dossiers · 49,1 Mo), destination, garder l'arborescence, ajouter aux sources, « Créer le dossier » (bouton inversé, sans accent). Puis « fichiers copiés » + Ouvrir dans le Finder / Terminé. | Copie simulée en phase 1 ; « Ajouter aux sources » crée bien une source qui reproduit l'arborescence. |
 | 12 | Mode waveform | Toutes les lignes de samples en 36 px avec mini-waveform ; dossiers inchangés. | La mini-waveform ne dessine pas les silences (pas de ligne pointillée). |
 
 ## Interactions hors scénario
@@ -46,6 +46,9 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
       « Retirer de « X » » sur un sample ; une collection n'accepte pas de sous-dossier.
 - [ ] Favoris : aucune étoile dans l'arbre ; ⌘D, menu contextuel ou étoile grise du tiroir ; dossier « Favoris » en tête
       des collections ; glisser sur « Favoris » ajoute ; `is:fav` filtre.
+- [ ] Finder : clic droit › « Afficher dans le Finder » (sample : son dossier s'ouvre, le fichier sélectionné) ou
+      « Ouvrir dans le Finder » (source, sous-dossier, raccourci) ; ⌥⌘R fait pareil sur la sélection. Grisé pour un
+      fichier introuvable ou une source hors ligne. Dans le prototype en ligne : une ligne explique que c'est dans l'app.
 - [ ] Raccourcis : « Dusty Tapes Vol.2 » à la racine de Bibliothèque, flèche d'alias à droite, sans chevron ; un clic
       saute dans Splice › packs › Dusty Tapes Vol.2 (ouvert, sélectionné). « Épingler dans Bibliothèque » sur un
       sous-dossier, « Retirer de Bibliothèque » sur le raccourci ; rien pour une source.

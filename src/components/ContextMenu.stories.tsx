@@ -22,7 +22,7 @@ export const Sample: Story = {
       { label: "Night Drive" },
       { label: "Go-to kicks" },
       { type: "separator" },
-      { label: "Révéler dans le Finder" },
+      { label: "Afficher dans le Finder", shortcut: "⌥⌘R" },
       { label: "Copier le chemin" },
     ],
   },
@@ -43,7 +43,7 @@ export const Source: Story = {
   args: {
     items: [
       { label: "Ouvrir", shortcut: "⏎" },
-      { label: "Révéler dans le Finder", disabled: true },
+      { label: "Afficher dans le Finder", shortcut: "⌥⌘R", disabled: true },
       { type: "separator" },
       { label: "Retirer la source", danger: true },
     ],

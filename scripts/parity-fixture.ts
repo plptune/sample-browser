@@ -52,6 +52,7 @@ for (const key of PLAN_KEYS) {
 const library = await mockBackend.library();
 const sources = await mockBackend.sources();
 
+const nodePaths = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (k) => [k, await mockBackend.nodePath(k)])));
 const ancestors = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (k) => [k, await mockBackend.ancestors(k)])));
 
 // Raccourcis : épingler un sous-dossier, refuser une source, retirer, puis revenir à l'état initial.
@@ -78,6 +79,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, library, sources, ancestors, pins, after };
+const out = { samples, trees, plans, library, sources, ancestors, nodePaths, pins, after };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

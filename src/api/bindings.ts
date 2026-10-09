@@ -26,6 +26,7 @@ export const commands = {
 	removeFromVirtualFolder: (id: number, ids: number[]) => __TAURI_INVOKE<void>("remove_from_virtual_folder", { id, ids }),
 	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
 	ancestors: (key: string) => __TAURI_INVOKE<string[]>("ancestors", { key }),
+	nodePath: (key: string) => __TAURI_INVOKE<string | null>("node_path", { key }),
 	planCommit: (key: string, options: CommitOptions) => __TAURI_INVOKE<CommitPlan>("plan_commit", { key, options }),
 	/**  Copie réelle (simulée en démo). Phase 5 : progression par événement. */
 	commitToFolder: (key: string, destination: string, options: CommitOptions) => typedError<CommitResult, string>(__TAURI_INVOKE("commit_to_folder", { key, destination, options })),
@@ -45,7 +46,7 @@ export const commands = {
 	total: number,
 	finished: boolean,
 } | null>("scan_status"),
-	/**  Sélectionne le fichier (ou le dossier) dans le Finder. */
+	/**  Dossier : l'ouvre dans le Finder. Fichier : ouvre son dossier et le sélectionne. */
 	revealInFinder: (path: string) => __TAURI_INVOKE<void>("reveal_in_finder", { path }),
 	/**  Démo uniquement (scénario « Erreurs ») : marque des fichiers comme introuvables. */
 	demoSetMissing: (ids: number[]) => __TAURI_INVOKE<void>("demo_set_missing", { ids }),

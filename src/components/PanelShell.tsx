@@ -1,6 +1,5 @@
 import { Match, Show, Switch } from "solid-js";
 import type { TreeRow as Row } from "../api";
-import { api } from "../api";
 import { app } from "../state/app";
 import { Browser } from "./Browser";
 import { CommitView } from "./CommitView";
@@ -71,7 +70,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       { type: "header", label: "Ajouter à un dossier virtuel" },
       ...vfs.map((f): MenuItem => ({ label: f.path, action: () => app.addSelectionTo(`v:${f.id}`) })),
       { type: "separator" },
-      { label: "Révéler dans le Finder", action: () => app.reveal(row.sample.path), disabled: row.sample.missing },
+      { label: "Afficher dans le Finder", shortcut: "⌥⌘R", action: () => app.showInFinder(row.sample.path), disabled: row.sample.missing },
       { label: "Copier le chemin", action: () => navigator.clipboard?.writeText(row.sample.path) },
     ];
   }
@@ -80,6 +79,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
     case "shortcut":
       return [
         { label: "Aller au dossier", shortcut: "⏎", action: () => app.jumpTo(row.target!) },
+        { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
         { type: "separator" },
         { label: "Retirer de Bibliothèque", action: () => app.togglePin(row.key) },
       ];
@@ -88,7 +88,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
         return [
           toggle,
           { label: "Actualiser", action: () => app.refreshSource(+row.key.slice(2)) },
-          { label: "Révéler dans le Finder", action: () => app.reveal(app.folderPath(row.key)) },
+          { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key), disabled: !!row.offline },
           { type: "separator" },
           { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) },
         ];
@@ -97,7 +97,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       return [
         toggle,
         { label: pinned ? "Retirer de Bibliothèque" : "Épingler dans Bibliothèque", action: () => app.togglePin(row.key) },
-        { label: "Révéler dans le Finder", action: () => app.reveal(app.folderPath(row.key)) },
+        { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
       ];
     }
     case "favorites":
@@ -213,7 +213,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
               onChoose={() => app.chooseCommitParent()}
               error={c().error}
               onCommit={() => app.runCommit()}
-              onReveal={() => c().result && api.revealInFinder(c().result!.destination)}
+              onReveal={() => app.showInFinder(c().result?.destination)}
             />
           )}
         </Match>

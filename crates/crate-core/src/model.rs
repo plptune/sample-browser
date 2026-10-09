@@ -293,6 +293,8 @@ pub trait Backend {
     fn set_pinned(&mut self, key: &str, pinned: bool);
     /// Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre).
     fn ancestors(&self, key: &str) -> Vec<NodeKey>;
+    /// Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; `None` sinon.
+    fn node_path(&self, key: &str) -> Option<String>;
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan;
     /// Copie vers un nouveau dossier réel ; ne modifie ni ne déplace jamais les sources.
     fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> Result<CommitResult, String>;

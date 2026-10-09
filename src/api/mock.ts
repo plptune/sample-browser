@@ -389,6 +389,19 @@ export const mockBackend: Backend = {
     return chain;
   },
 
+  async nodePath(key) {
+    if (!key.startsWith("f:") && !key.startsWith("p:")) return null;
+    const parts: string[] = [];
+    let id: number | null = +key.slice(2);
+    while (id !== null) {
+      const parent: number | null | undefined = folderParent.get(id);
+      if (parent === undefined) return null;
+      parts.unshift(parent === null ? ROOT_PATHS[id] : folders.get(id)!.name);
+      id = parent;
+    }
+    return parts.join("/");
+  },
+
   // ----- « Créer un vrai dossier »
 
   async planCommit(key, options): Promise<CommitPlan> {

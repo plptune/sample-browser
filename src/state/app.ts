@@ -6,6 +6,7 @@ import {
   type Source,
   type TreeRoot, type TreeRow,
 } from "../api";
+import { inTauri } from "../lib/env";
 import { isChip } from "../lib/query";
 
 export type Density = "compact" | "wave";
@@ -690,21 +691,24 @@ function createAppState() {
     return false;
   }
 
-  /** Chemin sur le disque d'un dossier visible (source + noms des dossiers parents). */
-  function folderPath(key: NodeKey): string | undefined {
-    const parts: string[] = [];
-    let row = rowByKey(key);
-    while (row && row.type === "node" && row.parent !== null) {
-      parts.unshift(row.name);
-      row = rowByKey(row.parent);
-    }
-    if (!row || row.type !== "node") return undefined;
-    const root = sources().find((s) => `f:${s.id}` === row!.key);
-    return root ? [root.path, ...parts].join("/") : undefined;
+  // --- Finder : un sample y est affiché (sélectionné dans son dossier), un dossier y est ouvert.
+  async function showInFinder(path: string | null | undefined) {
+    if (!path) return;
+    if (!inTauri) return setNotice("« Ouvrir dans le Finder » marche dans l'app Mac, pas dans ce prototype.");
+    await api.revealInFinder(path);
   }
 
-  function reveal(path: string | undefined) {
-    if (path) void api.revealInFinder(path);
+  /** Dossier source, sous-dossier ou raccourci. */
+  async function openFolderInFinder(key: NodeKey) {
+    await showInFinder(await api.nodePath(key));
+  }
+
+  /** ⌥⌘R : le sample sélectionné (le premier s'il y en a plusieurs) ou le dossier sous le curseur. */
+  async function finderForSelection() {
+    const s = selectedSamples().find((x) => !x.missing);
+    if (s) return showInFinder(s.path);
+    const row = rowByKey(cursor());
+    if (row?.type === "node" && !row.offline) await openFolderInFinder(row.target ?? row.key);
   }
 
   function openMenu(x: number, y: number, rowKey: string) {
@@ -728,7 +732,7 @@ function createAppState() {
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
     select, move, right, left, activate, play, stop, togglePlay,
     jumpTo, back, forward, clearHistory, canBack, canForward,
-    demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, folderPath, reveal, chooseCommitParent,
+    demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, showInFinder, openFolderInFinder, finderForSelection, chooseCommitParent,
   };
 }
 

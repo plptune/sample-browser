@@ -797,6 +797,28 @@ impl Backend for Catalog {
         chain
     }
 
+    fn node_path(&self, key: &str) -> Option<String> {
+        if !(key.starts_with("f:") || key.starts_with("p:")) {
+            return None;
+        }
+        let mut id = node_id(key);
+        let mut parts = vec![];
+        loop {
+            match self.folder_parent.get(&id)? {
+                Some(parent) => {
+                    parts.push(self.folders.get(&id)?.name.clone());
+                    id = *parent;
+                }
+                None => {
+                    parts.push(self.root_paths.get(&id)?.clone());
+                    break;
+                }
+            }
+        }
+        parts.reverse();
+        Some(parts.join("/"))
+    }
+
     // ----- « Créer un vrai dossier »
 
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan {

@@ -173,3 +173,97 @@ body {
   gap: 8px;
   align-items: center;
 }
+
+/* ---------- Planche des tokens ---------- */
+
+.tok-board {
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  align-items: flex-start;
+}
+
+.tok-board code,
+.tok-title {
+  font: 10px ui-monospace, Menlo, monospace;
+  color: var(--cr-text-2);
+}
+
+.tok-title {
+  width: 100%;
+  color: var(--cr-text-3);
+  margin-bottom: 4px;
+}
+
+.tok-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 170px;
+}
+
+.tok-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tok-swatch {
+  width: 28px;
+  height: 18px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.35);
+}
+
+.tok-type {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.tok-space {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 18px;
+}
+
+.tok-bar {
+  height: 10px;
+  background: var(--cr-accent);
+  flex: none;
+}
+
+.tok-bar--v {
+  width: 10px;
+}
+
+.tok-grid {
+  position: relative;
+  width: 100%;
+  background: var(--cr-surface);
+}
+
+.tok-grid .cr-item__slot {
+  color: var(--cr-text-3);
+}
+
+.tok-grid__lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(90deg, var(--cr-accent-soft) 1px, transparent 1px);
+  background-size: var(--cr-indent) 100%;
+  background-position: var(--cr-gutter) 0;
+}
+
+.gal-row > .tok-board {
+  width: 320px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 6px;
+}

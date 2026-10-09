@@ -70,7 +70,7 @@ function RenameInput(props: { value: string; onDone: (v: string) => void }) {
     props.onDone(v);
   };
   onMount(() => {
-    input.focus();
+    input.focus({ preventScroll: true });
     input.select();
   });
   return (

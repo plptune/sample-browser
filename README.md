@@ -3,6 +3,9 @@
 Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton).
 Ce dépôt ne contient pour l'instant **que l'interface, entièrement factice** : aucun son, aucun fichier lu, aucune base.
 
+**En ligne :** [design system](https://plptune.github.io/sample-browser/#/gallery) ·
+[prototype](https://plptune.github.io/sample-browser/) — redéployé par `.github/workflows/pages.yml` à chaque push.
+
 ```bash
 pnpm install
 pnpm dev          # http://localhost:1420

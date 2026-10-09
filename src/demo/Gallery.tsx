@@ -11,6 +11,7 @@ import { ScanStatus } from "../components/ScanStatus";
 import { SidebarItem } from "../components/SidebarItem";
 import { TagPill } from "../components/TagPill";
 import { SAMPLES } from "../mock/generate";
+import { Tokens } from "./Tokens";
 
 const VARIANTS = [
   { theme: "dark", w: 260 },
@@ -57,7 +58,7 @@ function StaticSearch(props: { chips?: string[]; text?: string; focused?: boolea
   return (
     <div class="cr-panel__search" style={{ "padding-top": "var(--cr-space-2)" }}>
       <div class="cr-search" data-focused={props.focused || undefined}>
-        <Icon name="search" class="cr-search__icon" />
+        <Icon name="search" />
         <div class="cr-search__chips">
           <For each={props.chips}>{(c) => <QueryChip raw={c} />}</For>
           <input
@@ -76,10 +77,12 @@ function StaticSearch(props: { chips?: string[]; text?: string; focused?: boolea
 export function Gallery() {
   return (
     <div class="gal">
-      <h1>Crate — galerie des composants</h1>
+      <h1>Crate — design system</h1>
       <a href="#" style={{ color: "#888" }}>
         ← Prototype
       </a>
+
+      <Tokens />
 
       <h2>IconButton</h2>
       <Frames

@@ -6,7 +6,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 
 1. **Gris d'abord, un seul accent.** L'ambre (`--cr-accent`) n'apparaît que pour : la lecture en cours,
    une progression, le focus clavier, une cible de dépôt. Jamais en aplat décoratif.
-2. **Pas d'icône sans fonction.** 16 icônes au total (`Icon.tsx`), trait 1,2 px sur 12 × 12.
+2. **Pas d'icône sans fonction.** 17 icônes au total (`Icon.tsx`), trait 1,2 px sur 12 × 12.
    Pas d'icône de dossier ni de fichier : le chevron suffit à distinguer un dossier d'un sample.
 3. **La hiérarchie vient du texte**, pas des couleurs : `--cr-text` → `-2` → `-3` → `-disabled`.
 4. **Grille de 4 px**, hauteurs fixes (ligne 24 px, 36 px avec waveform, item 22 px, en-tête 20 px).
@@ -53,11 +53,11 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | ScanStatus | `cr-scan` | — | Barre de progression de 1 px en accent sous le libellé. |
 | Tabs | `cr-tabs`, `cr-tab` | `data-active` | Dans la barre titre, après les feux : « Bibliothèque » / « Virtuels » (⌘1 / ⌘2). Survoler un onglet pendant un glisser l'ouvre après 500 ms. |
 | Browser (arbre) | `cr-tree` | `data-focused`, `data-drop-target` (fond) | Un arbre par onglet. Bibliothèque : sources puis éléments épinglés. Virtuels : Favoris, « Collections », dossiers virtuels. Chaque dossier liste ses sous-dossiers puis ses samples, au même retrait. |
-| TreeRow | `cr-node` | `data-kind=folder/favorites/group/collection/smart/virtual/sample`, repère `cr-node__marker` (dossier virtuel, collection, favoris, épingle), `data-selected`, `data-playing`, `data-missing`, `data-offline`, `data-drop-target`, `data-dragging`, `data-wave`, `--depth`, renommage en place (`cr-node__input`) | Une seule hauteur (24 px). `cr-node__slot` (12 px) : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide. Samples : BPM et clé à droite, BPM masqué sous 280 px. |
+| TreeRow | `cr-node` | `data-kind=folder/shortcut/favorites/group/collection/smart/virtual/sample`, repère `cr-node__marker` (raccourci, dossier virtuel, collection, favoris, épingle), `data-selected`, `data-playing`, `data-missing`, `data-offline`, `data-drop-target`, `data-dragging`, `data-wave`, `--depth`, renommage en place (`cr-node__input`) | Une seule hauteur (24 px). `cr-node__slot` (12 px) : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide (raccourci : il ne se déplie pas). Samples : BPM et clé à droite, BPM masqué sous 280 px. |
 | Waveform | `cr-wave` (canvas) | progression | Barres 2 px, partie lue en accent + tête de lecture 1 px. |
 | PreviewDrawer | `cr-drawer` | vide / arrêt / lecture / favori / introuvable | ▶, nom du sample courant, temps / durée, étoile favori (grise, seul endroit où elle apparaît) et waveform. |
 | TagPill | `cr-tag` | `data-active`, `data-variant=add` | Contour 1 px, pas de couleur par tag. Plus affiché dans le panneau (v0.4), gardé dans le DS. |
-| TagPopover | `cr-popover` | item `data-state=all/some/none`, `data-active` | Touche T sur la sélection. ✓ = tous les samples ont le tag, – = certains. Saisie = filtre ; un nom inconnu propose « Créer ». Coche sur la colonne des icônes. |
+| TagPopover | `cr-popover` | item `data-state=all/some/none`, `data-active` | ⌘T sur la sélection. ✓ = tous les samples ont le tag, – = certains. Saisie = filtre ; un nom inconnu propose « Créer ». Coche sur la colonne des icônes. |
 | SaveSearch | `cr-save` | — | ⌘S sur une recherche : nom de la collection smart, ⏎ enregistre, Échap annule. Seul champ à contour accent avec le renommage. |
 | ContextMenu | `cr-menu` | item `data-active`, `data-danger`, `data-disabled` ; séparateur, en-tête | Clic droit. Contenu selon la ligne : sample, source, sous-dossier, groupe Collections, collection. ↑↓ ⏎ Échap. Reste dans le panneau. |
 | SettingsView | `cr-settings`, `cr-setting`, `cr-source` | — | Remplace l'arbre dans la même colonne (⌘, / Échap). Sources, Apparence, Fenêtre et lecture. Libellés sur la colonne des libellés de l'arbre. |
@@ -88,7 +88,8 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
   dossier virtuel dedans) ; un dossier virtuel est une arborescence. Les deux peuvent devenir un vrai dossier ; une
   collection, toujours à plat.
 - **Repère des éléments épinglés** : à droite de la ligne (colonne des méta), en `text-3`, pour ne pas casser
-  l'alignement des icônes à gauche : dossier en pointillés (virtuel), liste (collection), étoile (favoris). Dans
+  l'alignement des icônes à gauche : flèche d'alias (raccourci vers un sous-dossier), dossier en pointillés (virtuel),
+  liste (collection), étoile (favoris). Dans
   l'onglet Virtuels, une épingle signale ce qui est aussi affiché dans Bibliothèque.
 - **Bouton principal sans accent** : l'ambre reste réservé à la lecture ; le bouton principal est inversé.
 - **Les tokens spéciaux en cours de frappe ne filtrent pas** (`#ta` ne vide pas la liste) ; seuls les mots libres filtrent en direct.

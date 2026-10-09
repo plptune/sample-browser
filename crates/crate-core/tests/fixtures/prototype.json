@@ -8805,12 +8805,13 @@
    "root": "library",
    "query": "",
    "expanded": [],
-   "totalRows": 6,
+   "totalRows": 7,
    "matches": 400,
    "rows": [
     "0|f:1|closed",
     "0|f:10|closed",
     "0|f:20|closed|offline",
+    "0|p:3|closed|->f:3",
     "0|c:fav|closed|pinned",
     "0|c:1|closed|pinned",
     "0|v:3|closed|pinned"
@@ -8824,7 +8825,7 @@
     "f:11",
     "f:12"
    ],
-   "totalRows": 60,
+   "totalRows": 61,
    "matches": 400,
    "rows": [
     "0|f:1|closed",
@@ -8884,6 +8885,7 @@
     "1|f:16|closed",
     "1|f:17|closed",
     "0|f:20|closed|offline",
+    "0|p:3|closed|->f:3",
     "0|c:fav|closed|pinned",
     "0|c:1|closed|pinned",
     "0|v:3|closed|pinned"
@@ -8900,7 +8902,7 @@
     "f:21",
     "f:22"
    ],
-   "totalRows": 103,
+   "totalRows": 104,
    "matches": 400,
    "rows": [
     "0|f:1|open",
@@ -9003,6 +9005,7 @@
     "3|s:391@f:22",
     "3|s:399@f:22",
     "1|f:23|closed",
+    "0|p:3|closed|->f:3",
     "0|c:fav|closed|pinned",
     "0|c:1|closed|pinned",
     "0|v:3|closed|pinned"
@@ -9016,14 +9019,16 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
-   "totalRows": 83,
+   "totalRows": 84,
    "matches": 400,
    "rows": [
     "0|f:1|closed",
     "0|f:10|closed",
     "0|f:20|closed|offline",
+    "0|p:3|closed|->f:3",
     "0|c:fav|open|pinned",
     "1|s:396@c:fav",
     "1|s:385@c:fav",
@@ -9308,7 +9313,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 52,
    "matches": 46,
@@ -9728,7 +9734,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 105,
    "matches": 87,
@@ -9940,7 +9947,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 18,
    "matches": 11,
@@ -10053,7 +10061,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 14,
    "matches": 6,
@@ -10162,7 +10171,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 14,
    "matches": 7,
@@ -10898,7 +10908,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 223,
    "matches": 211,
@@ -11273,7 +11284,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 33,
    "matches": 26,
@@ -11509,7 +11521,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 50,
    "matches": 44,
@@ -11609,7 +11622,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 0,
    "matches": 0,
@@ -11739,7 +11753,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 26,
    "matches": 18,
@@ -11869,7 +11884,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 17,
    "matches": 10,
@@ -12056,7 +12072,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 39,
    "matches": 27,
@@ -12202,7 +12219,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 18,
    "matches": 12,
@@ -12429,7 +12447,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 52,
    "matches": 36,
@@ -12765,7 +12784,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 77,
    "matches": 60,
@@ -12976,7 +12996,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 27,
    "matches": 24,
@@ -13053,7 +13074,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 0,
    "matches": 0,
@@ -14059,7 +14081,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 318,
    "matches": 300,
@@ -14640,7 +14663,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 70,
    "matches": 59,
@@ -15717,7 +15741,8 @@
     "c:1",
     "v:3",
     "v:4",
-    "v:5"
+    "v:5",
+    "p:3"
    ],
    "totalRows": 318,
    "matches": 300,
@@ -19645,7 +19670,10 @@
     "pinned": false
    }
   ],
-  "favoritesPinned": true
+  "favoritesPinned": true,
+  "pinnedFolders": [
+   3
+  ]
  },
  "sources": [
   {
@@ -19665,6 +19693,81 @@
    "name": "Field Recordings",
    "path": "/Volumes/Field SSD",
    "offline": true
+  }
+ ],
+ "ancestors": {
+  "f:1": [],
+  "f:3": [
+   "f:1",
+   "f:2"
+  ],
+  "f:12": [
+   "f:10",
+   "f:11"
+  ],
+  "f:18": [
+   "f:10",
+   "f:17"
+  ],
+  "f:22": [
+   "f:20",
+   "f:21"
+  ],
+  "v:1": [],
+  "v:2": [
+   "v:1"
+  ],
+  "v:4": [
+   "v:3"
+  ],
+  "c:1": [],
+  "p:3": [],
+  "f:999": []
+ },
+ "pins": [
+  {
+   "pinned": [
+    3,
+    18
+   ],
+   "rows": [
+    "0|f:1|closed",
+    "0|f:10|closed",
+    "0|f:20|closed|offline",
+    "0|p:18|closed|->f:18",
+    "0|p:3|closed|->f:3",
+    "0|c:fav|closed|pinned",
+    "0|c:1|closed|pinned",
+    "0|v:3|closed|pinned"
+   ]
+  },
+  {
+   "pinned": [
+    18
+   ],
+   "rows": [
+    "0|f:1|closed",
+    "0|f:10|closed",
+    "0|f:20|closed|offline",
+    "0|p:18|closed|->f:18",
+    "0|c:fav|closed|pinned",
+    "0|c:1|closed|pinned",
+    "0|v:3|closed|pinned"
+   ]
+  },
+  {
+   "pinned": [
+    3
+   ],
+   "rows": [
+    "0|f:1|closed",
+    "0|f:10|closed",
+    "0|f:20|closed|offline",
+    "0|p:3|closed|->f:3",
+    "0|c:fav|closed|pinned",
+    "0|c:1|closed|pinned",
+    "0|v:3|closed|pinned"
+   ]
   }
  ],
  "after": {
@@ -19700,7 +19803,7 @@
    }
   ],
   "tree": {
-   "totalRows": 36,
+   "totalRows": 37,
    "matches": 427,
    "rows": [
     "0|f:1|closed",
@@ -19736,6 +19839,7 @@
     "1|s:401@f:1000",
     "1|s:402@f:1000",
     "1|s:403@f:1000",
+    "0|p:3|closed|->f:3",
     "0|c:fav|closed|pinned",
     "0|c:1|closed|pinned",
     "0|v:3|closed|pinned"

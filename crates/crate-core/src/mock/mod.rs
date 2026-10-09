@@ -15,12 +15,14 @@ pub struct MockLibrary {
     sources: Vec<FolderNode>,
     /// Index de tous les dossiers (même ceux d'une source retirée, comme dans le prototype).
     folders: HashMap<u32, FolderNode>,
+    folder_parent: HashMap<u32, Option<u32>>,
     root_paths: HashMap<u32, String>,
     collections: Vec<Collection>,
     collection_items: HashMap<u32, Vec<SampleId>>,
     virtual_folders: Vec<VirtualFolder>,
     virtual_items: HashMap<u32, Vec<SampleId>>,
     favorites_pinned: bool,
+    pinned_folders: Vec<u32>,
 }
 
 struct NodeInfo {
@@ -29,15 +31,17 @@ struct NodeInfo {
     kind: NodeKind,
     offline: bool,
     pinned: bool,
+    target: Option<NodeKey>,
 }
 
 /// Fichier à copier : sous-dossier relatif dans le nouveau dossier, et le sample.
 type Entry = (Vec<String>, Sample);
 
-fn index_folders(nodes: &[FolderNode], out: &mut HashMap<u32, FolderNode>) {
+fn index_folders(nodes: &[FolderNode], parent: Option<u32>, out: &mut HashMap<u32, FolderNode>, parents: &mut HashMap<u32, Option<u32>>) {
     for n in nodes {
         out.insert(n.id, n.clone());
-        index_folders(&n.children, out);
+        parents.insert(n.id, parent);
+        index_folders(&n.children, Some(n.id), out, parents);
     }
 }
 
@@ -65,7 +69,8 @@ impl MockLibrary {
         let samples = data::samples();
         let sources = data::sources();
         let mut folders = HashMap::new();
-        index_folders(&sources, &mut folders);
+        let mut folder_parent = HashMap::new();
+        index_folders(&sources, None, &mut folders, &mut folder_parent);
         let root_paths = sources.iter().map(|f| (f.id, data::root_path(f.id).to_string())).collect();
         MockLibrary {
             collection_items: data::collection_items(&samples).into_iter().collect(),
@@ -73,10 +78,12 @@ impl MockLibrary {
             samples,
             sources,
             folders,
+            folder_parent,
             root_paths,
             collections: data::collections(),
             virtual_folders: data::virtual_folders(),
             favorites_pinned: data::FAVORITES_PINNED,
+            pinned_folders: data::PINNED_FOLDERS.to_vec(),
         }
     }
 
@@ -204,6 +211,18 @@ impl MockLibrary {
             kind: NodeKind::Folder,
             offline: f.offline,
             pinned: false,
+            target: None,
+        }
+    }
+
+    fn shortcut_info(f: &FolderNode) -> NodeInfo {
+        NodeInfo {
+            key: format!("p:{}", f.id),
+            name: f.name.clone(),
+            kind: NodeKind::Shortcut,
+            offline: false,
+            pinned: false,
+            target: Some(format!("f:{}", f.id)),
         }
     }
 
@@ -214,6 +233,7 @@ impl MockLibrary {
             kind: NodeKind::Favorites,
             offline: false,
             pinned: self.favorites_pinned,
+            target: None,
         }
     }
 
@@ -229,6 +249,7 @@ impl MockLibrary {
             kind,
             offline: false,
             pinned: c.pinned,
+            target: None,
         }
     }
 
@@ -239,6 +260,7 @@ impl MockLibrary {
             kind: NodeKind::Virtual,
             offline: false,
             pinned: f.pinned,
+            target: None,
         }
     }
 
@@ -255,6 +277,7 @@ impl MockLibrary {
                         kind: NodeKind::Group,
                         offline: false,
                         pinned: false,
+                        target: None,
                     },
                 ];
                 v.extend(self.vf_children(None).into_iter().map(Self::vf_info));
@@ -266,6 +289,9 @@ impl MockLibrary {
                 if searching {
                     return v;
                 }
+                let mut shortcuts: Vec<&FolderNode> = self.pinned_folders.iter().filter_map(|id| self.folders.get(id)).collect();
+                by_name(&mut shortcuts, |f| &f.name);
+                v.extend(shortcuts.into_iter().map(Self::shortcut_info));
                 if self.favorites_pinned {
                     v.push(self.fav_info());
                 }
@@ -379,6 +405,7 @@ impl Backend for MockLibrary {
             collections: self.collections.clone(),
             virtual_folders: self.virtual_folders.clone(),
             favorites_pinned: self.favorites_pinned,
+            pinned_folders: self.pinned_folders.clone(),
         }
     }
 
@@ -428,7 +455,8 @@ impl Backend for MockLibrary {
                     if self.searching && !self.has_match(&n.key) {
                         continue;
                     }
-                    let open = self.searching || self.req.expanded.contains(&n.key);
+                    // Un raccourci ne se déplie jamais : il saute au dossier visé.
+                    let open = n.kind != NodeKind::Shortcut && (self.searching || self.req.expanded.contains(&n.key));
                     self.rows.push(TreeRow::Node(FolderRow {
                         tag: NodeTag::Node,
                         key: n.key.clone(),
@@ -439,6 +467,7 @@ impl Backend for MockLibrary {
                         open,
                         offline: n.offline.then_some(true),
                         pinned: n.pinned.then_some(true),
+                        target: n.target.clone(),
                     }));
                     if open {
                         self.walk(Some(&n.key), depth + 1);
@@ -637,7 +666,17 @@ impl Backend for MockLibrary {
     }
 
     fn set_pinned(&mut self, key: &str, pinned: bool) {
-        if key == "c:fav" {
+        if key.starts_with("f:") {
+            // Raccourci : seulement pour un sous-dossier (une source est déjà à la racine).
+            let id = node_id(key);
+            let i = self.pinned_folders.iter().position(|&x| x == id);
+            if pinned && i.is_none() && self.folder_parent.get(&id).copied().flatten().is_some() {
+                self.pinned_folders.push(id);
+            }
+            if let (false, Some(i)) = (pinned, i) {
+                self.pinned_folders.remove(i);
+            }
+        } else if key == "c:fav" {
             self.favorites_pinned = pinned;
         } else if key.starts_with("c:") {
             if let Some(c) = self.collections.iter_mut().find(|c| c.id == node_id(key)) {
@@ -648,6 +687,25 @@ impl Backend for MockLibrary {
                 f.pinned = pinned;
             }
         }
+    }
+
+    fn ancestors(&self, key: &str) -> Vec<NodeKey> {
+        let mut chain = Vec::new();
+        if key.starts_with("f:") {
+            let mut p = self.folder_parent.get(&node_id(key)).copied().flatten();
+            while let Some(id) = p {
+                chain.push(format!("f:{id}"));
+                p = self.folder_parent.get(&id).copied().flatten();
+            }
+        } else if key.starts_with("v:") {
+            let mut p = self.virtual_folder(node_id(key)).and_then(|f| f.parent_id);
+            while let Some(id) = p {
+                chain.push(format!("v:{id}"));
+                p = self.virtual_folder(id).and_then(|f| f.parent_id);
+            }
+        }
+        chain.reverse();
+        chain
     }
 
     // ----- « Créer un vrai dossier »
@@ -717,7 +775,7 @@ impl Backend for MockLibrary {
                 self.samples.push(copy);
             }
             self.root_paths.insert(root_id, dest.clone());
-            index_folders(std::slice::from_ref(&root), &mut self.folders);
+            index_folders(std::slice::from_ref(&root), None, &mut self.folders, &mut self.folder_parent);
             self.sources.push(root);
         }
         CommitResult {

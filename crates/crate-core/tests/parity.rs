@@ -13,12 +13,13 @@ fn rows_of(page: &TreePage) -> Vec<String> {
         .iter()
         .map(|r| match r {
             TreeRow::Node(n) => format!(
-                "{}|{}|{}{}{}",
+                "{}|{}|{}{}{}{}",
                 n.depth,
                 n.key,
                 if n.open { "open" } else { "closed" },
                 if n.offline == Some(true) { "|offline" } else { "" },
-                if n.pinned == Some(true) { "|pinned" } else { "" }
+                if n.pinned == Some(true) { "|pinned" } else { "" },
+                n.target.as_ref().map(|t| format!("|->{t}")).unwrap_or_default()
             ),
             TreeRow::Sample(s) => format!("{}|{}", s.depth, s.key),
         })
@@ -154,6 +155,34 @@ fn meme_bibliotheque() {
     let lib = MockLibrary::new();
     assert_eq!(serde_json::to_value(lib.library()).unwrap(), fx["library"]);
     assert_eq!(serde_json::to_value(lib.sources()).unwrap(), fx["sources"]);
+}
+
+#[test]
+fn memes_parents() {
+    let fx = fixture();
+    let lib = MockLibrary::new();
+    for (key, want) in fx["ancestors"].as_object().unwrap() {
+        assert_eq!(lib.ancestors(key), strings(want), "ancestors({key})");
+    }
+}
+
+#[test]
+fn memes_raccourcis() {
+    let fx = fixture();
+    let mut lib = MockLibrary::new();
+    let check = |lib: &MockLibrary, want: &Value| {
+        assert_eq!(serde_json::to_value(lib.library().pinned_folders).unwrap(), want["pinned"]);
+        assert_eq!(rows_of(&lib.tree(&req(TreeRoot::Library, "", vec![]))), strings(&want["rows"]));
+    };
+    let pins = fx["pins"].as_array().unwrap();
+    lib.set_pinned("f:18", true);
+    lib.set_pinned("f:10", true); // une source : refusé
+    check(&lib, &pins[0]);
+    lib.set_pinned("f:3", false);
+    check(&lib, &pins[1]);
+    lib.set_pinned("f:18", false);
+    lib.set_pinned("f:3", true);
+    check(&lib, &pins[2]);
 }
 
 #[test]

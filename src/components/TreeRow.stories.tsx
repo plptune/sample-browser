@@ -7,10 +7,10 @@ const meta = {
   component: TreeRow,
   args: { kind: "folder", label: "Drums", depth: 0 },
   argTypes: {
-    kind: { control: "inline-radio", options: ["folder", "group", "favorites", "collection", "smart", "virtual", "sample"] },
+    kind: { control: "inline-radio", options: ["folder", "shortcut", "group", "favorites", "collection", "smart", "virtual", "sample"] },
     depth: { control: { type: "range", min: 0, max: 4 } },
     progress: { control: { type: "range", min: 0, max: 1, step: 0.01 } },
-    marker: { control: "inline-radio", options: [undefined, "virtual", "collection", "favorites", "pin"] },
+    marker: { control: "inline-radio", options: [undefined, "shortcut", "virtual", "collection", "favorites", "pin"] },
   },
   // Les lignes vivent dans un .cr-tree (fond, focus) ; l'arbre est « focus » pour montrer la sélection active.
   render: (args, ctx) => (
@@ -29,6 +29,8 @@ export const DossierFerme: Story = {};
 export const DossierOuvert: Story = { args: { open: true } };
 export const HorsLigne: Story = { args: { label: "Field Recordings", offline: true } };
 export const CibleDeDepot: Story = { args: { kind: "virtual", label: "Drums", depth: 1, dropTarget: true } };
+/** Sous-dossier épinglé dans Bibliothèque : pas de chevron, un clic saute au vrai dossier. */
+export const Raccourci: Story = { args: { kind: "shortcut", label: "Dusty Tapes Vol.2", marker: "shortcut" } };
 export const DossierVirtuelEpingle: Story = { args: { kind: "virtual", label: "Pack 2026", marker: "virtual" } };
 export const CollectionEpinglee: Story = { args: { kind: "collection", label: "Go-to kicks", marker: "collection" } };
 export const EpingleDansVirtuels: Story = { args: { kind: "virtual", label: "Pack 2026", marker: "pin" } };
@@ -51,6 +53,7 @@ export const Arbre: Story = {
       <TreeRow kind="sample" label={loop.name} depth={2} bpm={loop.bpm} keyName={loop.key} selected playing progress={0.4} themeKey={String(ctx.globals.theme)} />
       <TreeRow kind="sample" label={kick.name} depth={2} />
       <TreeRow kind="folder" label="Field Recordings" depth={0} offline />
+      <TreeRow kind="shortcut" label="Dusty Tapes Vol.2" depth={0} marker="shortcut" />
       <TreeRow kind="favorites" label="Favoris" depth={0} marker="favorites" />
       <TreeRow kind="collection" label="Go-to kicks" depth={0} marker="collection" />
       <TreeRow kind="virtual" label="Pack 2026" depth={0} marker="virtual" />

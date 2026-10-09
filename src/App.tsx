@@ -46,6 +46,22 @@ export function App() {
       app.switchTab(e.key === "1" ? "library" : "virtual");
       return;
     }
+    if (mod && key === "t" && !isField(e.target)) {
+      e.preventDefault();
+      app.openTagging();
+      return;
+    }
+    // Historique : ⌘[ / ⌘] partout, ⌥← / ⌥→ hors des champs (où ils déplacent le curseur d'un mot).
+    if (mod && (e.key === "[" || e.key === "]")) {
+      e.preventDefault();
+      e.key === "[" ? app.back() : app.forward();
+      return;
+    }
+    if (e.altKey && !mod && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isField(e.target)) {
+      e.preventDefault();
+      e.key === "ArrowLeft" ? app.back() : app.forward();
+      return;
+    }
     if (mod && key === "n") {
       e.preventDefault();
       app.newVirtualFolder();
@@ -66,9 +82,9 @@ export function App() {
       else app.stop();
       return;
     }
-    // Touches de scénario (démo) : actives dans toutes les vues.
+    // Touches de scénario (démo) : actives dans toutes les vues, sauf au milieu d'une saisie « taper pour sauter ».
     const sc = SCENARIOS.find((x) => x.key === e.key);
-    if (sc) {
+    if (sc && !(app.view() === "browser" && app.typingAhead())) {
       e.preventDefault(); // sinon le caractère atterrit dans le champ que le scénario vient de focaliser
       runScenario(sc.id);
       return;
@@ -101,24 +117,35 @@ export function App() {
         e.preventDefault();
         app.activate();
         return;
-      case "t":
-      case "T":
-        e.preventDefault();
-        app.openTagging();
-        return;
       case "/":
         e.preventDefault();
         search?.focus();
         return;
+    }
+    // Taper pour sauter : lettres, chiffres et ponctuation (Espace reste la lecture).
+    if (e.key.length === 1 && !e.altKey && e.key !== " ") {
+      e.preventDefault();
+      app.typeAhead(e.key);
     }
   }
 
   // Le thème s'applique à toute la page (fond de fenêtre compris).
   createEffect(() => document.documentElement.setAttribute("data-theme", app.theme()));
 
+  // Boutons « précédent / suivant » de la souris : même historique que ⌥← / ⌥→.
+  function onMouseNav(e: MouseEvent) {
+    if (e.button !== 3 && e.button !== 4) return;
+    e.preventDefault();
+    e.button === 3 ? app.back() : app.forward();
+  }
+
   onMount(() => {
     window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("mouseup", onMouseNav);
+    onCleanup(() => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mouseup", onMouseNav);
+    });
     runScenario(scenario());
   });
 

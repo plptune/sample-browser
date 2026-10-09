@@ -275,3 +275,6 @@ export const VIRTUAL_ITEMS: Record<number, number[]> = {
 
 /** Favoris épinglés dans l'onglet Bibliothèque. */
 export const FAVORITES = { pinned: true };
+
+/** Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque. */
+export const PINNED_FOLDERS: number[] = [3]; // Splice › packs › Dusty Tapes Vol.2

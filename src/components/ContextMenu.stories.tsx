@@ -15,7 +15,7 @@ export const Sample: Story = {
   args: {
     items: [
       { label: "Lire", shortcut: "Espace" },
-      { label: "Taguer 4 samples…", shortcut: "T" },
+      { label: "Taguer 4 samples…", shortcut: "⌘T" },
       { label: "Ajouter aux favoris", shortcut: "⌘D" },
       { type: "separator" },
       { type: "header", label: "Ajouter à" },

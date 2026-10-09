@@ -11,10 +11,11 @@ const QUERIES = [
   "dur:1-4s", "type:one-shot",
 ];
 const EXPANDED = {
-  library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5"]],
+  library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5", "p:3"]],
   virtual: [[], ["g:collections", "c:1", "c:2", "c:3", "c:4"], ["c:fav", "v:1", "v:2", "v:3", "v:4", "v:5"]],
 } as const;
 const PLAN_KEYS = ["v:1", "v:3", "v:4", "c:1", "c:3", "c:4", "c:fav"];
+const ANCESTOR_KEYS = ["f:1", "f:3", "f:12", "f:18", "f:22", "v:1", "v:2", "v:4", "c:1", "p:3", "f:999"];
 
 const round = (x: number) => Math.round(x * 1e9) / 1e9;
 
@@ -28,7 +29,7 @@ const samples = SAMPLES.map((s) => ({
 type Page = Awaited<ReturnType<typeof mockBackend.tree>>;
 const rowsOf = (page: Page) =>
   page.rows.map(
-    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") : ""}`,
+    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") : ""}`,
   );
 
 const trees = [];
@@ -51,6 +52,20 @@ for (const key of PLAN_KEYS) {
 const library = await mockBackend.library();
 const sources = await mockBackend.sources();
 
+const ancestors = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (k) => [k, await mockBackend.ancestors(k)])));
+
+// Raccourcis : épingler un sous-dossier, refuser une source, retirer, puis revenir à l'état initial.
+const pinTree = async () => rowsOf(await mockBackend.tree({ root: "library", query: "", expanded: [], offset: 0, limit: 100000 }));
+const pins = [];
+await mockBackend.setPinned("f:18", true);
+await mockBackend.setPinned("f:10", true);
+pins.push({ pinned: (await mockBackend.library()).pinnedFolders, rows: await pinTree() });
+await mockBackend.setPinned("f:3", false);
+pins.push({ pinned: (await mockBackend.library()).pinnedFolders, rows: await pinTree() });
+await mockBackend.setPinned("f:18", false);
+await mockBackend.setPinned("f:3", true);
+pins.push({ pinned: (await mockBackend.library()).pinnedFolders, rows: await pinTree() });
+
 // En dernier (modifie l'état) : commit de « Pack 2026 » ajouté aux sources, puis l'arbre qui en résulte.
 const commit = await mockBackend.commitToFolder("v:3", "~/Desktop/Pack 2026/", { keepHierarchy: true, addAsSource: true });
 const afterTree = await mockBackend.tree({ root: "library", query: "", expanded: ["f:1000", "f:1001", "f:1002"], offset: 0, limit: 100000 });
@@ -63,6 +78,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, library, sources, after };
+const out = { samples, trees, plans, library, sources, ancestors, pins, after };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
-console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);
+console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

@@ -45,7 +45,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
     const removable = parent.startsWith("v:") || (parent.startsWith("c:") && (parent === "c:fav" || manual.some((c) => `c:${c.id}` === parent)));
     return [
       { label: app.playingId() === row.sample.id ? "Stop" : "Lire", shortcut: "Espace", action: () => app.togglePlay(), disabled: row.sample.missing },
-      { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "T", action: () => app.openTagging() },
+      { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "⌘T", action: () => app.openTagging() },
       {
         label: app.selectedSamples().every((s) => s.fav) ? "Retirer des favoris" : "Ajouter aux favoris",
         shortcut: "⌘D",
@@ -64,10 +64,24 @@ function menuFor(row: Row | undefined): MenuItem[] {
   }
   const toggle: MenuItem = { label: row.open ? "Fermer" : "Ouvrir", shortcut: "⏎", action: () => app.toggleNode(row.key) };
   switch (row.kind) {
-    case "folder":
-      return row.parent === null
-        ? [toggle, { label: "Révéler dans le Finder" }, { type: "separator" }, { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) }]
-        : [toggle, { label: "Révéler dans le Finder" }];
+    case "shortcut":
+      return [
+        { label: "Aller au dossier", shortcut: "⏎", action: () => app.jumpTo(row.target!) },
+        { label: "Révéler dans le Finder" },
+        { type: "separator" },
+        { label: "Retirer de Bibliothèque", action: () => app.togglePin(row.key) },
+      ];
+    case "folder": {
+      if (row.parent === null && app.tab() === "library") {
+        return [toggle, { label: "Révéler dans le Finder" }, { type: "separator" }, { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) }];
+      }
+      const pinned = app.library()?.pinnedFolders.includes(+row.key.slice(2));
+      return [
+        toggle,
+        { label: pinned ? "Retirer de Bibliothèque" : "Épingler dans Bibliothèque", action: () => app.togglePin(row.key) },
+        { label: "Révéler dans le Finder" },
+      ];
+    }
     case "favorites":
       return [toggle, pinItem(row.key, row.pinned), { type: "separator" }, commitItem(row.key)];
     case "group":

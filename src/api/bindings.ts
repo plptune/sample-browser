@@ -24,6 +24,7 @@ export const commands = {
 	addToVirtualFolder: (id: number, ids: number[]) => __TAURI_INVOKE<void>("add_to_virtual_folder", { id, ids }),
 	removeFromVirtualFolder: (id: number, ids: number[]) => __TAURI_INVOKE<void>("remove_from_virtual_folder", { id, ids }),
 	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
+	ancestors: (key: string) => __TAURI_INVOKE<string[]>("ancestors", { key }),
 	planCommit: (key: string, options: CommitOptions) => __TAURI_INVOKE<CommitPlan>("plan_commit", { key, options }),
 	/**  Phase 1 : copie simulée (aucun fichier écrit). Phase 5 : copie réelle, avec progression par événement. */
 	commitToFolder: (key: string, destination: string, options: CommitOptions) => __TAURI_INVOKE<CommitResult>("commit_to_folder", { key, destination, options }),
@@ -100,6 +101,8 @@ export type FolderRow_Deserialize = {
 	offline?: boolean | null,
 	/**  Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque). */
 	pinned?: boolean | null,
+	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
+	target?: string | null,
 };
 
 export type FolderRow_Serialize = {
@@ -113,6 +116,8 @@ export type FolderRow_Serialize = {
 	offline?: boolean | null,
 	/**  Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque). */
 	pinned?: boolean | null,
+	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
+	target?: string | null,
 };
 
 export type Library = Library_Serialize | Library_Deserialize;
@@ -123,6 +128,8 @@ export type Library_Deserialize = {
 	collections: Collection_Deserialize[],
 	virtualFolders: VirtualFolder[],
 	favoritesPinned: boolean,
+	/**  Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque. */
+	pinnedFolders: number[],
 };
 
 export type Library_Serialize = {
@@ -131,9 +138,11 @@ export type Library_Serialize = {
 	collections: Collection_Serialize[],
 	virtualFolders: VirtualFolder[],
 	favoritesPinned: boolean,
+	/**  Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque. */
+	pinnedFolders: number[],
 };
 
-export type NodeKind = "folder" | "favorites" | "group" | "collection" | "smart" | "virtual";
+export type NodeKind = "folder" | "shortcut" | "favorites" | "group" | "collection" | "smart" | "virtual";
 
 /**  Discriminant littéral `"node"` d'une ligne de dossier. */
 export type NodeTag = "node";

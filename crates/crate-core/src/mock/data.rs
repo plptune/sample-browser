@@ -529,3 +529,6 @@ pub fn virtual_items(samples: &[Sample]) -> Vec<(u32, Vec<u32>)> {
 
 /// Favoris épinglés dans l'onglet Bibliothèque au départ.
 pub const FAVORITES_PINNED: bool = true;
+
+/// Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque (Splice › packs › Dusty Tapes Vol.2).
+pub const PINNED_FOLDERS: &[u32] = &[3];

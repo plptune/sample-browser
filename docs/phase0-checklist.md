@@ -39,13 +39,19 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 - [ ] Clic droit sur un sample, une source, un sous-dossier, « Collections », une collection : menus différents, ↑↓ ⏎ Échap.
 - [ ] Renommer une collection (menu contextuel) : champ en place, ⏎ valide, Échap annule.
 - [ ] « Nouvelle collection » (clic droit sur « Collections ») : créée et directement en renommage.
-- [ ] ⇧-clic, ⌘-clic, ⇧↑↓ : multi-sélection ; T tague toute la sélection.
+- [ ] ⇧-clic, ⌘-clic, ⇧↑↓ : multi-sélection ; ⌘T tague toute la sélection.
 - [ ] Onglets : ⌘1 / ⌘2 ; dans Bibliothèque, les éléments épinglés sont après les sources, avec un repère à droite
       (dossier en pointillés, liste, étoile). Survoler « Virtuels » en glissant des samples ouvre l'onglet.
 - [ ] Dossiers virtuels : ⌘N (ou +) crée un dossier en renommage ; glisser un dossier sur un autre le déplace ;
       « Retirer de « X » » sur un sample ; une collection n'accepte pas de sous-dossier.
 - [ ] Favoris : aucune étoile dans l'arbre ; ⌘D, menu contextuel ou étoile grise du tiroir ; dossier « Favoris » en tête
       des collections ; glisser sur « Favoris » ajoute ; `is:fav` filtre.
+- [ ] Raccourcis : « Dusty Tapes Vol.2 » à la racine de Bibliothèque, flèche d'alias à droite, sans chevron ; un clic
+      saute dans Splice › packs › Dusty Tapes Vol.2 (ouvert, sélectionné). « Épingler dans Bibliothèque » sur un
+      sous-dossier, « Retirer de Bibliothèque » sur le raccourci ; rien pour une source.
+- [ ] Historique : ⌥← / ⌥→ (ou ⌘[ / ⌘], boutons de la souris) après un raccourci, un changement d'onglet ou une chip
+      ramènent l'arbre tel qu'on l'a quitté ; ⌥← dans le champ de recherche déplace le curseur, rien d'autre.
+- [ ] Taper pour sauter : « sn » va au premier « Sn… », « kk » passe au k suivant ; T ne tague plus.
 - [ ] Échap ferme d'abord la surcouche ouverte (menu, tags, ⌘S), puis quitte les Réglages, puis arrête la lecture.
 
 ## Fenêtre Tauri

@@ -140,6 +140,12 @@ fn set_pinned(lib: State<'_, Lib>, key: String, pinned: bool) {
 
 #[tauri::command]
 #[specta::specta]
+fn ancestors(lib: State<'_, Lib>, key: String) -> Vec<String> {
+    lib.lock().unwrap().ancestors(&key)
+}
+
+#[tauri::command]
+#[specta::specta]
 fn plan_commit(lib: State<'_, Lib>, key: String, options: CommitOptions) -> CommitPlan {
     lib.lock().unwrap().plan_commit(&key, options)
 }
@@ -193,6 +199,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         add_to_virtual_folder,
         remove_from_virtual_folder,
         set_pinned,
+        ancestors,
         plan_commit,
         commit_to_folder,
         remove_source,

@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 pub type SampleId = u32;
 
-/// Clé de nœud de l'arbre : "f:<id>" dossier, "g:collections" groupe, "c:fav" favoris, "c:<id>" collection.
+/// Clé de nœud de l'arbre : "f:<id>" dossier source, "p:<id>" raccourci vers un dossier source, "c:fav" favoris,
+/// "g:collections" groupe, "c:<id>" collection, "v:<id>" dossier virtuel.
 pub type NodeKey = String;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +90,7 @@ pub struct VirtualFolder {
 #[serde(rename_all = "lowercase")]
 pub enum NodeKind {
     Folder,
+    Shortcut,
     Favorites,
     Group,
     Collection,
@@ -141,6 +143,10 @@ pub struct FolderRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub pinned: Option<bool>,
+    /// Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub target: Option<NodeKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -203,6 +209,8 @@ pub struct Library {
     pub collections: Vec<Collection>,
     pub virtual_folders: Vec<VirtualFolder>,
     pub favorites_pinned: bool,
+    /// Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque.
+    pub pinned_folders: Vec<u32>,
 }
 
 /// Ce que « Créer un vrai dossier » copierait.
@@ -267,8 +275,10 @@ pub trait Backend {
     fn move_virtual_folder(&mut self, id: u32, parent_id: Option<u32>);
     fn add_to_virtual_folder(&mut self, id: u32, ids: &[SampleId]);
     fn remove_from_virtual_folder(&mut self, id: u32, ids: &[SampleId]);
-    /// "c:fav", "c:<id>" ou "v:<id>".
+    /// "c:fav", "c:<id>", "v:<id>" ou un sous-dossier source "f:<id>" (raccourci).
     fn set_pinned(&mut self, key: &str, pinned: bool);
+    /// Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre).
+    fn ancestors(&self, key: &str) -> Vec<NodeKey>;
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan;
     /// Copie vers un nouveau dossier réel ; ne modifie ni ne déplace jamais les sources.
     fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> CommitResult;

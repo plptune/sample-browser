@@ -48,6 +48,7 @@ async function reset(expanded: string[] = [], tab: TreeRoot = "library") {
     app.closeOverlays();
     app.setRenamingKey(null);
     app.closeCommit();
+    app.clearHistory();
   });
   await Promise.all([app.refresh(), app.reloadLibrary()]);
 }

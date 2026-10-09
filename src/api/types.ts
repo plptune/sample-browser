@@ -52,12 +52,12 @@ export interface VirtualFolder {
 
 /**
  * Nœud de l'arbre. Clés stables :
- * "f:<id>" dossier source · "c:fav" favoris · "g:collections" groupe des collections · "c:<id>" collection ·
- * "v:<id>" dossier virtuel.
+ * "f:<id>" dossier source · "p:<id>" raccourci vers un dossier source · "c:fav" favoris ·
+ * "g:collections" groupe des collections · "c:<id>" collection · "v:<id>" dossier virtuel.
  */
 export type NodeKey = string;
 
-export type NodeKind = "folder" | "favorites" | "group" | "collection" | "smart" | "virtual";
+export type NodeKind = "folder" | "shortcut" | "favorites" | "group" | "collection" | "smart" | "virtual";
 
 /** Onglet : sources (+ dossiers virtuels épinglés) ou dossiers virtuels. */
 export type TreeRoot = "library" | "virtual";
@@ -73,6 +73,8 @@ export interface FolderRow {
   offline?: boolean | null;
   /** Collection ou dossier virtuel épinglé (marqué d'une icône dans l'onglet Bibliothèque). */
   pinned?: boolean | null;
+  /** Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
+  target?: NodeKey | null;
 }
 
 export interface SampleRow {
@@ -107,6 +109,7 @@ export interface Library {
   collections: Collection[];
   virtualFolders: VirtualFolder[];
   favoritesPinned: boolean;
+  pinnedFolders: number[]; // dossiers sources épinglés comme raccourcis dans Bibliothèque
 }
 
 /** Ce que « Créer un vrai dossier » copierait (dossier virtuel, collection ou favoris). */
@@ -156,8 +159,10 @@ export interface Backend {
   moveVirtualFolder(id: number, parentId: number | null): Promise<void>;
   addToVirtualFolder(id: number, ids: SampleId[]): Promise<void>;
   removeFromVirtualFolder(id: number, ids: SampleId[]): Promise<void>;
-  /** Épingle "c:fav", "c:<id>" ou "v:<id>" à la racine de l'onglet Bibliothèque. */
+  /** Épingle "c:fav", "c:<id>", "v:<id>" ou un sous-dossier source "f:<id>" (raccourci) à la racine de Bibliothèque. */
   setPinned(key: NodeKey, pinned: boolean): Promise<void>;
+  /** Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre). */
+  ancestors(key: NodeKey): Promise<NodeKey[]>;
   planCommit(key: NodeKey, options: CommitOptions): Promise<CommitPlan>;
   /** Copie les fichiers vers un nouveau dossier réel. Ne modifie ni ne déplace jamais les sources. */
   commitToFolder(key: NodeKey, destination: string, options: CommitOptions): Promise<CommitResult>;

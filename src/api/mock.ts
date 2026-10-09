@@ -4,7 +4,8 @@
 import { naturalCompare } from "../lib/natural";
 import { parseLine, type QueryToken } from "../lib/query";
 import {
-  COLLECTIONS, COLLECTION_ITEMS, FAVORITES, ROOT_PATHS, SAMPLES, SOURCES, TAGS, VIRTUAL_FOLDERS, VIRTUAL_ITEMS, type FolderNode,
+  COLLECTIONS, COLLECTION_ITEMS, FAVORITES, PINNED_FOLDERS, ROOT_PATHS, SAMPLES, SOURCES, TAGS, VIRTUAL_FOLDERS, VIRTUAL_ITEMS,
+  type FolderNode,
 } from "../mock/generate";
 import type {
   Backend, Collection, CommitOptions, CommitPlan, FolderRow, Library, NodeKey, NodeKind, Sample, TreePage, TreeRequest, TreeRow,
@@ -73,10 +74,12 @@ function matchLine(s: Sample, line: string): boolean {
 // ---------- Arbre ----------
 
 const folders = new Map<number, FolderNode>();
-function indexFolders(nodes: FolderNode[]) {
+const folderParent = new Map<number, number | null>();
+function indexFolders(nodes: FolderNode[], parent: number | null = null) {
   for (const n of nodes) {
     folders.set(n.id, n);
-    indexFolders(n.children);
+    folderParent.set(n.id, parent);
+    indexFolders(n.children, n.id);
   }
 }
 indexFolders(SOURCES);
@@ -120,9 +123,11 @@ interface NodeInfo {
   kind: NodeKind;
   offline?: boolean;
   pinned?: boolean;
+  target?: NodeKey;
 }
 
 const folderInfo = (f: FolderNode): NodeInfo => ({ key: `f:${f.id}`, name: f.name, kind: "folder", offline: f.offline });
+const shortcutInfo = (f: FolderNode): NodeInfo => ({ key: `p:${f.id}`, name: f.name, kind: "shortcut", target: `f:${f.id}` });
 const favInfo = (): NodeInfo => ({ key: "c:fav", name: "Favoris", kind: "favorites", pinned: FAVORITES.pinned });
 const collInfo = (c: Collection): NodeInfo => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection", pinned: c.pinned });
 const vfInfo = (f: VirtualFolder): NodeInfo => ({ key: `v:${f.id}`, name: f.name, kind: "virtual", pinned: f.pinned });
@@ -136,6 +141,7 @@ function childNodes(root: TreeRequest["root"], key: NodeKey | null, searching: b
     if (searching) return SOURCES.map(folderInfo);
     return [
       ...SOURCES.map(folderInfo),
+      ...PINNED_FOLDERS.flatMap((id) => (folders.has(id) ? [folders.get(id)!] : [])).sort(byName).map(shortcutInfo),
       ...(FAVORITES.pinned ? [favInfo()] : []),
       ...COLLECTIONS.filter((c) => c.pinned).sort(byName).map(collInfo),
       ...VIRTUAL_FOLDERS.filter((f) => f.pinned).sort(byName).map(vfInfo),
@@ -205,6 +211,7 @@ export const mockBackend: Backend = {
       collections: COLLECTIONS.map((c) => ({ ...c })),
       virtualFolders: VIRTUAL_FOLDERS.map((f) => ({ ...f })),
       favoritesPinned: FAVORITES.pinned,
+      pinnedFolders: [...PINNED_FOLDERS],
     };
   },
 
@@ -228,10 +235,12 @@ export const mockBackend: Backend = {
     const walk = (key: NodeKey | null, depth: number) => {
       for (const n of childNodes(req.root, key, searching)) {
         if (searching && !hasMatch(n.key)) continue;
-        const open = searching || req.expanded.includes(n.key);
+        // Un raccourci ne se déplie jamais : il saute au dossier visé.
+        const open = n.kind !== "shortcut" && (searching || req.expanded.includes(n.key));
         const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
         if (n.offline) row.offline = true;
         if (n.pinned) row.pinned = true;
+        if (n.target) row.target = n.target;
         rows.push(row);
         if (open) walk(n.key, depth + 1);
       }
@@ -354,7 +363,13 @@ export const mockBackend: Backend = {
   },
 
   async setPinned(key, pinned) {
-    if (key === "c:fav") FAVORITES.pinned = pinned;
+    if (key.startsWith("f:")) {
+      // Raccourci : seulement pour un sous-dossier (une source est déjà à la racine).
+      const id = +key.slice(2);
+      const i = PINNED_FOLDERS.indexOf(id);
+      if (pinned && i < 0 && folderParent.get(id) != null) PINNED_FOLDERS.push(id);
+      if (!pinned && i >= 0) PINNED_FOLDERS.splice(i, 1);
+    } else if (key === "c:fav") FAVORITES.pinned = pinned;
     else if (key.startsWith("c:")) {
       const c = collById(+key.slice(2));
       if (c) c.pinned = pinned;
@@ -362,6 +377,16 @@ export const mockBackend: Backend = {
       const f = vfById(+key.slice(2));
       if (f) f.pinned = pinned;
     }
+  },
+
+  async ancestors(key) {
+    const chain: NodeKey[] = [];
+    if (key.startsWith("f:")) {
+      for (let p = folderParent.get(+key.slice(2)) ?? null; p !== null; p = folderParent.get(p) ?? null) chain.unshift(`f:${p}`);
+    } else if (key.startsWith("v:")) {
+      for (let p = vfById(+key.slice(2))?.parentId ?? null; p !== null; p = vfById(p)?.parentId ?? null) chain.unshift(`v:${p}`);
+    }
+    return chain;
   },
 
   // ----- « Créer un vrai dossier »

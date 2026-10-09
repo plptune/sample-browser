@@ -15,6 +15,7 @@ function panelPoint(e: MouseEvent) {
  * dans Virtuels, une épingle pour ce qui est aussi affiché dans Bibliothèque.
  */
 function markerFor(row: FolderRow): TreeRowMarker | undefined {
+  if (row.kind === "shortcut") return "shortcut";
   if (!row.pinned) return undefined;
   if (app.tab() === "virtual") return "pin";
   if (row.parent !== null) return undefined;
@@ -67,6 +68,7 @@ export function Browser() {
                 label={row.name}
                 depth={row.depth}
                 open={row.open}
+                title={row.target ? "Aller au dossier" : undefined}
                 offline={row.offline ?? undefined}
                 marker={markerFor(row)}
                 selected={app.cursor() === row.key}
@@ -80,7 +82,11 @@ export function Browser() {
                   app.openMenu(p.x, p.y, row.key);
                 }}
                 onToggle={() => app.toggleNode(row.key)}
-                onMouseDown={(e) => e.button === 0 && app.select(row.key)}
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  app.select(row.key);
+                  if (row.target) app.jumpTo(row.target);
+                }}
                 onDblClick={() => app.toggleNode(row.key)}
                 onDragStart={(e) => {
                   e.dataTransfer?.setData("text/plain", row.name);

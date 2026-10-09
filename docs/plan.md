@@ -19,7 +19,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 
 - **Une seule barre de recherche** qui fait tout (texte, tags, filtres). Pas de panneaux de filtres.
 - **Une seule vue par onglet** : « Bibliothèque » = l'arbre des sources, qui s'ouvre sur les samples ; « Virtuels » = favoris, collections et dossiers virtuels. On choisit ce qui apparaît aussi à la racine de Bibliothèque (épingler), marqué d'une petite icône. Les réglages et « Créer un vrai dossier » remplacent l'arbre dans la même colonne. Aucune fenêtre secondaire.
-- **Clavier d'abord** : ⌘F, flèches façon Finder (→ ouvre / entre / lit, ← ferme / remonte), espace, T pour taguer, ⌘D favori, ⌘S enregistrer une recherche.
+- **Clavier d'abord** : ⌘F, flèches façon Finder (→ ouvre / entre / lit, ← ferme / remonte), espace, taper pour sauter, ⌘T pour taguer, ⌥← / ⌥→ historique, ⌘D favori, ⌘S enregistrer une recherche.
 - **Zéro attente perçue** : chaque frappe met à jour l'arbre en moins de 16 ms ; aucune action ne bloque l'UI.
 - **Non destructif** : rien n'est jamais modifié, déplacé ni supprimé dans les dossiers de l'utilisateur ; tout vit dans une base locale. Seule exception, explicite : « Créer un vrai dossier » **copie** des fichiers dans un **nouveau** dossier choisi par l'utilisateur.
 - **Minimalisme** : gris + un seul accent (ambre, réservé à la lecture, à la progression, au focus et aux cibles de dépôt). Pas de compteurs, pas d'extension de fichier, pas d'icône de dossier ou de fichier.
@@ -31,7 +31,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Ajout de dossiers sources (drag & drop dans l'app, ⌘O) | Oui | Scan en arrière-plan, l'app reste utilisable |
 | Arbre unique sources → dossiers → samples | Oui | Dossiers puis samples à chaque niveau, même retrait |
 | Recherche unifiée (texte + `#tag` + filtres) | Oui | Élague l'arbre aux dossiers qui ont des résultats, tous ouverts |
-| Tags (popover T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
+| Tags (popover ⌘T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
 | Collections (à plat) manuelles et smart | Oui | Regroupements de samples, sans sous-dossier. Smart = recherche sauvegardée (⌘S). Ajout par drag & drop ou menu contextuel |
 | Dossiers virtuels (arborescence) | Oui | Samples + sous-dossiers virtuels, sans limite de profondeur. Glisser un dossier sur un autre le déplace. Un dossier n'affiche que son contenu propre (`in:` couvre ses descendants) |
 | Onglets Bibliothèque / Virtuels + épinglage | Oui | ⌘1 / ⌘2. Favoris, collections et dossiers virtuels épinglés apparaissent à la racine de Bibliothèque avec un repère (dossier en pointillés, liste, étoile) |
@@ -82,13 +82,14 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 ## Interface (validée en phase 0)
 
 - **Panneau** : barre titre overlay (72 px réservés aux feux macOS, puis les onglets Bibliothèque / Virtuels) → recherche (30 px) → statut d'indexation (si scan) → arbre → tiroir.
-- **Onglet Bibliothèque** : racine = sources, puis les éléments épinglés (Favoris, collections, dossiers virtuels) avec leur repère à droite. **Onglet Virtuels** : Favoris, groupe « Collections » (à plat), dossiers virtuels (arborescence), épingle à droite de ce qui est affiché dans Bibliothèque.
+- **Onglet Bibliothèque** : racine = sources, puis les éléments épinglés (raccourcis vers des sous-dossiers, Favoris, collections, dossiers virtuels) avec leur repère à droite. Un raccourci ne se déplie pas : un clic (ou ⏎) **saute** au vrai dossier en ouvrant ses parents. **Onglet Virtuels** : Favoris, groupe « Collections » (à plat), dossiers virtuels (arborescence), épingle à droite de ce qui est affiché dans Bibliothèque.
 - **Arbre** : Un dossier ouvert liste ses sous-dossiers puis ses samples au même retrait. Samples : nom sans extension, BPM et clé à droite (BPM masqué sous 280 px), mini-waveform en densité « Waveform » (36 px).
 - **Grille** : icônes (chevron, ▶, !, coche) à 8 px, libellés à 24 px, +16 px par niveau d'arbre.
 - **Recherche** : chips pour les tokens reconnus ; les tokens en cours de frappe (`#ta`) ne filtrent pas ; une recherche masque les collections (sinon doublons) et ouvre tous les dossiers qui ont des résultats.
 - **Tiroir** : ▶ / ■, nom, temps / durée, étoile favori grise, waveform. Rien d'autre (ni tags ni méta).
 - **Surcouches** (une seule à la fois, Échap ferme) : autocomplétion, popover de tags, enregistrement ⌘S, menu contextuel.
 - **Réglages** (⌘,) et **Créer un vrai dossier** : remplacent l'arbre ; ‹ ou Échap pour revenir.
+- **Historique** : chaque saut (onglet, chip ajoutée ou retirée, raccourci, recherche enregistrée) mémorise l'arbre tel qu'on le quitte ; ⌥← / ⌥→ (ou ⌘[ / ⌘], ou les boutons de la souris) y reviennent. Ouvrir un dossier n'est pas un saut.
 - **Glisser-déposer** : samples → collection manuelle, dossier virtuel ou Favoris ; dossier virtuel → dossier virtuel (déplacement) ou fond de l'onglet (racine). Survoler l'onglet « Virtuels » pendant un glisser l'ouvre.
 
 ### Clavier
@@ -100,8 +101,10 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | → | Ouvrir un dossier, y entrer, lire un sample |
 | ← | Fermer un dossier, sinon remonter au parent |
 | Espace | Lecture / stop |
-| ⏎ | Ouvrir / fermer un dossier, lire un sample |
-| T | Taguer la sélection |
+| ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |
+| a–z, 0–9 | Taper pour sauter (« kk » : k suivant) |
+| ⌥← / ⌥→, ⌘[ / ⌘] | Historique de navigation |
+| ⌘T | Taguer la sélection |
 | ⌘D | Favori |
 | ⌘S | Recherche → collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
@@ -160,9 +163,9 @@ Tout est dans le dépôt `plptune/sample-browser` :
 
 ### Phase 1 — Branchement ✅ terminée
 
-- Workspace Cargo : `crates/crate-core` (modèle, langage de recherche, tri, bibliothèque factice, trait `Backend`) + `src-tauri` (13 commandes typées).
+- Workspace Cargo : `crates/crate-core` (modèle, langage de recherche, tri, bibliothèque factice, trait `Backend`) + `src-tauri` (24 commandes typées).
 - `src/api/tauri.ts` dans la fenêtre, `mock.ts` ailleurs ; types générés dans `src/api/bindings.ts`, vérifiés par `src/api/contract.ts`.
-- Parité prouvée par test : mêmes 400 samples, mêmes 76 arbres que le prototype. Fenêtre pilotée au clavier : scénarios identiques, données servies par Rust.
+- Parité prouvée par test : mêmes 400 samples, mêmes 147 arbres, plans de commit, parents et raccourcis que le prototype. Fenêtre pilotée au clavier : scénarios identiques, données servies par Rust.
 - CI : workflow « CI » (fmt, clippy, tests, fichiers générés à jour, builds). Décisions et risques : `docs/decisions.md`.
 
 ### Phases 2 à 6 — Le moteur
@@ -171,13 +174,13 @@ Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
 
 1. ✅ **Branchement** — workspace Cargo (`crates/crate-core` + `src-tauri`), commandes Tauri pour **toutes** les méthodes de `Backend`, renvoyant encore les données factices (portées en Rust). `src/api/tauri.ts` + sélection automatique du backend (Tauri → `tauri.ts`, navigateur / Storybook → `mock.ts`). tauri-specta génère `src/api/bindings.ts`.
    - Sortie : le prototype tourne à l'identique dans la fenêtre Tauri, mais ses données passent par Rust ; un test vérifie que les types générés et `types.ts` sont compatibles.
-2. **Index + scan** — schéma SQLite, indexeur sur un thread dédié, scan des dossiers (métadonnées rapides), `notify`, `sources()` / `removeSource()` / ajout de dossier (⌘O + dépôt), statut d'indexation par événement.
+2. **Index + scan** — schéma SQLite, indexeur sur un thread dédié, scan des dossiers (métadonnées rapides), `notify`, `sources()` / `removeSource()` / ajout de dossier (⌘O + dépôt), statut d'indexation par événement. **Actualiser une source** (menu contextuel) : rescan forcé, pour un disque où `notify` n'a rien vu.
    - Sortie : 100 000 fichiers indexés en < 60 s, UI fluide pendant le scan, arbre réel affiché.
-3. **Arbre + recherche** — `tree()` en Rust (dossiers puis samples, ouverture, élagage en recherche), parser du langage, FTS5 + filtres, TanStack Virtual sur les lignes.
+3. **Arbre + recherche** — `tree()` en Rust (dossiers puis samples, ouverture, élagage en recherche), parser du langage, FTS5 + filtres, TanStack Virtual sur les lignes. **Synonymes** : une petite table éditable dans les Réglages (`kick` ↔ `bd`, `hat` ↔ `hh`…) développée par le parser.
    - Sortie : < 16 ms par frappe et par ouverture de dossier sur 100 000 fichiers.
-4. **Preview + drag & drop** — lecture côté Rust (cpal + symphonia), commandes play / stop / seek et événement de position (~30 Hz) qui remplacent la fausse lecture, pics de waveform, drag vers Ableton / Logic / Finder.
+4. **Preview + drag & drop** — lecture côté Rust (cpal + symphonia), commandes play / stop / seek et événement de position (~30 Hz) qui remplacent la fausse lecture, pics de waveform, drag vers Ableton / Logic / Finder. Avec : **clic dans la waveform** du tiroir = lire depuis ce point ; **boucle** et **volume** (Réglages, plus ⌘L pour la boucle) ; **lecture aléatoire** ⌘⇧Espace (un sample au hasard parmi les lignes visibles) ; **arrêter la lecture** au début d'un glisser et quand l'app perd le focus (deux réglages, activés par défaut).
    - Sortie : son en < 30 ms ; drop fonctionnel dans Ableton Live 12 et Logic.
-5. **Tags, collections, favoris** — toutes les mutations du contrat en base (tags, favoris, collections manuelles et smart, renommage, suppression, ajout), révéler dans le Finder.
+5. **Tags, collections, favoris** — toutes les mutations du contrat en base (tags, favoris, collections manuelles et smart, renommage, suppression, ajout, raccourcis), révéler dans le Finder. **Masquer des fichiers** : « Masquer » dans le menu d'un sample ou d'un dossier, `is:hidden` pour les retrouver, « Afficher » pour annuler (jamais de suppression).
    - Sortie : tout est faisable sans souris ; rien n'est écrit dans les dossiers de l'utilisateur.
 6. **Analyse de fond** — BPM, tonalité, type loop / one-shot ; file de priorité basse, reprise après redémarrage.
    - Sortie : filtres `bpm:` et `key:` fiables sur un jeu test annoté.
@@ -240,13 +243,15 @@ collection_items(collection_id, file_id, position)
 virtual_folders(id, parent_id NULL REFERENCES virtual_folders ON DELETE CASCADE, name, pinned INT)
 virtual_items(folder_id, file_id, position)
 settings(key PRIMARY KEY, value)   -- dont favorites_pinned
+pinned_folders(folder_id PRIMARY KEY REFERENCES folders ON DELETE CASCADE, position)   -- raccourcis
 files_fts = FTS5 external content (name, path_tokens, tags_text), unicode61, prefix='2 3', triggers.
 Index : files(folder_id), files(bpm), files(musical_key), files(duration_ms), files(kind), files(fav),
 file_tags(tag_id).
 Les « Favoris » sont files.fav exposé comme le nœud "c:fav" de l'arbre (pas une ligne de collections).
 
 ## Arbre (tree)
-Clés de nœuds : "f:<id>" dossier source, "c:fav" favoris, "g:collections" groupe, "c:<id>" collection,
+Clés de nœuds : "f:<id>" dossier source, "p:<id>" raccourci vers un sous-dossier source (ne se déplie pas :
+l'UI y saute avec ancestors()), "c:fav" favoris, "g:collections" groupe, "c:<id>" collection,
 "v:<id>" dossier virtuel. Deux racines (`root`) : "library" (sources + épinglés, épinglés masqués en recherche)
 et "virtual" (favoris, groupe Collections, dossiers virtuels).
 Lignes renvoyées dans l'ordre d'affichage : à chaque niveau, sous-dossiers triés par nom puis samples triés par
@@ -290,3 +295,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.5 | Phase 0 complète : tags (T), ⌘S, menu contextuel, réglages dans la colonne, fenêtre Tauri, Storybook |
 | v0.6 | Favoris de retour, discrets : dossier « Favoris », ⌘D, étoile grise dans le tiroir uniquement, `is:fav` |
 | v0.7 | Collections (à plat) **et** dossiers virtuels (arborescence) ; onglets Bibliothèque / Virtuels ; épinglage avec repère ; « Créer un vrai dossier » (copie) |
+| v0.8 | Idées reprises de Sononym, en version simple : raccourcis vers des sous-dossiers, historique ⌥← / ⌥→, taper pour sauter (le tagging passe sur ⌘T) ; planifiés : masquer, lecture aléatoire, boucle + volume, lecture depuis un point, arrêt au drag / perte de focus, synonymes, actualiser une source |

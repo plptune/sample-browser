@@ -3,13 +3,14 @@ import { Show, onMount } from "solid-js";
 import { Chevron, Icon } from "./Icon";
 import { Waveform } from "./Waveform";
 
-export type TreeRowKind = "folder" | "group" | "favorites" | "collection" | "smart" | "virtual" | "sample";
+export type TreeRowKind = "folder" | "shortcut" | "group" | "favorites" | "collection" | "smart" | "virtual" | "sample";
 
 /** Repère discret à droite : nature d'un élément épinglé (onglet Bibliothèque) ou épinglage (onglet Virtuels). */
-export type TreeRowMarker = "virtual" | "collection" | "favorites" | "pin";
+export type TreeRowMarker = "shortcut" | "virtual" | "collection" | "favorites" | "pin";
 
-const MARKER_ICON = { virtual: "virtual", collection: "collection", favorites: "star", pin: "pin" } as const;
+const MARKER_ICON = { shortcut: "alias", virtual: "virtual", collection: "collection", favorites: "star", pin: "pin" } as const;
 const MARKER_LABEL = {
+  shortcut: "Raccourci vers un dossier",
   virtual: "Dossier virtuel",
   collection: "Collection",
   favorites: "Favoris",
@@ -50,13 +51,15 @@ export function TreeRow(props: {
   onDrop?: (e: DragEvent) => void;
 }) {
   const isSample = () => props.kind === "sample";
+  // Un raccourci ne se déplie pas (il saute au dossier visé) : pas de chevron.
+  const folds = () => !isSample() && props.kind !== "shortcut";
   return (
     <div
       ref={props.ref}
       class="cr-node"
       role="treeitem"
       aria-selected={!!props.selected}
-      aria-expanded={isSample() ? undefined : !!props.open}
+      aria-expanded={folds() ? !!props.open : undefined}
       aria-level={props.depth + 1}
       style={{ "--depth": props.depth }}
       data-kind={props.kind}
@@ -86,12 +89,12 @@ export function TreeRow(props: {
       <span
         class="cr-node__slot"
         onMouseDown={(e) => {
-          if (isSample()) return;
+          if (!folds()) return;
           e.stopPropagation();
           props.onToggle?.();
         }}
       >
-        <Show when={!isSample()}>
+        <Show when={folds()}>
           <Chevron open={props.open} />
         </Show>
         <Show when={props.playing}>

@@ -30,8 +30,10 @@ pnpm build        # typecheck + build
 | → | Ouvrir un dossier, y entrer s'il est ouvert, lire un sample |
 | ← | Fermer un dossier, sinon remonter au dossier parent |
 | Espace | Lecture / stop du sample courant (fausse lecture) |
-| ⏎ | Ouvrir / fermer un dossier, lire un sample |
-| T | Taguer la sélection (popover) |
+| ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |
+| a–z, 0–9 | Taper pour sauter à la première ligne qui commence par la saisie (« kk » : k suivant) |
+| ⌥← / ⌥→, ⌘[ / ⌘] | Historique : saut précédent / suivant (aussi les boutons de la souris) |
+| ⌘T | Taguer la sélection (popover) |
 | ⌘D | Favori / pas favori (sélection) |
 | ⌘S | Enregistrer la recherche comme collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
@@ -40,7 +42,7 @@ pnpm build        # typecheck + build
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
 | ⌫ en début de champ | Supprimer la dernière chip |
-| 1–9, 0, -, =, [, ] | Scénarios de démo 1 à 14 |
+| 1–9, 0, -, =, [, ] | Scénarios de démo 1 à 14 (sauf au milieu d'une saisie « taper pour sauter ») |
 
 Souris : clic sur le chevron = ouvrir / fermer ; clic, ⇧-clic, ⌘-clic = sélection ; double-clic = ouvrir un dossier
 ou lire un sample ; glisser des samples sur une collection manuelle les y ajoute ; clic droit = menu contextuel

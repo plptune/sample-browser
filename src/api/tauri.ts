@@ -22,6 +22,7 @@ export const tauriBackend: Backend = {
   addToVirtualFolder: (id, ids) => commands.addToVirtualFolder(id, ids),
   removeFromVirtualFolder: (id, ids) => commands.removeFromVirtualFolder(id, ids),
   setPinned: (key, pinned) => commands.setPinned(key, pinned),
+  ancestors: (key) => commands.ancestors(key),
   planCommit: (key, options) => commands.planCommit(key, options),
   commitToFolder: (key, destination, options) => commands.commitToFolder(key, destination, options),
   removeSource: (id) => commands.removeSource(id),

@@ -135,6 +135,7 @@ function createAppState() {
       if (last && isChip(last)) {
         // Seul le token spécial devient une chip ; les mots libres restent dans le champ.
         const rest = parts.slice(0, -1).filter(Boolean).join(" ");
+        remember();
         batch(() => {
           setChips([...chips(), last]);
           setDraft(rest ? rest + " " : "");
@@ -148,6 +149,7 @@ function createAppState() {
   }
 
   function removeChip(index: number) {
+    remember();
     setChips(chips().filter((_, i) => i !== index));
     refresh();
   }
@@ -162,6 +164,7 @@ function createAppState() {
   }
 
   function clearQuery() {
+    remember();
     batch(() => {
       setChips([]);
       setDraft("");
@@ -220,6 +223,7 @@ function createAppState() {
     const row = rowByKey(cursor());
     if (!row) return move(0);
     if (row.type === "sample") return play(row.sample.id);
+    if (row.target) return jumpTo(row.target);
     if (!row.open) return setOpen(row.key, true);
     move(1);
   }
@@ -234,7 +238,7 @@ function createAppState() {
 
   function activate() {
     const row = rowByKey(cursor());
-    if (row?.type === "node") toggleNode(row.key);
+    if (row?.type === "node") row.target ? jumpTo(row.target) : toggleNode(row.key);
     else togglePlay();
   }
 
@@ -310,9 +314,132 @@ function createAppState() {
     await refresh();
   }
 
+  // --- historique de navigation (⌥← / ⌥→) : un instantané avant chaque saut (onglet, recherche, raccourci).
+  // Ouvrir ou fermer un dossier n'est pas un saut : l'instantané garde l'arbre tel qu'on l'a laissé.
+  interface Snapshot {
+    tab: TreeRoot;
+    chips: string[];
+    draft: string;
+    expanded: Record<TreeRoot, NodeKey[]>;
+    cursor: string | null;
+  }
+  const HISTORY_MAX = 50;
+  const [past, setPast] = createSignal<Snapshot[]>([]);
+  const [future, setFuture] = createSignal<Snapshot[]>([]);
+  const snapshot = (): Snapshot => ({ tab: tab(), chips: chips(), draft: draft(), expanded: expandedByTab(), cursor: cursor() });
+  const same = (a: Snapshot, b: Snapshot) =>
+    a.tab === b.tab && a.draft === b.draft && a.cursor === b.cursor && a.chips.join("\n") === b.chips.join("\n") &&
+    a.expanded.library.join() === b.expanded.library.join() && a.expanded.virtual.join() === b.expanded.virtual.join();
+
+  function remember() {
+    const now = snapshot();
+    const last = past()[past().length - 1];
+    if (last && same(last, now)) return;
+    batch(() => {
+      setPast([...past(), now].slice(-HISTORY_MAX));
+      setFuture([]);
+    });
+  }
+
+  async function restore(snap: Snapshot) {
+    batch(() => {
+      closeOverlays();
+      setView("browser");
+      setTabSignal(snap.tab);
+      setChips(snap.chips);
+      setDraft(snap.draft);
+      setExpandedByTab(snap.expanded);
+      setCursor(snap.cursor);
+      setSelection([]);
+    });
+    await refresh();
+    // Curseur seulement (pas de lecture auto) ; un sample redevient la sélection.
+    const row = rowByKey(snap.cursor);
+    if (!row) setCursor(null);
+    else if (row.type === "sample") {
+      batch(() => {
+        setSelection([row.key]);
+        setAnchor(row.key);
+        setCurrent(row.sample);
+      });
+    }
+  }
+
+  async function back() {
+    const p = past();
+    if (!p.length) return;
+    const target = p[p.length - 1];
+    batch(() => {
+      setPast(p.slice(0, -1));
+      setFuture([...future(), snapshot()]);
+    });
+    await restore(target);
+  }
+
+  async function forward() {
+    const f = future();
+    if (!f.length) return;
+    const target = f[f.length - 1];
+    batch(() => {
+      setFuture(f.slice(0, -1));
+      setPast([...past(), snapshot()]);
+    });
+    await restore(target);
+  }
+
+  function clearHistory() {
+    batch(() => {
+      setPast([]);
+      setFuture([]);
+    });
+  }
+
+  const canBack = () => past().length > 0;
+  const canForward = () => future().length > 0;
+
+  /** Raccourci : saute au dossier source visé, recherche vidée, parents et dossier ouverts. */
+  async function jumpTo(target: NodeKey) {
+    remember();
+    const parents = await api.ancestors(target);
+    batch(() => {
+      closeOverlays();
+      setView("browser");
+      setTabSignal(target.startsWith("f:") ? "library" : "virtual");
+      setChips([]);
+      setDraft("");
+      setExpanded([...new Set([...expanded(), ...parents, target])]);
+    });
+    await refresh();
+    select(target);
+  }
+
+  // --- taper pour sauter : la première ligne visible dont le nom commence par la saisie
+  const TYPE_AHEAD_MS = 800;
+  let typed = "";
+  let typedAt = -Infinity;
+  const typingAhead = () => performance.now() - typedAt < TYPE_AHEAD_MS;
+
+  function typeAhead(ch: string) {
+    typed = typingAhead() ? typed + ch.toLowerCase() : ch.toLowerCase();
+    typedAt = performance.now();
+    const list = visible();
+    if (!list.length) return;
+    const i = list.findIndex((r) => r.key === cursor());
+    // « kkk » passe d'une ligne en k à la suivante ; « ki » affine à partir de la ligne courante.
+    const repeated = [...typed].every((c) => c === typed[0]);
+    const prefix = repeated ? typed[0] : typed;
+    const start = repeated ? i + 1 : Math.max(i, 0);
+    for (let k = 0; k < list.length; k++) {
+      const row = list[(start + k) % list.length];
+      const name = row.type === "node" ? row.name : row.sample.name;
+      if (name.toLowerCase().startsWith(prefix)) return select(row.key);
+    }
+  }
+
   // --- onglets
   async function switchTab(t: TreeRoot) {
     if (t === tab()) return;
+    remember();
     batch(() => {
       closeOverlays();
       setTabSignal(t);
@@ -334,6 +461,7 @@ function createAppState() {
 
   /** Ouvre l'onglet Virtuels avec ces nœuds dépliés, puis sélectionne `key` (et le renomme si demandé). */
   async function revealVirtual(key: NodeKey, open: NodeKey[], rename = false) {
+    remember();
     setTabSignal("virtual");
     setView("browser");
     setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
@@ -392,8 +520,10 @@ function createAppState() {
 
   async function togglePin(key: NodeKey) {
     const lib = library();
-    const pinned =
-      key === "c:fav"
+    if (key.startsWith("p:")) key = `f:${nodeId(key)}`; // retirer un raccourci = désépingler son dossier
+    const pinned = key.startsWith("f:")
+      ? lib?.pinnedFolders.includes(nodeId(key))
+      : key === "c:fav"
         ? lib?.favoritesPinned
         : key.startsWith("c:")
           ? lib?.collections.find((c) => c.id === nodeId(key))?.pinned
@@ -521,6 +651,7 @@ function createAppState() {
     setWidth, setDensity, setGrid, setChips, setDraft, setSelection, setCursor, setCurrent, setExpanded,
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
     select, move, right, left, activate, play, stop, togglePlay,
+    jumpTo, back, forward, clearHistory, canBack, canForward, typeAhead, typingAhead,
   };
 }
 

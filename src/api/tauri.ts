@@ -1,7 +1,14 @@
 // Backend réel de la fenêtre Tauri : chaque méthode du contrat appelle la commande Rust correspondante
 // (src-tauri/src/lib.rs). Les fonctions `commands` et leurs types sont générés (bindings.ts).
-import { commands } from "./bindings";
+import { commands, events } from "./bindings";
 import type { Backend } from "./types";
+
+/** Commande qui peut échouer : l'erreur Rust (message lisible) devient une promesse rejetée. */
+async function unwrap<T>(r: Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>): Promise<T> {
+  const x = await r;
+  if (x.status === "error") throw new Error(x.error);
+  return x.data;
+}
 
 export const tauriBackend: Backend = {
   library: () => commands.library(),
@@ -24,8 +31,17 @@ export const tauriBackend: Backend = {
   setPinned: (key, pinned) => commands.setPinned(key, pinned),
   ancestors: (key) => commands.ancestors(key),
   planCommit: (key, options) => commands.planCommit(key, options),
-  commitToFolder: (key, destination, options) => commands.commitToFolder(key, destination, options),
+  commitToFolder: (key, destination, options) => unwrap(commands.commitToFolder(key, destination, options)),
+  addSource: (path) => unwrap(commands.addSource(path)),
+  refreshSource: (id) => commands.refreshSource(id),
   removeSource: (id) => commands.removeSource(id),
+  pickFolder: () => commands.pickFolder(),
+  isDemo: () => commands.isDemo(),
+  scanStatus: () => commands.scanStatus(),
+  onScanStatus: (cb) => {
+    const off = events.scanEvent.listen((e) => cb(e.payload));
+    return () => void off.then((un) => un());
+  },
   revealInFinder: (path) => commands.revealInFinder(path),
 };
 

@@ -46,8 +46,55 @@ sont dans `docs/design-system.md` et l'historique produit dans `docs/plan.md`.
 | Historique : un instantané (onglet, chips, brouillon, dossiers ouverts des deux onglets, curseur) avant chaque **saut** (onglet, chip, raccourci, recherche enregistrée), 50 au plus ; ouvrir un dossier n'en est pas un. ⌥← / ⌥→ hors des champs, ⌘[ / ⌘] partout, boutons 4 / 5 de la souris. | Revenir en arrière ramène l'arbre tel qu'on l'a quitté, sans devoir défaire chaque dépliage. |
 | **En attente** : taper pour sauter (taper le début d'un nom pour y aller). Codé puis retiré ; le tagging reste sur T. | Choix utilisateur : intérêt pas évident pour l'instant. À reprendre seulement si le besoin apparaît (il obligerait à déplacer le tagging sur ⌘T). |
 
+## Phase 2 — Index + scan (9 oct. 2026)
+
+Fichiers créés ou déplacés :
+
+```
+crates/crate-core/src/
+  catalog.rs        catalogue en mémoire : arbre, recherche, commit (ex-MockLibrary, + index pour 100 000 fichiers)
+  mock/             données du prototype → Catalog::demo()
+  db/mod.rs         ouverture SQLite (WAL, clés étrangères, tri naturel), chargement du catalogue
+  db/schema.sql     migration 1 (user_version)
+  scan.rs           parcours d'un dossier, lecture rapide des en-têtes audio (symphonia), mise à jour incrémentale
+  indexer.rs        thread dédié : file de scans, notify (dossiers surveillés), statut d'indexation
+  library.rs        SqliteLibrary : Backend réel (catalogue en mémoire + écriture immédiate en base)
+crates/crate-core/tests/
+  library.rs        scan, rescan incrémental, introuvables, hors ligne, persistance, copie réelle
+  bench_scan.rs     100 000 fichiers (ignoré par défaut : cargo test --release -- --ignored)
+```
+
+| Décision | Raison |
+| --- | --- |
+| **SQLite = stockage, mémoire = requêtes.** Au démarrage et après chaque palier de scan, la base est chargée dans le catalogue en mémoire (la logique de la phase 1, déjà prouvée identique au prototype) ; chaque modification est écrite tout de suite en base. Pas de FTS5 pour l'instant (écart au schéma « figé ») : la phase 3 mesurera la recherche en mémoire sur 100 000 fichiers et n'ajoutera FTS5 que si le budget de 16 ms n'est pas tenu. | Une seule implémentation de `tree()` et du langage de recherche au lieu de deux ; ~30 Mo pour 100 000 fichiers (sans pics). |
+| Catalogue indexé : samples par dossier, par id, texte de recherche pré-calculé, `in:` résolu une fois par requête. | Sans index, l'arbre en recherche était en O(dossiers × fichiers). |
+| Une source = un dossier sans parent (`folders.parent_id IS NULL`) ; ses ids sont ceux des dossiers. Seuls les dossiers qui contiennent de l'audio (à n'importe quelle profondeur) sont gardés. Fichiers et dossiers cachés ignorés, liens symboliques non suivis. | Pas de dossiers vides ou « Documentation » dans l'arbre ; pas de boucles. |
+| Formats : wav, aif / aiff, flac, mp3, ogg. En-têtes lus avec symphonia (durée, fréquence, profondeur, canaux), en parallèle (rayon). Un fichier illisible n'est pas indexé. | Métadonnées rapides sans décoder l'audio. |
+| Rescan incrémental : un fichier dont la taille et la date n'ont pas changé n'est pas relu. Un fichier disparu est **marqué introuvable** s'il est référencé (favori, tag, collection, dossier virtuel), **supprimé de l'index** sinon. Racine absente = source **hors ligne**, rien n'est supprimé. | Les collections gardent leurs références (scénario « Erreurs ») sans garder des fantômes inutiles. |
+| `type:` provisoire d'après le nom (« loop » dedans → loop, sinon one-shot) ; BPM et tonalité vides jusqu'à la phase 6. | Le filtre reste utile dès maintenant ; l'analyse réelle arrive en phase 6. |
+| `notify` sur chaque source ; un changement relance le scan incrémental de la source après 1 s de calme. « Actualiser » (menu de la source) force le même scan. | Simple et sûr ; un scan sans changement ne fait que des `stat`. |
+| Statut d'indexation par événement typé (`scan-status`, tauri-specta), au plus 5 par seconde ; le catalogue est rechargé au plus une fois par seconde pendant un scan. | UI fluide, arbre qui se remplit par paliers. |
+| La fenêtre utilise la vraie bibliothèque (`crate.db` dans le dossier de données de l'app). `CRATE_DEMO=1` la remet sur les données du prototype (scénarios de démo). Le navigateur et Storybook restent sur le mock TypeScript. | Les scénarios restent vérifiables dans la fenêtre. |
+| « Créer un vrai dossier » copie réellement en mode réel (refus d'un dossier existant non vide, jamais d'écrasement), puis « Ajouter aux sources » indexe la copie. « Révéler dans le Finder » : `open -R`. Avancés depuis la phase 5. | Quelques lignes ; la version simulée n'avait pas de sens sur de vrais fichiers. |
+| Nouvelles dépendances : rusqlite (bundled), symphonia, rayon, notify (citées dans le plan) ; **tauri-plugin-dialog** pour ⌘O (choisir un dossier). | Sélecteur de dossier natif, sans code Objective-C. |
+
+Mesures (conteneur Linux, 4 cœurs, build release, `tests/bench_scan.rs`, 100 000 petits WAV) : scan complet 1,1 s
+(90 000 fichiers/s, cache disque chaud), rescan sans changement 0,6 s, chargement du catalogue 0,19 s, dossier de 5 000
+samples 40 ms, recherche 0,3–0,7 s. Fenêtre vérifiée sous écran virtuel : premier lancement, scan au lancement,
+`notify` (fichier ajouté visible en ~1 s), statut d'indexation en direct pendant un scan de 40 000 fichiers.
+
+| Décision (suite) | Raison |
+| --- | --- |
+| Le dernier statut de scan est gardé côté Rust (`scan_status`) et lu par l'UI au démarrage. | Le scan lancé à l'ouverture commence avant que la page n'écoute les événements. |
+| Un refus (source déjà couverte, pas un dossier, copie vers un dossier non vide) remonte comme une erreur lisible, affichée en une ligne sous la recherche (ou dans la vue de copie). | Pas de boîte de dialogue ; le message disparaît seul. |
+
 ### Risques ouverts
 
 - Chaque ligne de sample transporte ses 256 pics : à sortir du contrat (densité « waveform » seulement, ou commande `peaks(ids)`) avant la phase 3 et les 100 000 fichiers.
 - tauri-specta est en RC : surveiller la sortie de la 2.0 stable et lever l'épinglage.
+- Recherche à 100 000 fichiers : 0,3–0,7 s par frappe (budget 16 ms). Pistes phase 3 : résultat mémoïsé par dossier,
+  pas de tri ni de clonage des samples non affichés, puis FTS5 si ça ne suffit pas.
+- Le sélecteur de dossier GTK ne liste rien dans le conteneur de test (pas de gvfs) : ⌘O n'est vérifiable que sur Mac.
+- Le rechargement complet du catalogue après un palier de scan coûte de l'ordre de 100 ms à 100 000 fichiers : à rendre incrémental si la phase 3 le mesure comme gênant.
+- Tauri reçoit les fichiers déposés sur la fenêtre (dépôt de dossiers) : sur macOS le glisser-déposer interne (HTML5) continue de marcher, à vérifier sur Mac.
 - La parité porte sur les données factices ; elle disparaît en phase 2 (données réelles), où les tests de `tree()` prendront le relais.

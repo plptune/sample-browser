@@ -138,6 +138,15 @@ export interface Source {
   offline: boolean;
 }
 
+/** Progression de l'indexation d'une source (événement, au plus 5 par seconde). */
+export interface ScanStatus {
+  sourceId: number;
+  folder: string; // dossier en cours (nom affiché)
+  done: number; // fichiers lus / à lire ; 0 / 0 pendant le parcours des dossiers
+  total: number;
+  finished: boolean;
+}
+
 export interface Backend {
   library(): Promise<Library>;
   sources(): Promise<Source[]>;
@@ -164,8 +173,23 @@ export interface Backend {
   /** Clés des parents d'un nœud, de la racine au parent direct (pour y sauter en ouvrant l'arbre). */
   ancestors(key: NodeKey): Promise<NodeKey[]>;
   planCommit(key: NodeKey, options: CommitOptions): Promise<CommitPlan>;
-  /** Copie les fichiers vers un nouveau dossier réel. Ne modifie ni ne déplace jamais les sources. */
+  /**
+   * Copie les fichiers vers un nouveau dossier réel. Ne modifie ni ne déplace jamais les sources.
+   * Rejetée (message lisible) si la destination existe et n'est pas vide.
+   */
   commitToFolder(key: NodeKey, destination: string, options: CommitOptions): Promise<CommitResult>;
+  /** Ajoute un dossier comme source et lance son indexation. Rejetée (message lisible) s'il est déjà couvert. */
+  addSource(path: string): Promise<Source>;
+  /** Relance l'indexation d'une source (rescan incrémental). */
+  refreshSource(id: number): Promise<void>;
   removeSource(id: number): Promise<void>;
+  /** Sélecteur de dossier natif ; null si annulé (ou hors de la fenêtre Tauri). */
+  pickFolder(): Promise<string | null>;
+  /** Vrai sur les données du prototype (navigateur, Storybook, ou fenêtre lancée avec CRATE_DEMO=1). */
+  isDemo(): Promise<boolean>;
+  /** Scan en cours (null sinon) : pour un scan lancé avant que l'UI n'écoute les événements. */
+  scanStatus(): Promise<ScanStatus | null>;
+  /** S'abonne à la progression de l'indexation ; renvoie la fonction de désabonnement. */
+  onScanStatus(cb: (s: ScanStatus) => void): () => void;
   revealInFinder(path: string): Promise<void>;
 }

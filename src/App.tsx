@@ -57,6 +57,11 @@ export function App() {
       e.key === "ArrowLeft" ? app.back() : app.forward();
       return;
     }
+    if (mod && key === "o") {
+      e.preventDefault();
+      if (!app.demo()) app.addFolder();
+      return;
+    }
     if (mod && key === "n") {
       e.preventDefault();
       app.newVirtualFolder();
@@ -77,8 +82,8 @@ export function App() {
       else app.stop();
       return;
     }
-    // Touches de scénario (démo) : actives dans toutes les vues.
-    const sc = SCENARIOS.find((x) => x.key === e.key);
+    // Touches de scénario (démo seulement) : actives dans toutes les vues.
+    const sc = app.demo() ? SCENARIOS.find((x) => x.key === e.key) : undefined;
     if (sc) {
       e.preventDefault(); // sinon le caractère atterrit dans le champ que le scénario vient de focaliser
       runScenario(sc.id);
@@ -124,6 +129,21 @@ export function App() {
     }
   }
 
+  // Dossiers glissés depuis le Finder sur la fenêtre : chacun devient une source.
+  async function listenFileDrops() {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    const off = await getCurrentWebview().onDragDropEvent((e) => {
+      const p = e.payload;
+      if (p.type === "enter") app.setFileOver(p.paths.length > 0);
+      else if (p.type === "leave") app.setFileOver(false);
+      else if (p.type === "drop") {
+        app.setFileOver(false);
+        if (!app.demo()) for (const path of p.paths) void app.addFolder(path);
+      }
+    });
+    onCleanup(off);
+  }
+
   // Le thème s'applique à toute la page (fond de fenêtre compris).
   createEffect(() => document.documentElement.setAttribute("data-theme", app.theme()));
 
@@ -141,7 +161,8 @@ export function App() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("mouseup", onMouseNav);
     });
-    runScenario(scenario());
+    void app.start().then((isDemo) => isDemo && runScenario(scenario()));
+    if (inTauri) listenFileDrops();
   });
 
   const panel = () => <PanelShell searchRef={(el) => (search = el)} forceAc={acOpen()} />;

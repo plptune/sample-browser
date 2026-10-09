@@ -50,7 +50,8 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | SearchField | `cr-search` | `data-focused` | Champ plus haut que le reste (30 px), texte à 12 px. Chips + champ. ⌫ au début supprime la dernière chip, Échap efface, ↓ / ⏎ va dans l'arbre. Une recherche élague l'arbre au lieu d'ouvrir une autre vue. |
 | QueryChip | `cr-chip` | `data-kind=tag/filter/exclude`, `data-pending` | Clé en `text-2`, valeur en `text-strong`. Clic = repasser en édition. |
 | Autocomplete | `cr-ac` | `data-active` sur l'item | Après `#`, `key:`, `in:`. ↑↓ ⏎/Tab, Échap ferme. |
-| ScanStatus | `cr-scan` | — | Barre de progression de 1 px en accent sous le libellé. |
+| ScanStatus | `cr-scan` | — | Barre de progression de 1 px en accent sous le libellé. Compteur masqué tant que le total est inconnu (parcours des dossiers). |
+| Notice | `cr-scan cr-notice` | — | Même bande que ScanStatus, texte principal, sans icône : un refus en une phrase (source déjà couverte, pas un dossier). Disparaît après 6 s ou au clic. |
 | Tabs | `cr-tabs`, `cr-tab` | `data-active` | Dans la barre titre, après les feux : « Bibliothèque » / « Virtuels » (⌘1 / ⌘2). Survoler un onglet pendant un glisser l'ouvre après 500 ms. |
 | Browser (arbre) | `cr-tree` | `data-focused`, `data-drop-target` (fond) | Un arbre par onglet. Bibliothèque : sources puis éléments épinglés. Virtuels : Favoris, « Collections », dossiers virtuels. Chaque dossier liste ses sous-dossiers puis ses samples, au même retrait. |
 | TreeRow | `cr-node` | `data-kind=folder/shortcut/favorites/group/collection/smart/virtual/sample`, repère `cr-node__marker` (raccourci, dossier virtuel, collection, favoris, épingle), `data-selected`, `data-playing`, `data-missing`, `data-offline`, `data-drop-target`, `data-dragging`, `data-wave`, `--depth`, renommage en place (`cr-node__input`) | Une seule hauteur (24 px). `cr-node__slot` (12 px) : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide (raccourci : il ne se déplie pas). Samples : BPM et clé à droite, BPM masqué sous 280 px. |
@@ -67,7 +68,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | Button | `cr-button` | `data-variant=primary/secondary`, désactivé | Principal = inversé (texte clair sur fond clair → fond `text-strong`), sans accent. |
 | Champ texte | `cr-field` | focus | Destination du commit. |
 | IconButton | `cr-icon-btn` | survol, pressé, `data-active`, `data-accent`, désactivé | 20 × 20, icône 12. |
-| EmptyState | `cr-empty` | `data-variant=drop/noresults`, `data-over` | Exemples de syntaxe en mono. |
+| EmptyState | `cr-empty` | `data-variant=drop/noresults`, `data-over` | Exemples de syntaxe en mono. `data-over` : un dossier du Finder survole la fenêtre. Un clic ouvre le sélecteur (comme ⌘O). |
 
 ## Décisions prises seul (à valider)
 

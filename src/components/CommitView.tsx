@@ -25,6 +25,7 @@ export function CommitView(props: {
   status: "idle" | "running" | "done";
   progress: number;
   result: CommitResult | null;
+  error?: string | null;
   onBack?: () => void;
   onDestination?: (v: string) => void;
   onOptions?: (o: CommitOptions) => void;
@@ -95,6 +96,13 @@ export function CommitView(props: {
               />
             </div>
           </section>
+          <Show when={props.error}>
+            <div class="cr-setting">
+              <span class="cr-setting__hint cr-commit__warn" role="alert">
+                {props.error}
+              </span>
+            </div>
+          </Show>
           <div class="cr-commit__actions">
             <span class="cr-setting__hint">Copie : les fichiers d'origine ne bougent pas.</span>
             <Button variant="primary" disabled={!p() || !p()!.files || !props.destination.trim()} onClick={() => props.onCommit?.()}>

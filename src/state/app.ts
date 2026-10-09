@@ -2,7 +2,8 @@
 
 import { batch, createRoot, createSignal } from "solid-js";
 import {
-  api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type NodeKey, type Sample, type SampleId, type Source,
+  api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type NodeKey, type Sample, type SampleId, type ScanStatus,
+  type Source,
   type TreeRoot, type TreeRow,
 } from "../api";
 import { isChip } from "../lib/query";
@@ -27,6 +28,7 @@ export interface CommitState {
   status: "idle" | "running" | "done";
   progress: number; // 0..1 pendant la copie
   result: CommitResult | null;
+  error: string | null; // copie refusée (dossier existant non vide…)
 }
 
 function createAppState() {
@@ -57,8 +59,13 @@ function createAppState() {
   const [dropTarget, setDropTarget] = createSignal<NodeKey | null>(null);
   const [draggingKey, setDraggingKey] = createSignal<string | null>(null);
 
-  // --- états globaux simulés
-  const [empty, setEmpty] = createSignal(false); // premier lancement
+  // --- mode : données du prototype (scénarios de démo) ou vraie bibliothèque (fenêtre Tauri)
+  const [demo, setDemo] = createSignal(true);
+  const [notice, setNoticeSignal] = createSignal<string | null>(null); // message bref sous la recherche
+  const [fileOver, setFileOver] = createSignal(false); // dossier du Finder survolant la fenêtre
+
+  // --- états globaux (simulés en démo)
+  const [empty, setEmpty] = createSignal(false); // premier lancement : aucune source
   const [scan, setScan] = createSignal<{ done: number; total: number; folder: string } | null>(null);
   const [visibleLimit, setVisibleLimit] = createSignal<number | null>(null); // arbre qui se remplit pendant le scan
 
@@ -561,7 +568,7 @@ function createAppState() {
     const name = nodeName(key);
     const flat = !key.startsWith("v:");
     const options = { keepHierarchy: !flat, addAsSource: false };
-    setCommit({ key, name, flat, destination: `~/Desktop/${name}`, options, plan: null, status: "idle", progress: 0, result: null });
+    setCommit({ key, name, flat, destination: `~/Desktop/${name}`, options, plan: null, status: "idle", progress: 0, result: null, error: null });
     setView("commit");
     const plan = await api.planCommit(key, options);
     setCommit((c) => (c ? { ...c, plan } : c));
@@ -575,12 +582,19 @@ function createAppState() {
     setCommit((x) => (x ? { ...x, plan } : x));
   }
 
-  const setCommitDestination = (destination: string) => setCommit((c) => (c ? { ...c, destination } : c));
+  const setCommitDestination = (destination: string) => setCommit((c) => (c ? { ...c, destination, error: null } : c));
+
+  /** « Choisir… » : dossier parent natif, le nouveau dossier y prend le nom de l'élément copié. */
+  async function chooseCommitParent() {
+    const parent = await api.pickFolder();
+    const c = commit();
+    if (parent && c) setCommitDestination(`${parent.replace(/\/+$/, "")}/${c.name}`);
+  }
 
   async function runCommit() {
     const c = commit();
     if (!c || c.status !== "idle" || !c.destination.trim()) return;
-    setCommit({ ...c, status: "running", progress: 0 });
+    setCommit({ ...c, status: "running", progress: 0, error: null });
     // Progression simulée (phases 0 / 1). Phase 5 : événements de copie envoyés par Rust.
     const t0 = performance.now();
     await new Promise<void>((done) => {
@@ -591,7 +605,13 @@ function createAppState() {
       };
       requestAnimationFrame(tick);
     });
-    const result = await api.commitToFolder(c.key, c.destination.trim(), c.options);
+    let result: CommitResult;
+    try {
+      result = await api.commitToFolder(c.key, c.destination.trim(), c.options);
+    } catch (e) {
+      setCommit((x) => (x ? { ...x, status: "idle", progress: 0, error: e instanceof Error ? e.message : String(e) } : x));
+      return;
+    }
     setCommit((x) => (x ? { ...x, status: "done", progress: 1, result } : x));
     if (c.options.addAsSource) await Promise.all([refresh(), reloadLibrary()]);
   }
@@ -606,6 +626,85 @@ function createAppState() {
   async function removeSource(id: number) {
     await api.removeSource(id);
     await Promise.all([refresh(), reloadLibrary()]);
+    if (!demo() && !sources().length) setEmpty(true);
+  }
+
+  // --- vraie bibliothèque : sources, indexation
+  let noticeTimer = 0;
+  function setNotice(text: string | null) {
+    clearTimeout(noticeTimer);
+    setNoticeSignal(text);
+    if (text) noticeTimer = window.setTimeout(() => setNoticeSignal(null), 6000);
+  }
+
+  /** Ajoute un dossier (⌘O, dépôt depuis le Finder, Réglages). Sans chemin : sélecteur natif. */
+  async function addFolder(path?: string) {
+    const p = path ?? (await api.pickFolder());
+    if (!p) return;
+    try {
+      const s = await api.addSource(p);
+      batch(() => {
+        setEmpty(false);
+        setView("browser");
+        setTabSignal("library");
+      });
+      await Promise.all([refresh(), reloadLibrary()]);
+      setNotice(null);
+      return s;
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function refreshSource(id: number) {
+    await api.refreshSource(id);
+  }
+
+  // Pendant un scan : statut sous la recherche et arbre rafraîchi au plus deux fois par seconde.
+  let lastScanRefresh = 0;
+  function onScanStatus(s: ScanStatus) {
+    if (s.finished) {
+      setScan(null);
+      void Promise.all([refresh(), reloadLibrary()]);
+      return;
+    }
+    setScan({ done: s.done, total: s.total, folder: s.folder });
+    const now = performance.now();
+    if (now - lastScanRefresh > 500) {
+      lastScanRefresh = now;
+      void refresh();
+    }
+  }
+
+  /** Démarrage : démo (scénarios) ou vraie bibliothèque (premier lancement si aucune source). */
+  async function start(): Promise<boolean> {
+    const isDemo = await api.isDemo();
+    setDemo(isDemo);
+    if (isDemo) return true;
+    api.onScanStatus(onScanStatus);
+    const current = await api.scanStatus();
+    if (current) onScanStatus(current);
+    await reloadLibrary();
+    setEmpty(!sources().length);
+    await refresh();
+    return false;
+  }
+
+  /** Chemin sur le disque d'un dossier visible (source + noms des dossiers parents). */
+  function folderPath(key: NodeKey): string | undefined {
+    const parts: string[] = [];
+    let row = rowByKey(key);
+    while (row && row.type === "node" && row.parent !== null) {
+      parts.unshift(row.name);
+      row = rowByKey(row.parent);
+    }
+    if (!row || row.type !== "node") return undefined;
+    const root = sources().find((s) => `f:${s.id}` === row!.key);
+    return root ? [root.path, ...parts].join("/") : undefined;
+  }
+
+  function reveal(path: string | undefined) {
+    if (path) void api.revealInFinder(path);
   }
 
   function openMenu(x: number, y: number, rowKey: string) {
@@ -629,6 +728,7 @@ function createAppState() {
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
     select, move, right, left, activate, play, stop, togglePlay,
     jumpTo, back, forward, clearHistory, canBack, canForward,
+    demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, folderPath, reveal, chooseCommitParent,
   };
 }
 

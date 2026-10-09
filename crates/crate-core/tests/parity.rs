@@ -47,7 +47,7 @@ fn round(x: f64) -> f64 {
 #[test]
 fn memes_samples() {
     let fx = fixture();
-    let lib = MockLibrary::new();
+    let lib = MockLibrary::demo();
     let expected = fx["samples"].as_array().unwrap();
     assert_eq!(lib.samples().len(), expected.len());
     for (s, e) in lib.samples().iter().zip(expected) {
@@ -83,7 +83,7 @@ fn memes_samples() {
 #[test]
 fn memes_arbres() {
     let fx = fixture();
-    let lib = MockLibrary::new();
+    let lib = MockLibrary::demo();
     for t in fx["trees"].as_array().unwrap() {
         let root: TreeRoot = serde_json::from_value(t["root"].clone()).unwrap();
         let r = req(root, t["query"].as_str().unwrap(), strings(&t["expanded"]));
@@ -98,7 +98,7 @@ fn memes_arbres() {
 #[test]
 fn memes_plans_de_commit() {
     let fx = fixture();
-    let lib = MockLibrary::new();
+    let lib = MockLibrary::demo();
     for p in fx["plans"].as_array().unwrap() {
         let key = p["key"].as_str().unwrap();
         let opts = CommitOptions {
@@ -119,15 +119,17 @@ fn memes_plans_de_commit() {
 fn meme_commit_ajoute_aux_sources() {
     let fx = fixture();
     let after = &fx["after"];
-    let mut lib = MockLibrary::new();
-    let res = lib.commit_to_folder(
-        "v:3",
-        "~/Desktop/Pack 2026/",
-        CommitOptions {
-            keep_hierarchy: true,
-            add_as_source: true,
-        },
-    );
+    let mut lib = MockLibrary::demo();
+    let res = lib
+        .commit_to_folder(
+            "v:3",
+            "~/Desktop/Pack 2026/",
+            CommitOptions {
+                keep_hierarchy: true,
+                add_as_source: true,
+            },
+        )
+        .unwrap();
     assert_eq!(serde_json::to_value(&res).unwrap(), after["commit"]);
     assert_eq!(serde_json::to_value(lib.sources()).unwrap(), after["sources"]);
     let tree = lib.tree(&req(TreeRoot::Library, "", vec!["f:1000".into(), "f:1001".into(), "f:1002".into()]));
@@ -152,7 +154,7 @@ fn meme_commit_ajoute_aux_sources() {
 #[test]
 fn meme_bibliotheque() {
     let fx = fixture();
-    let lib = MockLibrary::new();
+    let lib = MockLibrary::demo();
     assert_eq!(serde_json::to_value(lib.library()).unwrap(), fx["library"]);
     assert_eq!(serde_json::to_value(lib.sources()).unwrap(), fx["sources"]);
 }
@@ -160,7 +162,7 @@ fn meme_bibliotheque() {
 #[test]
 fn memes_parents() {
     let fx = fixture();
-    let lib = MockLibrary::new();
+    let lib = MockLibrary::demo();
     for (key, want) in fx["ancestors"].as_object().unwrap() {
         assert_eq!(lib.ancestors(key), strings(want), "ancestors({key})");
     }
@@ -169,7 +171,7 @@ fn memes_parents() {
 #[test]
 fn memes_raccourcis() {
     let fx = fixture();
-    let mut lib = MockLibrary::new();
+    let mut lib = MockLibrary::demo();
     let check = |lib: &MockLibrary, want: &Value| {
         assert_eq!(serde_json::to_value(lib.library().pinned_folders).unwrap(), want["pinned"]);
         assert_eq!(rows_of(&lib.tree(&req(TreeRoot::Library, "", vec![]))), strings(&want["rows"]));
@@ -187,7 +189,7 @@ fn memes_raccourcis() {
 
 #[test]
 fn pagination() {
-    let lib = MockLibrary::new();
+    let lib = MockLibrary::demo();
     let all = lib.tree(&req(TreeRoot::Library, "kick", vec![]));
     let page = lib.tree(&TreeRequest {
         offset: 5,
@@ -201,7 +203,7 @@ fn pagination() {
 
 #[test]
 fn collections_a_plat() {
-    let mut lib = MockLibrary::new();
+    let mut lib = MockLibrary::demo();
     lib.add_tag(&[1, 2], "crispy");
     assert_eq!(lib.library().tags.iter().find(|t| t.name == "crispy").map(|t| t.count), Some(2));
     lib.remove_tag(&[1], "crispy");
@@ -242,7 +244,7 @@ fn collections_a_plat() {
 
 #[test]
 fn dossiers_virtuels() {
-    let mut lib = MockLibrary::new();
+    let mut lib = MockLibrary::demo();
     let a = lib.create_virtual_folder("Cette année", None);
     let b = lib.create_virtual_folder("Mars", Some(a.id));
     assert_eq!(b.parent_id, Some(a.id));
@@ -286,7 +288,7 @@ fn dossiers_virtuels() {
 
 #[test]
 fn favoris() {
-    let mut lib = MockLibrary::new();
+    let mut lib = MockLibrary::demo();
     let before = lib.tree(&req(TreeRoot::Library, "is:fav", vec![])).matches;
     lib.set_favorite(&[1], true);
     assert_eq!(lib.tree(&req(TreeRoot::Library, "is:fav", vec![])).matches, before + 1);

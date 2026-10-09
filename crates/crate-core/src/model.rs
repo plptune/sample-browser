@@ -253,7 +253,21 @@ pub struct Source {
     pub offline: bool,
 }
 
-/// Ce que l'UI peut demander au cœur. Phase 1 : `MockLibrary` ; phase 2 : implémentation SQLite.
+/// Statut d'indexation, envoyé par événement pendant un scan.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct ScanStatus {
+    pub source_id: u32,
+    /// Dossier en cours (nom affiché).
+    pub folder: String,
+    /// Fichiers lus / à lire (0 / 0 pendant le parcours des dossiers).
+    pub done: u32,
+    pub total: u32,
+    pub finished: bool,
+}
+
+/// Ce que l'UI peut demander au cœur : `Catalog` (données du prototype) ou `SqliteLibrary` (vraie bibliothèque).
 pub trait Backend {
     fn library(&self) -> Library;
     fn sources(&self) -> Vec<Source>;
@@ -281,6 +295,10 @@ pub trait Backend {
     fn ancestors(&self, key: &str) -> Vec<NodeKey>;
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan;
     /// Copie vers un nouveau dossier réel ; ne modifie ni ne déplace jamais les sources.
-    fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> CommitResult;
+    fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> Result<CommitResult, String>;
+    /// Ajoute un dossier comme source et lance son indexation (refusé s'il est déjà couvert par une source).
+    fn add_source(&mut self, path: &str) -> Result<Source, String>;
+    /// Relance l'indexation d'une source (rescan incrémental).
+    fn refresh_source(&mut self, id: u32);
     fn remove_source(&mut self, id: u32);
 }

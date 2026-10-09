@@ -1,12 +1,19 @@
 //! Crate — cœur du navigateur de samples. Indépendant de Tauri : peut servir une autre UI.
 //!
-//! Phase 1 : modèle partagé avec l'UI, langage de recherche, tri, et une bibliothèque factice
-//! (`mock::MockLibrary`) qui reproduit exactement les données du prototype.
+//! `catalog` : arbre, recherche et commit en mémoire. `mock` : les données du prototype (mode démo).
+//! `db`, `scan`, `indexer`, `library` : la vraie bibliothèque (SQLite, scan des dossiers, notify).
 
+pub mod catalog;
+pub mod db;
+pub mod indexer;
+pub mod library;
 pub mod mock;
 pub mod model;
 pub mod natural;
 pub mod query;
+pub mod scan;
 
+pub use catalog::Catalog;
+pub use library::SqliteLibrary;
 pub use mock::MockLibrary;
 pub use model::*;

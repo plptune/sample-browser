@@ -20,6 +20,7 @@ export type Contract = [
   Check<Assignable<Rust.TreePage_Serialize, Ui.TreePage>>,
   Check<Assignable<Rust.Library_Serialize, Ui.Library>>,
   Check<Assignable<Rust.Source, Ui.Source>>,
+  Check<Assignable<Rust.ScanEvent, Ui.ScanStatus>>,
   // …et ce que l'UI envoie doit être accepté par Rust.
   Check<Assignable<Ui.TreeRequest, Rust.TreeRequest>>,
   Check<Assignable<Ui.CommitOptions, Rust.CommitOptions>>,

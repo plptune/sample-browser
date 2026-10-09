@@ -58,7 +58,10 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 - [ ] `pnpm tauri dev` ouvre une fenêtre 320 × 760, largeur minimale 260, barre titre overlay : les feux macOS
       tombent dans les 72 px réservés à gauche de « Crate ».
 - [ ] La fenêtre se déplace en tirant la barre titre.
-- [ ] Le panneau est identique au navigateur, sans la barre de démo (les touches de scénario fonctionnent toujours).
+- [ ] Avec `CRATE_DEMO=1`, le panneau est identique au navigateur, sans la barre de démo (touches de scénario actives).
+- [ ] Sans `CRATE_DEMO` (phase 2) : premier lancement vide ; un dossier glissé sur la fenêtre (ou ⌘O) apparaît tout de
+      suite, avec « Indexation de … n / total » et une ligne ambre de 1 px sous la recherche pendant le scan ; un fichier
+      ajouté dans le Finder apparaît seul ; l'app relancée retrouve tout (tags, collections, dossiers virtuels).
 
 Vérifié dans le conteneur Linux (compilation + rendu sous écran virtuel) ; le rendu macOS est construit par le
 workflow « Tauri (macOS) » et reste à valider à la main.

@@ -436,6 +436,36 @@ export const mockBackend: Backend = {
     return { destination: dest, copied: entries.length, skipped: all.length - entries.length };
   },
 
+  async addSource(path) {
+    // Navigateur : aucun disque n'est lu ; une source vide, comme dans la bibliothèque factice Rust.
+    const id = Math.max(999, ...folders.keys()) + 1;
+    const clean = path.replace(/\/+$/, "");
+    const name = clean.split("/").pop() || clean;
+    const root: FolderNode = { id, name, count: 0, children: [] };
+    ROOT_PATHS[id] = clean;
+    indexFolders([root]);
+    SOURCES.push(root);
+    return { id, name, path: clean, offline: false };
+  },
+
+  async refreshSource() {},
+
+  async pickFolder() {
+    return null;
+  },
+
+  async isDemo() {
+    return true;
+  },
+
+  async scanStatus() {
+    return null;
+  },
+
+  onScanStatus() {
+    return () => {};
+  },
+
   async removeSource(id) {
     const i = SOURCES.findIndex((f) => f.id === id);
     if (i >= 0) SOURCES.splice(i, 1);

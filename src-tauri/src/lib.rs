@@ -1,33 +1,91 @@
 //! Couche Tauri : une commande fine par méthode du contrat `Backend` (src/api/types.ts).
-//! Phase 1 : la bibliothèque factice de crate-core (mêmes données que le prototype).
-//! Les types TypeScript sont générés dans src/api/bindings.ts par `cargo test -p crate-app`.
+//! La fenêtre utilise la vraie bibliothèque (SQLite dans le dossier de données de l'app) ; `CRATE_DEMO=1` la
+//! remet sur les données du prototype. Les types TypeScript sont générés dans src/api/bindings.ts par
+//! `cargo test -p crate-app`.
 
-use std::sync::Mutex;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate_core::{
-    Backend, Collection, CommitOptions, CommitPlan, CommitResult, Library, MockLibrary, SampleId, Source, TreePage, TreeRequest,
-    VirtualFolder,
+    Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitResult, Library, SampleId, ScanStatus, Source, SqliteLibrary, TreePage,
+    TreeRequest, VirtualFolder,
 };
-use tauri::State;
+use serde::{Deserialize, Serialize};
+use tauri::{Manager, State};
+use tauri_plugin_dialog::DialogExt;
+use tauri_specta::Event;
 
-type Lib = Mutex<MockLibrary>;
+enum Inner {
+    /// Données du prototype (CRATE_DEMO=1) : scénarios de démo.
+    Demo(Catalog),
+    Real(SqliteLibrary),
+}
+
+struct Lib(Mutex<Inner>);
+
+/// Accès à la bibliothèque ; la vraie est d'abord resynchronisée avec ce que l'indexeur a écrit.
+struct LibGuard<'a>(MutexGuard<'a, Inner>);
+
+impl Lib {
+    fn lock(&self) -> LibGuard<'_> {
+        let mut g = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Inner::Real(l) = &mut *g {
+            l.sync();
+        }
+        LibGuard(g)
+    }
+}
+
+impl Deref for LibGuard<'_> {
+    type Target = dyn Backend + Send;
+    fn deref(&self) -> &Self::Target {
+        match &*self.0 {
+            Inner::Demo(c) => c,
+            Inner::Real(l) => l,
+        }
+    }
+}
+
+impl DerefMut for LibGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match &mut *self.0 {
+            Inner::Demo(c) => c,
+            Inner::Real(l) => l,
+        }
+    }
+}
+
+/// Dernier statut d'indexation (None hors scan) : l'UI le lit au démarrage, les scans lancés avant qu'elle
+/// n'écoute les événements restent visibles.
+#[derive(Default)]
+struct CurrentScan(Mutex<Option<ScanStatus>>);
+
+#[tauri::command]
+#[specta::specta]
+fn scan_status(cur: State<'_, CurrentScan>) -> Option<ScanStatus> {
+    cur.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// Progression de l'indexation (au plus 5 par seconde, plus un dernier avec `finished`).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct ScanEvent(ScanStatus);
 
 #[tauri::command]
 #[specta::specta]
 fn library(lib: State<'_, Lib>) -> Library {
-    lib.lock().unwrap().library()
+    lib.lock().library()
 }
 
 #[tauri::command]
 #[specta::specta]
 fn sources(lib: State<'_, Lib>) -> Vec<Source> {
-    lib.lock().unwrap().sources()
+    lib.lock().sources()
 }
 
 #[tauri::command]
 #[specta::specta]
 fn tree(lib: State<'_, Lib>, req: TreeRequest) -> TreePage {
-    let page = lib.lock().unwrap().tree(&req);
+    let page = lib.lock().tree(&req);
     trace(|| {
         format!(
             "tree {:?} query={:?} expanded={} → {} lignes",
@@ -50,125 +108,171 @@ fn trace(msg: impl FnOnce() -> String) {
 #[tauri::command]
 #[specta::specta]
 fn set_favorite(lib: State<'_, Lib>, ids: Vec<SampleId>, fav: bool) {
-    lib.lock().unwrap().set_favorite(&ids, fav)
+    lib.lock().set_favorite(&ids, fav)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn add_tag(lib: State<'_, Lib>, ids: Vec<SampleId>, tag: String) {
     trace(|| format!("add_tag {tag:?} → {} samples", ids.len()));
-    lib.lock().unwrap().add_tag(&ids, &tag)
+    lib.lock().add_tag(&ids, &tag)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn remove_tag(lib: State<'_, Lib>, ids: Vec<SampleId>, tag: String) {
-    lib.lock().unwrap().remove_tag(&ids, &tag)
+    lib.lock().remove_tag(&ids, &tag)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn create_collection(lib: State<'_, Lib>, name: String, query: Option<String>) -> Collection {
-    lib.lock().unwrap().create_collection(&name, query.as_deref())
+    lib.lock().create_collection(&name, query.as_deref())
 }
 
 #[tauri::command]
 #[specta::specta]
 fn rename_collection(lib: State<'_, Lib>, id: u32, name: String) {
-    lib.lock().unwrap().rename_collection(id, &name)
+    lib.lock().rename_collection(id, &name)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn delete_collection(lib: State<'_, Lib>, id: u32) {
-    lib.lock().unwrap().delete_collection(id)
+    lib.lock().delete_collection(id)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn add_to_collection(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
-    lib.lock().unwrap().add_to_collection(id, &ids)
+    lib.lock().add_to_collection(id, &ids)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn remove_from_collection(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
-    lib.lock().unwrap().remove_from_collection(id, &ids)
+    lib.lock().remove_from_collection(id, &ids)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn create_virtual_folder(lib: State<'_, Lib>, name: String, parent_id: Option<u32>) -> VirtualFolder {
-    lib.lock().unwrap().create_virtual_folder(&name, parent_id)
+    lib.lock().create_virtual_folder(&name, parent_id)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn rename_virtual_folder(lib: State<'_, Lib>, id: u32, name: String) {
-    lib.lock().unwrap().rename_virtual_folder(id, &name)
+    lib.lock().rename_virtual_folder(id, &name)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn delete_virtual_folder(lib: State<'_, Lib>, id: u32) {
-    lib.lock().unwrap().delete_virtual_folder(id)
+    lib.lock().delete_virtual_folder(id)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn move_virtual_folder(lib: State<'_, Lib>, id: u32, parent_id: Option<u32>) {
-    lib.lock().unwrap().move_virtual_folder(id, parent_id)
+    lib.lock().move_virtual_folder(id, parent_id)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn add_to_virtual_folder(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
-    lib.lock().unwrap().add_to_virtual_folder(id, &ids)
+    lib.lock().add_to_virtual_folder(id, &ids)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn remove_from_virtual_folder(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
-    lib.lock().unwrap().remove_from_virtual_folder(id, &ids)
+    lib.lock().remove_from_virtual_folder(id, &ids)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn set_pinned(lib: State<'_, Lib>, key: String, pinned: bool) {
-    lib.lock().unwrap().set_pinned(&key, pinned)
+    lib.lock().set_pinned(&key, pinned)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn ancestors(lib: State<'_, Lib>, key: String) -> Vec<String> {
-    lib.lock().unwrap().ancestors(&key)
+    lib.lock().ancestors(&key)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn plan_commit(lib: State<'_, Lib>, key: String, options: CommitOptions) -> CommitPlan {
-    lib.lock().unwrap().plan_commit(&key, options)
+    lib.lock().plan_commit(&key, options)
 }
 
-/// Phase 1 : copie simulée (aucun fichier écrit). Phase 5 : copie réelle, avec progression par événement.
+/// Copie réelle (simulée en démo). Phase 5 : progression par événement.
 #[tauri::command]
 #[specta::specta]
-fn commit_to_folder(lib: State<'_, Lib>, key: String, destination: String, options: CommitOptions) -> CommitResult {
+fn commit_to_folder(lib: State<'_, Lib>, key: String, destination: String, options: CommitOptions) -> Result<CommitResult, String> {
     trace(|| format!("commit_to_folder {key} → {destination:?} {options:?}"));
-    lib.lock().unwrap().commit_to_folder(&key, &destination, options)
+    lib.lock().commit_to_folder(&key, &destination, options)
 }
 
 #[tauri::command]
 #[specta::specta]
 fn remove_source(lib: State<'_, Lib>, id: u32) {
-    lib.lock().unwrap().remove_source(id)
+    lib.lock().remove_source(id)
 }
 
-/// Phase 5 : ouverture réelle dans le Finder.
+#[tauri::command]
+#[specta::specta]
+fn add_source(lib: State<'_, Lib>, path: String) -> Result<Source, String> {
+    trace(|| format!("add_source {path:?}"));
+    lib.lock().add_source(&path)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn refresh_source(lib: State<'_, Lib>, id: u32) {
+    trace(|| format!("refresh_source {id}"));
+    lib.lock().refresh_source(id)
+}
+
+/// Sélecteur de dossier natif (⌘O). `None` si annulé.
+#[tauri::command]
+#[specta::specta]
+async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .file()
+        .set_title("Ajouter un dossier de samples")
+        .pick_folder(move |p| {
+            let _ = tx.send(p);
+        });
+    let picked = tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+        .await
+        .ok()
+        .flatten()?;
+    picked.into_path().ok().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Vrai si la fenêtre tourne sur les données du prototype (CRATE_DEMO=1).
+#[tauri::command]
+#[specta::specta]
+fn is_demo(lib: State<'_, Lib>) -> bool {
+    matches!(&*lib.0.lock().unwrap_or_else(|e| e.into_inner()), Inner::Demo(_))
+}
+
+/// Sélectionne le fichier (ou le dossier) dans le Finder.
 #[tauri::command]
 #[specta::specta]
 fn reveal_in_finder(path: String) {
-    let _ = path;
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg("-R").arg(&path).spawn();
+    #[cfg(not(target_os = "macos"))]
+    {
+        let p = std::path::Path::new(&path);
+        let dir = if p.is_dir() { p } else { p.parent().unwrap_or(p) };
+        let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+    }
 }
 
 /// Démo uniquement (scénario « Erreurs ») : marque des fichiers comme introuvables.
@@ -176,46 +280,78 @@ fn reveal_in_finder(path: String) {
 #[specta::specta]
 fn demo_set_missing(lib: State<'_, Lib>, ids: Vec<SampleId>) {
     trace(|| format!("demo_set_missing {ids:?}"));
-    lib.lock().unwrap().set_missing(&ids)
+    if let Inner::Demo(c) = &mut *lib.0.lock().unwrap_or_else(|e| e.into_inner()) {
+        c.set_missing(&ids)
+    }
 }
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
-        library,
-        sources,
-        tree,
-        set_favorite,
-        add_tag,
-        remove_tag,
-        create_collection,
-        rename_collection,
-        delete_collection,
-        add_to_collection,
-        remove_from_collection,
-        create_virtual_folder,
-        rename_virtual_folder,
-        delete_virtual_folder,
-        move_virtual_folder,
-        add_to_virtual_folder,
-        remove_from_virtual_folder,
-        set_pinned,
-        ancestors,
-        plan_commit,
-        commit_to_folder,
-        remove_source,
-        reveal_in_finder,
-        demo_set_missing,
-    ])
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .events(tauri_specta::collect_events![ScanEvent])
+        .commands(tauri_specta::collect_commands![
+            library,
+            sources,
+            tree,
+            set_favorite,
+            add_tag,
+            remove_tag,
+            create_collection,
+            rename_collection,
+            delete_collection,
+            add_to_collection,
+            remove_from_collection,
+            create_virtual_folder,
+            rename_virtual_folder,
+            delete_virtual_folder,
+            move_virtual_folder,
+            add_to_virtual_folder,
+            remove_from_virtual_folder,
+            set_pinned,
+            ancestors,
+            plan_commit,
+            commit_to_folder,
+            add_source,
+            refresh_source,
+            remove_source,
+            pick_folder,
+            is_demo,
+            scan_status,
+            reveal_in_finder,
+            demo_set_missing,
+        ])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = specta_builder();
     tauri::Builder::default()
-        .manage(Mutex::new(MockLibrary::new()))
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            let inner = if std::env::var_os("CRATE_DEMO").is_some() {
+                Inner::Demo(Catalog::demo())
+            } else {
+                let db = app.path().app_data_dir()?.join("crate.db");
+                let handle = app.handle().clone();
+                app.manage(CurrentScan::default());
+                let sink = Arc::new(move |s: ScanStatus| {
+                    *handle.state::<CurrentScan>().0.lock().unwrap_or_else(|e| e.into_inner()) = (!s.finished).then(|| s.clone());
+                    let _ = ScanEvent(s).emit(&handle);
+                });
+                trace(|| format!("base : {}", db.display()));
+                match SqliteLibrary::open(&db, sink) {
+                    Ok(l) => Inner::Real(l),
+                    Err(e) => {
+                        eprintln!("[crate] base inaccessible ({e}) : bibliothèque vide");
+                        Inner::Demo(Catalog::empty())
+                    }
+                }
+            };
+            if app.try_state::<CurrentScan>().is_none() {
+                app.manage(CurrentScan::default());
+            }
+            app.manage(Lib(Mutex::new(inner)));
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -1,9 +1,10 @@
-# Crate — prototype d'interface (phase 0)
+# Crate — navigateur de samples (phase 2 : vraie bibliothèque)
 
 Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton) :
 une arborescence de dossiers qui s'ouvre sur les samples, un second onglet pour les favoris, collections et dossiers
 virtuels (qu'on peut transformer en vrai dossier), et en bas le sample courant avec sa waveform.
-Ce dépôt ne contient pour l'instant **que l'interface, entièrement factice** : aucun son, aucun fichier lu, aucune base.
+La fenêtre indexe maintenant de **vrais dossiers** (SQLite, scan incrémental, surveillance des changements) ;
+pas encore de son (phase 4) ni de waveform réelle. Le prototype en ligne et Storybook restent sur des données factices.
 
 **Plan et prompts à jour :** [`docs/plan.md`](docs/plan.md) · **Validation phase 0 :** [`docs/phase0-checklist.md`](docs/phase0-checklist.md)
 
@@ -37,6 +38,7 @@ pnpm build        # typecheck + build
 | ⌘S | Enregistrer la recherche comme collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
 | ⌘N | Nouveau dossier virtuel |
+| ⌘O | Ajouter un dossier (fenêtre) |
 | ⌘, | Réglages (Échap pour revenir) |
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
@@ -57,15 +59,21 @@ Validation : [`docs/phase0-checklist.md`](docs/phase0-checklist.md).
 ## Fenêtre Tauri et cœur Rust
 
 ```bash
-pnpm tauri dev                 # fenêtre 320 × 760 ; les données viennent de Rust (crates/crate-core)
-CRATE_TRACE=1 pnpm tauri dev   # + trace des commandes sur stderr
+pnpm tauri dev                 # fenêtre 320 × 760 sur votre vraie bibliothèque
+CRATE_DEMO=1 pnpm tauri dev    # même fenêtre sur les données du prototype (touches de scénario actives)
+CRATE_TRACE=1 pnpm tauri dev   # + trace des commandes et des scans sur stderr
 pnpm tauri build               # Crate.app (macOS)
-cargo test --workspace         # tests Rust, parité avec le prototype, régénère src/api/bindings.ts
+cargo test --workspace         # tests Rust (parité, scan réel, persistance…), régénère src/api/bindings.ts
+cargo test --release -p crate-core --test bench_scan -- --ignored --nocapture   # mesures sur 100 000 fichiers
 pnpm parity:fixture            # régénère l'empreinte du mock TypeScript après une modification du mock
 ```
 
-Phase 1 : le cœur Rust sert encore les données factices du prototype (mêmes samples, mêmes arbres, vérifié par test).
-Dans le navigateur et Storybook, l'UI utilise le mock TypeScript ; dans la fenêtre, les commandes Rust.
+Premier lancement : glissez un dossier sur la fenêtre (ou ⌘O, ou Réglages › Ajouter un dossier…). Crate le parcourt
+(wav, aif, flac, mp3, ogg), lit les en-têtes et range tout dans `crate.db`, dans le dossier de données de l'app
+(`~/Library/Application Support/com.plptune.crate/`). Rien n'est jamais écrit dans vos dossiers, sauf par
+« Créer un vrai dossier », qui copie dans un nouveau dossier. Les sources sont surveillées : un fichier ajouté,
+modifié ou supprimé apparaît tout seul ; « Actualiser » (clic droit sur une source) force un rescan.
+Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une collection ou un dossier virtuel.
 Chaque push construit aussi un `Crate.app` sur macOS (workflow « Tauri (macOS) », artefact `Crate-macos`,
 non signé : clic droit → Ouvrir au premier lancement).
 
@@ -80,7 +88,8 @@ src/
   components/   un fichier par composant du design system
   styles/       tokens.css + bundle.css (design system)
   demo/         barre de démo et scénarios (hors design system)
-crates/crate-core/  cœur Rust sans Tauri : modèle, recherche, tri, bibliothèque factice, trait Backend
+crates/crate-core/  cœur Rust sans Tauri : modèle, recherche, catalogue (arbre en mémoire), base SQLite, scan,
+                    indexeur (thread + notify), bibliothèque réelle et factice, trait Backend
 src-tauri/      fenêtre Tauri 2 : une commande typée par méthode du contrat
 scripts/        empreinte de parité TS → Rust
   stories/      fondations Storybook (introduction, tokens) ; les stories des composants sont à côté de chaque composant
@@ -93,6 +102,8 @@ docs/design-system.md
 ```
 UI SolidJS ─► src/api/index.ts (Backend) ─┬─ mock.ts   navigateur, Storybook, Pages
                                           └─ tauri.ts  fenêtre ─► src-tauri (commandes) ─► crates/crate-core
+                                                                                    ├─ SqliteLibrary  catalogue ⇄ crate.db
+                                                                                    └─ Indexer        scans, notify ─► événement scan-event
 ```
 
 Les composants, le CSS et l'état ne dépendent que du contrat `src/api/types.ts`. La suite (index SQLite, recherche,

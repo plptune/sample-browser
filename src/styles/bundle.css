@@ -299,6 +299,12 @@
   white-space: nowrap;
 }
 
+/* Message bref (source refusée…) : même bande que le statut, texte principal. */
+.cr-notice {
+  color: var(--cr-text-1);
+  cursor: default;
+}
+
 .cr-scan__count {
   color: var(--cr-text-3);
 }

@@ -6,9 +6,10 @@ export function EmptyState(props: {
   body?: JSX.Element;
   hints?: string[];
   over?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div class="cr-empty" data-variant={props.variant} data-over={props.over || undefined}>
+    <div class="cr-empty" data-variant={props.variant} data-over={props.over || undefined} onClick={() => props.onClick?.()}>
       <div class="cr-empty__title">{props.title}</div>
       <Show when={props.body}>
         <div class="cr-empty__body">{props.body}</div>

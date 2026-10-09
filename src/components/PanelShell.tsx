@@ -15,6 +15,19 @@ import { SettingsView } from "./SettingsView";
 import { Tabs } from "./Tabs";
 import { TagPopover, type TagState } from "./TagPopover";
 
+/** Message bref (source refusée…) : disparaît seul, ou au clic. */
+function Notice() {
+  return (
+    <Show when={app.notice()}>
+      {(t) => (
+        <div class="cr-scan cr-notice" role="alert" onClick={() => app.setNotice(null)}>
+          <span class="cr-scan__label">{t()}</span>
+        </div>
+      )}
+    </Show>
+  );
+}
+
 /** Chemin lisible d'un dossier virtuel (« Pack 2026 › Drums »). */
 function vfPath(id: number): string {
   const all = app.library()?.virtualFolders ?? [];
@@ -58,7 +71,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       { type: "header", label: "Ajouter à un dossier virtuel" },
       ...vfs.map((f): MenuItem => ({ label: f.path, action: () => app.addSelectionTo(`v:${f.id}`) })),
       { type: "separator" },
-      { label: "Révéler dans le Finder", action: () => void 0 },
+      { label: "Révéler dans le Finder", action: () => app.reveal(row.sample.path), disabled: row.sample.missing },
       { label: "Copier le chemin", action: () => navigator.clipboard?.writeText(row.sample.path) },
     ];
   }
@@ -67,19 +80,24 @@ function menuFor(row: Row | undefined): MenuItem[] {
     case "shortcut":
       return [
         { label: "Aller au dossier", shortcut: "⏎", action: () => app.jumpTo(row.target!) },
-        { label: "Révéler dans le Finder" },
         { type: "separator" },
         { label: "Retirer de Bibliothèque", action: () => app.togglePin(row.key) },
       ];
     case "folder": {
       if (row.parent === null && app.tab() === "library") {
-        return [toggle, { label: "Révéler dans le Finder" }, { type: "separator" }, { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) }];
+        return [
+          toggle,
+          { label: "Actualiser", action: () => app.refreshSource(+row.key.slice(2)) },
+          { label: "Révéler dans le Finder", action: () => app.reveal(app.folderPath(row.key)) },
+          { type: "separator" },
+          { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) },
+        ];
       }
       const pinned = app.library()?.pinnedFolders.includes(+row.key.slice(2));
       return [
         toggle,
         { label: pinned ? "Retirer de Bibliothèque" : "Épingler dans Bibliothèque", action: () => app.togglePin(row.key) },
-        { label: "Révéler dans le Finder" },
+        { label: "Révéler dans le Finder", action: () => app.reveal(app.folderPath(row.key)) },
       ];
     }
     case "favorites":
@@ -147,8 +165,11 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
 
       <Switch>
         <Match when={app.empty()}>
+          <Notice />
           <EmptyState
             variant="drop"
+            over={app.fileOver()}
+            onClick={() => !app.demo() && app.addFolder()}
             title="Glissez un dossier ici"
             body={
               <>
@@ -172,6 +193,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onAlwaysOnTop={app.setAlwaysOnTop}
             onAutoPlay={app.setAutoPlay}
             onRemoveSource={app.removeSource}
+            onAddSource={() => app.addFolder()}
           />
         </Match>
         <Match when={app.view() === "commit" && app.commit()}>
@@ -188,7 +210,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
               onBack={() => app.closeCommit()}
               onDestination={app.setCommitDestination}
               onOptions={app.setCommitOptions}
-              onChoose={() => void 0}
+              onChoose={() => app.chooseCommitParent()}
+              error={c().error}
               onCommit={() => app.runCommit()}
               onReveal={() => c().result && api.revealInFinder(c().result!.destination)}
             />
@@ -200,6 +223,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             <SaveSearch value={app.saving()!} onSubmit={app.saveSearch} onCancel={() => app.setSaving(null)} />
           </Show>
           <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
+          <Notice />
           <Show
             when={app.visible().length}
             fallback={

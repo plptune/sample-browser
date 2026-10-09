@@ -108,6 +108,7 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘S | Recherche → collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
 | ⌘N | Nouveau dossier virtuel |
+| ⌘O | Ajouter un dossier |
 | ⌘, | Réglages |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
@@ -167,13 +168,25 @@ Tout est dans le dépôt `plptune/sample-browser` :
 - Parité prouvée par test : mêmes 400 samples, mêmes 147 arbres, plans de commit, parents et raccourcis que le prototype. Fenêtre pilotée au clavier : scénarios identiques, données servies par Rust.
 - CI : workflow « CI » (fmt, clippy, tests, fichiers générés à jour, builds). Décisions et risques : `docs/decisions.md`.
 
+### Phase 2 — Index + scan ✅ terminée
+
+- Vraie bibliothèque dans la fenêtre : SQLite (`crate.db`, WAL, migrations), catalogue en mémoire pour l'arbre et la
+  recherche (la logique de la phase 1, prouvée identique au prototype), écriture immédiate en base.
+- Scan sur un thread dédié : parcours, en-têtes audio lus en parallèle (symphonia, rayon), rescan incrémental
+  (taille + date), introuvables / hors ligne, dossiers sans audio masqués ; `notify` sur chaque source ; « Actualiser ».
+- UI : premier lancement réel, ⌘O (sélecteur natif), dépôt de dossiers depuis le Finder, statut d'indexation par
+  événement, « Créer un vrai dossier » qui copie vraiment, « Révéler dans le Finder ». `CRATE_DEMO=1` = données du prototype.
+- Mesures (conteneur Linux, 4 cœurs, build release, petits WAV) : **100 000 fichiers indexés en 1,1 s** (budget 60 s),
+  rescan sans changement 0,6 s, chargement du catalogue 0,19 s, ouverture d'un dossier de 5 000 samples 40 ms ;
+  recherche 0,3 à 0,7 s → c'est le chantier de la phase 3 (budget 16 ms).
+
 ### Phases 2 à 6 — Le moteur
 
 Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
 
 1. ✅ **Branchement** — workspace Cargo (`crates/crate-core` + `src-tauri`), commandes Tauri pour **toutes** les méthodes de `Backend`, renvoyant encore les données factices (portées en Rust). `src/api/tauri.ts` + sélection automatique du backend (Tauri → `tauri.ts`, navigateur / Storybook → `mock.ts`). tauri-specta génère `src/api/bindings.ts`.
    - Sortie : le prototype tourne à l'identique dans la fenêtre Tauri, mais ses données passent par Rust ; un test vérifie que les types générés et `types.ts` sont compatibles.
-2. **Index + scan** — schéma SQLite, indexeur sur un thread dédié, scan des dossiers (métadonnées rapides), `notify`, `sources()` / `removeSource()` / ajout de dossier (⌘O + dépôt), statut d'indexation par événement. **Actualiser une source** (menu contextuel) : rescan forcé, pour un disque où `notify` n'a rien vu.
+2. ✅ **Index + scan** — schéma SQLite, indexeur sur un thread dédié, scan des dossiers (métadonnées rapides), `notify`, `sources()` / `removeSource()` / ajout de dossier (⌘O + dépôt), statut d'indexation par événement. **Actualiser une source** (menu contextuel) : rescan forcé, pour un disque où `notify` n'a rien vu.
    - Sortie : 100 000 fichiers indexés en < 60 s, UI fluide pendant le scan, arbre réel affiché.
 3. **Arbre + recherche** — `tree()` en Rust (dossiers puis samples, ouverture, élagage en recherche), parser du langage, FTS5 + filtres, TanStack Virtual sur les lignes. **Synonymes** : une petite table éditable dans les Réglages (`kick` ↔ `bd`, `hat` ↔ `hh`…) développée par le parser.
    - Sortie : < 16 ms par frappe et par ouverture de dossier sur 100 000 fichiers.

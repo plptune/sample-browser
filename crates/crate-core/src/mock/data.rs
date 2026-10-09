@@ -2,6 +2,7 @@
 //! dans le même ordre, donc les mêmes 400 samples (ids, noms, chemins, tags…) que le prototype.
 //! Vérifié par `tests/parity.rs` contre une empreinte produite par le code TypeScript.
 
+use crate::catalog::FolderNode;
 use crate::model::{Collection, CollectionKind, Sample, SampleKind, VirtualFolder};
 
 /// Générateur mulberry32 (identique à la version JS, arithmétique u32).
@@ -43,15 +44,6 @@ const KEYS: [&str; 15] = ["C", "Cm", "D", "Dm", "E", "Em", "F", "Fm", "F#m", "G"
 const ADJ: [&str; 15] = [
     "Dusty", "Warm", "Punchy", "Lofi", "Tape", "Deep", "Bright", "Crunchy", "Vinyl", "Soft", "Hard", "Analog", "Dark", "Airy", "Round",
 ];
-
-/// Nœud de l'arborescence des sources.
-#[derive(Debug, Clone)]
-pub struct FolderNode {
-    pub id: u32,
-    pub name: String,
-    pub offline: bool,
-    pub children: Vec<FolderNode>,
-}
 
 fn node(id: u32, name: &str, children: Vec<FolderNode>) -> FolderNode {
     FolderNode {

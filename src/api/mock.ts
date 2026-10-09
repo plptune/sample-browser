@@ -2,6 +2,7 @@
 // La fenêtre Tauri utilise src/api/tauri.ts ; crates/crate-core/src/mock en est le port Rust exact (test de parité).
 
 import { naturalCompare } from "../lib/natural";
+import { keyMatches } from "../lib/keys";
 import { parseLine, type QueryToken } from "../lib/query";
 import { DEFAULT_SYNONYMS, expandSynonym, normalizeSynonyms } from "../lib/synonyms";
 import {
@@ -48,13 +49,8 @@ function matchToken(s: Sample, t: QueryToken): boolean {
           return s.bpm !== null && parseRange(t.value)(s.bpm);
         case "dur":
           return parseRange(t.value, "s")(s.durationMs / 1000);
-        case "key": {
-          if (!s.key) return false;
-          const want = t.value.toLowerCase();
-          const have = s.key.toLowerCase();
-          // note seule = majeur + mineur
-          return have === want || (!want.endsWith("m") && have.replace(/m$/, "") === want);
-        }
+        case "key":
+          return !!s.key && keyMatches(s.key, t.value);
         case "type":
           return s.kind === (t.value === "one-shot" ? "oneshot" : t.value);
         case "is":
@@ -563,6 +559,10 @@ export const mockBackend: Backend = {
 
   async isDemo() {
     return true;
+  },
+
+  async analysisStatus() {
+    return { done: 0, total: 0 }; // données factices : déjà « analysées »
   },
 
   async scanStatus() {

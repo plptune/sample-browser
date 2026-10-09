@@ -1,5 +1,6 @@
 //! Scan d'une source : parcours des dossiers, lecture rapide des en-têtes audio, mise à jour incrémentale
-//! de la base. Ne lit jamais l'audio lui-même et n'écrit jamais dans les dossiers de l'utilisateur.
+//! de la base. Ne lit jamais l'audio lui-même (c'est l'analyse de fond) et n'écrit jamais dans les dossiers
+//! de l'utilisateur. Tempo, tonalité et type sont pris dans le nom en attendant l'analyse.
 
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -14,7 +15,8 @@ use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 
-use crate::model::ScanStatus;
+use crate::analysis;
+use crate::model::{SampleKind, ScanStatus};
 
 /// Extensions indexées (en minuscules).
 pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg"];
@@ -278,8 +280,8 @@ pub fn scan_source(
         let tx = conn.transaction()?;
         {
             let mut insert = tx.prepare_cached(
-                "INSERT INTO files (folder_id, path, name, ext, size, mtime, duration_ms, sample_rate, bit_depth, channels, kind)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT INTO files (folder_id, path, name, ext, size, mtime, duration_ms, sample_rate, bit_depth, channels, kind, bpm, musical_key)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             )?;
             let mut update = tx.prepare_cached(
                 "UPDATE files SET size = ?2, mtime = ?3, duration_ms = ?4, sample_rate = ?5, bit_depth = ?6, channels = ?7,
@@ -303,8 +305,12 @@ pub fn scan_source(
                         let folder = f.path.parent().and_then(|p| folder_ids.get(p)).copied().unwrap_or(source_id);
                         let stem = f.path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
                         let ext = f.path.extension().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
-                        // Provisoire (phase 6 : analyse) : « loop » dans le nom → boucle.
-                        let kind = if stem.to_lowercase().contains("loop") { "loop" } else { "oneshot" };
+                        // Ce que dit le nom, tout de suite (les filtres marchent avant l'analyse de fond, qui affinera).
+                        let h = analysis::parse_name(&stem);
+                        let loop_ = h.kind == Some(SampleKind::Loop);
+                        let kind = if loop_ { "loop" } else { "oneshot" };
+                        let bpm = h.bpm.or(if loop_ { h.bare_bpm } else { None });
+                        let key = h.key.map(|(pc, minor)| analysis::key_name(pc, minor));
                         insert.execute(params![
                             folder,
                             path_str(&f.path),
@@ -316,7 +322,9 @@ pub fn scan_source(
                             m.sample_rate,
                             m.bit_depth,
                             m.channels,
-                            kind
+                            kind,
+                            bpm,
+                            key
                         ])?;
                         report.added += 1;
                     }

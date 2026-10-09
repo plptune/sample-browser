@@ -140,6 +140,26 @@ réelle et le dépôt dans Ableton / Logic (sur Mac, avec ⌥⌘D qui affiche «
 
 Ce qui reste à vérifier sur Mac (toutes phases) : `docs/verification-mac.md`.
 
+## Phase 6 — Analyse de fond (9 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Trois sources, dans cet ordre : **nom** du fichier, chunk **acid** (WAV), **audio**. Un BPM nu dans le nom (`Drum_Loop_92`) ne compte que pour une boucle ; une lettre seule (`Bass_G_17`) ne donne la tonique que si l'audio est tonal. | Les packs sont annotés dans les noms par ceux qui les ont faits : c'est plus sûr que n'importe quelle analyse. |
+| Le nom est lu **dès le scan** ; l'analyse audio vient ensuite, en fond. | `bpm:` et `key:` marchent tout de suite sur une bibliothèque de packs. |
+| Analyse maison, sans dépendance (FFT radix 2 de 40 lignes) : 30 premières secondes, mono, ~11 kHz. Tempo : flux spectral (tout le spectre + sous 300 Hz, où se lit le temps), autocorrélation **circulaire** pour une boucle, peigne sur 4 périodes, préférence douce autour de 120 BPM et pour deux attaques par temps ; une boucle coupée à la mesure prend le tempo qui donne un nombre entier de temps (exact). Tonalité : chromagramme (trames normalisées, amplitudes compressées), profils de Temperley, la basse (surtout au début) départage ; seulement si le son est tonal (énergie concentrée dans des pics étroits, au moins 3 classes de hauteur). Boucle : ≥ 1,2 s, ≥ 4 attaques, régulière ou calée sur la mesure. | Assez juste sur le jeu test (ci-dessous), rapide (~15 ms par fichier), aucun code tiers à surveiller. Les profils de Krumhansl confondaient majeur et mineur ; sans la mesure de « pics », les kicks donnaient une tonalité à la batterie. |
+| BPM gardé seulement pour les boucles (ou écrit dans le nom) ; arrondi à l'entier. Tonalités écrites comme dans les packs : `C#m`, `Eb`, `F#`, `Bb`… | Le tempo d'un one-shot n'a pas de sens ; les packs n'utilisent presque jamais de BPM décimal. |
+| `key:` lit la tonalité (note, altération, mode) des deux côtés : `key:A#` trouve `Bb`, `key:A` couvre la et la mineur. Même règle en TypeScript (`src/lib/keys.ts`), vérifiée par la parité. | La même tonalité s'écrit de deux façons selon les packs. |
+| File de fond dans l'indexeur, après les scans et les waveforms, par lots de 16, sur **deux threads** (pool rayon dédié). Reprise : `analyzed_at IS NULL` en base ; `settings.analysis_version` refait tout quand l'algorithme change. Un fichier illisible est marqué analysé (pas de nouvel essai avant qu'il change). | Le DAW garde la machine ; quitter l'app ne perd rien. |
+| Résultats appliqués au catalogue **sans rechargement** (liste partagée avec l'indexeur, vidée à chaque `sync`). L'UI interroge l'avancement toutes les 3 s : ligne dans Réglages › Sources, page visible rechargée tant que l'analyse avance. | Recharger 100 000 fichiers toutes les secondes pendant 15 minutes aurait bloqué les frappes (0,3 s chacune). Pas d'événement de plus : l'avancement est lent et discret. |
+| Jeu test **synthétisé** dans le test (déterministe, noms neutres) : 38 boucles de batterie (6 motifs, 80 à 174 BPM, chacun à des tempos où on le trouve vraiment, 1 à 4 mesures, swing, silence final), 24 boucles tonales (les 24 tonalités), 16 one-shots de batterie, 12 accords et nappes. Critère : BPM exact ≥ 95 % sur les boucles coupées, ≥ 85 % sur toutes, ≥ 95 % à l'octave près ; tonalité exacte ≥ 85 % ; ≤ 5 % de batteries avec tonalité ; boucle / one-shot ≥ 95 % ; précision et rappel des filtres `bpm:` et `key:`. | Pas de jeu annoté libre de droits à télécharger ici. Les noms neutres obligent l'audio à faire ses preuves ; un test ignoré compare l'audio aux noms d'un vrai dossier. |
+| Profil `dev` : symphonia et crate-core compilés optimisés. | Sans cela, le test d'analyse prend plusieurs minutes en debug (CI). |
+
+Résultats (jeu test, build release) : BPM exact 52/53 sur les boucles coupées à la mesure, 5/9 sur celles suivies de
+silence (tempo libre, à ±2 % ou à l'octave), 61/62 à l'octave près ; tonalité 32/36 (les 4 erreurs : la progression
+i–VI–III–VII, qui est aussi vi–IV–I–V de la relative majeure, lue en majeur), score MIREX 92 % ; 54/54 batteries sans
+tonalité ; boucle / one-shot 90/90. Ambiguïtés réelles : un breakbeat à 80 BPM en doubles-croches et une dnb à 160
+sont le même signal (lu 160).
+
 ### Risques ouverts
 
 - tauri-specta est en RC : surveiller la sortie de la 2.0 stable et lever l'épinglage.
@@ -151,6 +171,11 @@ Ce qui reste à vérifier sur Mac (toutes phases) : `docs/verification-mac.md`.
   navigation au clavier propre à ces vues.
 - Les MacBook n'ont pas de F10 sans fn : ⇧F10 peut être pénible ; à revoir après usage.
 - Réglages dans le `localStorage` de WKWebView : à vérifier qu'ils survivent à une mise à jour de l'app.
+- Analyse : réglée sur un jeu synthétisé ; à confronter à de vrais packs (test ignoré `vrai_dossier_compare_aux_noms`).
+  Erreurs d'octave possibles sur les tempos lents ou très rapides quand le nom ne dit rien (80 ↔ 160, 87 ↔ 174) ;
+  tempo libre à ±2 % pour une boucle suivie de silence.
+- Pas de réglage pour suspendre l'analyse (deux threads, priorité normale) : à ajouter si elle gêne pendant une
+  session sur batterie.
 - En développement, recharger la page (F5) laisse d'anciens écouteurs d'événements Tauri actifs (dépôts reçus en
   double ou triple) ; sans effet dans l'app livrée, qui ne recharge pas sa page.
 - Rendu : ~27 ms dans le conteneur sans GPU quand ~70 lignes nouvelles apparaissent ; à mesurer sur Mac (⌥⌘D).

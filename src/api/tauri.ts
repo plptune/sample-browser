@@ -35,6 +35,7 @@ export const tauriBackend: Backend = {
   setFolderHidden: (id, hidden) => commands.setFolderHidden(id, hidden),
   peaks: async (id) => (await commands.peaks(id)) as number[],
   synonyms: () => commands.synonyms(),
+  analysisStatus: () => commands.analysisStatus(),
   setSynonyms: (groups) => commands.setSynonyms(groups),
   planCommit: (key, options) => commands.planCommit(key, options),
   commitToFolder: (key, destination, options) => unwrap(commands.commitToFolder(key, destination, options)),

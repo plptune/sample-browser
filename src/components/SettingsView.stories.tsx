@@ -30,3 +30,8 @@ const meta = {
 export default meta;
 
 export const Reglages: StoryObj<typeof meta> = {};
+
+/** Analyse de fond en cours (tempo, tonalité) : une ligne discrète sous les sources. */
+export const AnalyseEnCours: StoryObj<typeof meta> = {
+  args: { analysis: { done: 12_480, total: 41_250 } },
+};

@@ -9,6 +9,7 @@ type Check<T extends true> = T;
 // Ce que Rust renvoie doit être utilisable tel quel par l'UI…
 export type Contract = [
   Check<Assignable<Rust.Sample, Ui.Sample>>,
+  Check<Assignable<Rust.AnalysisStatus, Ui.AnalysisStatus>>,
   Check<Assignable<Rust.Tag, Ui.Tag>>,
   Check<Assignable<Rust.Collection_Serialize, Ui.Collection>>,
   Check<Assignable<Rust.VirtualFolder, Ui.VirtualFolder>>,

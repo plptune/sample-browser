@@ -45,7 +45,12 @@ fn generate(root: &Path, n: usize) {
         };
         let dir = root.join(rel);
         fs::create_dir_all(&dir).unwrap();
-        let name = format!("{}_{}_{:05}.wav", KINDS[i % KINDS.len()], ADJ[(i / 8) % ADJ.len()], i);
+        // Comme dans les packs : boucles et voix portent un tempo et une tonalité dans le nom.
+        let tail = match i % KINDS.len() {
+            5 | 6 => format!("_{}_{}", [90, 120, 128, 140][(i / 8) % 4], ["Am", "C", "F#m", "Bb"][(i / 32) % 4]),
+            _ => String::new(),
+        };
+        let name = format!("{}_{}{tail}_{:05}.wav", KINDS[i % KINDS.len()], ADJ[(i / 8) % ADJ.len()], i);
         fs::write(dir.join(name), wav_bytes(64 + (i % 512) as u32)).unwrap();
         i += 1;
     }
@@ -116,6 +121,9 @@ fn indexation_de_100_000_fichiers() {
         "kick dusty",
         "#warm",
         "type:loop",
+        "key:Am",
+        "key:A#",
+        "bpm:118-122",
         "zzz",
         "-kick",
     ] {

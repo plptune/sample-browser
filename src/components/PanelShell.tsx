@@ -232,6 +232,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
         <Match when={app.view() === "settings"}>
           <SettingsView
             sources={app.sources()}
+            analysis={app.analysis()}
             theme={app.themePref()}
             density={app.density()}
             alwaysOnTop={app.alwaysOnTop()}

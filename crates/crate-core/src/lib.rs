@@ -3,6 +3,7 @@
 //! `catalog` : arbre, recherche et commit en mémoire. `mock` : les données du prototype (mode démo).
 //! `db`, `scan`, `indexer`, `library` : la vraie bibliothèque (SQLite, scan des dossiers, notify).
 
+pub mod analysis;
 pub mod audio;
 pub mod catalog;
 pub mod db;

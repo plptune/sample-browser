@@ -93,15 +93,34 @@ Rust (`crates/crate-core/tests/library.rs`). Reste l'usage réel :
       progression avance vraiment, l'UI reste utilisable pendant la copie, rien n'est écrasé (« nom 2 »), « Ouvrir dans
       le Finder » à la fin. Une destination non vide est refusée.
 
-## 6. Mémoire, taille, lancement (budgets du plan)
+## 6. Analyse de fond (phase 6)
+
+L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysis.rs`). Sur de vrais samples :
+
+- [ ] Sur un dossier de packs dont les noms portent tempo et tonalité (`…_120_Am.wav`), lancer depuis le dépôt :
+      `CRATE_ANALYSIS_DIR=~/Music/Samples cargo test --release -p crate-core --test analysis -- --ignored --nocapture`.
+      Le test analyse chaque fichier **sous un nom neutre** et compare au nom. Noter les deux scores (BPM, tonalité)
+      et les erreurs typiques (octave, relative majeure / mineure).
+- [ ] Ajouter un gros dossier (≥ 10 000 fichiers) : Réglages › Sources affiche « Analyse du tempo et de la
+      tonalité · n / total » ; noter la durée totale. Pendant ce temps, le DAW ne craque pas (deux threads seulement)
+      et la frappe reste sous 16 ms (⌥⌘D).
+- [ ] BPM et tonalité apparaissent dans les lignes au fil de l'analyse, sans rien faire ; `bpm:120-128`, `key:Am`,
+      `key:A#` (trouve `Bb`), `type:loop` donnent des résultats crédibles sur des fichiers aux noms muets.
+- [ ] Quitter pendant l'analyse, relancer : elle reprend où elle en était (le compteur repart du reste).
+- [ ] Un fichier modifié dans le Finder (remplacé par un autre son) est réanalysé.
+
+## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).
 - [ ] Mémoire au repos < 150 Mo (Moniteur d'activité, après un scan de 100 000 fichiers).
 - [ ] Taille de `Crate.app` < 15 Mo.
 - [ ] Mac Intel (si disponible) : l'app se lance et joue (le build CI est Apple Silicon).
 
-## 7. Déjà noté comme limite (pas un bug à chercher)
+## 8. Déjà noté comme limite (pas un bug à chercher)
 
 - En `pnpm tauri dev`, recharger la page (F5) laisse d'anciens écouteurs actifs : dépôts reçus en double. L'app livrée
   ne recharge jamais sa page.
-- Le prototype en ligne et Storybook restent sur des données factices : ni son, ni Finder, ni glisser natif.
+- Le prototype en ligne et Storybook restent sur des données factices : ni son, ni Finder, ni glisser natif, ni
+  analyse.
+- Tempo d'un sample au nom muet : une erreur d'octave reste possible (80 ↔ 160, 87 ↔ 174) ; une boucle suivie de
+  silence a un tempo à ±2 %.

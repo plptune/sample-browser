@@ -31,6 +31,8 @@ export const commands = {
 	setFolderHidden: (id: number, hidden: boolean) => __TAURI_INVOKE<void>("set_folder_hidden", { id, hidden }),
 	/**  Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ». */
 	peaks: (id: number) => __TAURI_INVOKE<(number | null)[]>("peaks", { id }),
+	/**  Avancement de l'analyse de fond (tempo, tonalité, boucle / one-shot). */
+	analysisStatus: () => __TAURI_INVOKE<AnalysisStatus>("analysis_status"),
 	synonyms: () => __TAURI_INVOKE<string[][]>("synonyms"),
 	setSynonyms: (groups: string[][]) => __TAURI_INVOKE<void>("set_synonyms", { groups }),
 	planCommit: (key: string, options: CommitOptions) => __TAURI_INVOKE<CommitPlan>("plan_commit", { key, options }),
@@ -74,6 +76,15 @@ export const events = {
 };
 
 /* Types */
+/**
+ *  Analyse de fond (tempo, tonalité, boucle / one-shot) : fichiers analysés / à analyser depuis le dernier
+ *  départ. `done == total` : rien en attente.
+ */
+export type AnalysisStatus = {
+	done: number,
+	total: number,
+};
+
 /**  Collection : simple regroupement de samples, à plat. Smart = recherche enregistrée. */
 export type Collection = Collection_Serialize | Collection_Deserialize;
 

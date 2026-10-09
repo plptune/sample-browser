@@ -9,6 +9,8 @@ const QUERIES = [
   "", "kick", "#warm", "bpm:120-128", "key:Am", "key:F", "dur:<1s", "type:loop #lofi bpm:80-110", "-#bright kick",
   '"tape 1"', "in:night", "in:drums", "in:pack", "in:go", "is:fav", "is:untagged", "vox", "bpm:>170 #airy", "-loop",
   "dur:1-4s", "type:one-shot", "bd", "hh", "vocal -kick", "-sd", '"bd"',
+  // Enharmonies et modes écrits.
+  "key:A#", "key:a#m", "key:Gb", "key:F#maj", "key:bbm", "key:Hm",
 ];
 const EXPANDED = {
   library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5", "p:3"]],

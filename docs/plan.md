@@ -131,7 +131,7 @@ Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Ru
 | `#tag` | `#warm` | A ce tag |
 | `-` devant | `-loop`, `-#bright` | Exclusion |
 | `bpm:` | `bpm:120-128`, `bpm:>140` | Plage ou comparaison |
-| `key:` | `key:Am`, `key:C` | Tonalité (note seule = majeur + mineur) |
+| `key:` | `key:Am`, `key:C`, `key:A#` | Tonalité (note seule = majeur + mineur ; enharmonies équivalentes : `A#` = `Bb`) |
 | `dur:` | `dur:<2s`, `dur:1-4s` | Durée |
 | `in:` | `in:Drums` | Collection, sinon dossier virtuel (et ses sous-dossiers), sinon chemin |
 | `type:` | `type:loop`, `type:oneshot` | Loop / one-shot |
@@ -231,6 +231,24 @@ Tout est dans le dépôt `plptune/sample-browser` :
   contenus) avant et après toutes les mutations, un rescan, le calcul des pics, une copie et le retrait d'une source.
 - **Ce qui reste à vérifier sur Mac, toutes phases confondues : [`docs/verification-mac.md`](verification-mac.md).**
 
+### Phase 6 — Analyse de fond ✅ terminée (à valider sur un vrai dossier)
+
+- Tempo, tonalité, boucle / one-shot pour chaque fichier, dans l'ordre : le **nom** (`Bass_Loop_Dark_115_Bm`,
+  `Pad 120bpm F#min`), le chunk **acid** des WAV, puis l'**audio** (30 premières secondes, mono, ~11 kHz) :
+  flux spectral et autocorrélation pour le tempo, calé sur la durée exacte pour une boucle coupée à la mesure ;
+  chromagramme et profils de Temperley pour la tonalité, seulement si le son est tonal (jamais sur une batterie).
+- Le nom sert dès le scan (les filtres marchent tout de suite) ; l'analyse audio suit en fond, après les waveforms,
+  sur deux threads, par lots de 16. Reprise après redémarrage (ce qui reste est en base) ; une nouvelle version de
+  l'analyse refait tout. Le catalogue est mis à jour sans rechargement ; Réglages › Sources affiche l'avancement.
+- `key:` accepte les enharmonies (`key:A#` trouve `Bb`), en Rust comme dans le prototype.
+- Jeu test annoté (90 fichiers synthétisés, noms neutres : l'audio seul) : **BPM exact 98 %** sur les boucles coupées
+  à la mesure (98 % à l'octave près sur toutes), **tonalité exacte 89 %** (score MIREX 92 %), aucune tonalité sur la
+  batterie, boucle / one-shot 100 %. ~15 ms par fichier (un cœur). Recherche `key:` / `bpm:` à 100 000 fichiers :
+  3 à 5 ms.
+- **À valider sur un vrai dossier** : `CRATE_ANALYSIS_DIR=… cargo test --release -p crate-core --test analysis --
+  --ignored --nocapture` compare l'audio aux tempos et tonalités écrits dans les noms (voir
+  `docs/verification-mac.md`).
+
 ### Phases 2 à 6 — Le moteur
 
 Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
@@ -245,7 +263,7 @@ Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
    - Sortie : son en < 30 ms ; drop fonctionnel dans Ableton Live 12 et Logic.
 5. ✅ **Tags, collections, favoris** — toutes les mutations du contrat en base (tags, favoris, collections manuelles et smart, renommage, suppression, ajout, raccourcis), révéler dans le Finder. **Masquer des fichiers** : « Masquer » dans le menu d'un sample ou d'un dossier, `is:hidden` pour les retrouver, « Afficher » pour annuler (jamais de suppression).
    - Sortie : tout est faisable sans souris ; rien n'est écrit dans les dossiers de l'utilisateur.
-6. **Analyse de fond** — BPM, tonalité, type loop / one-shot ; file de priorité basse, reprise après redémarrage.
+6. ✅ **Analyse de fond** — BPM, tonalité, type loop / one-shot ; file de priorité basse, reprise après redémarrage.
    - Sortie : filtres `bpm:` et `key:` fiables sur un jeu test annoté.
 
 ## Prompt phases 1 à 6 — le moteur
@@ -364,3 +382,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.9 | Phase 3 : arbre virtualisé par pages, synonymes dans les Réglages, overlay de mesures ⌥⌘D |
 | v1.0 | Phase 4 : son réel, waveforms réelles, glisser natif vers le DAW, boucle / volume / aléatoire |
 | v1.1 | Phase 5 : masquer (`is:hidden`), tout au clavier (⇧F10, ⌘⌫, ⌘⇧N, ⇧← / ⇧→), réglages mémorisés, vraie progression de copie |
+| v1.2 | Phase 6 : analyse de fond (nom, chunk acid, audio) ; `key:` avec enharmonies ; avancement dans les Réglages |

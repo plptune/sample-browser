@@ -2,6 +2,7 @@
 
 import { batch, createEffect, createRoot, createSignal, on } from "solid-js";
 import {
+  type AnalysisStatus,
   api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type NodeKey, type Sample, type SampleId, type ScanStatus,
   type Source,
   type TreeRoot, type TreeRow,
@@ -932,6 +933,17 @@ function createAppState() {
     }
   }
 
+  // --- analyse de fond (tempo, tonalité) : suivie toutes les 3 s ; tant qu'elle avance, la page visible est
+  // rechargée pour que BPM et tonalité apparaissent (et que les filtres bpm: / key: les voient).
+  const [analysis, setAnalysis] = createSignal<AnalysisStatus | null>(null);
+  let lastAnalysisDone = -1;
+  async function pollAnalysis() {
+    const a = await api.analysisStatus();
+    setAnalysis(a);
+    if (a.done !== lastAnalysisDone && lastAnalysisDone >= 0 && !scan()) void refresh();
+    lastAnalysisDone = a.done;
+  }
+
   // --- synonymes de la recherche (Réglages)
   const [synonyms, setSynonyms] = createSignal<string[][]>([]);
   async function saveSynonyms(groups: string[][]) {
@@ -1002,6 +1014,8 @@ function createAppState() {
     setDemo(isDemo);
     if (isDemo) return true;
     api.onScanStatus(onScanStatus);
+    void pollAnalysis();
+    setInterval(() => void pollAnalysis(), 3000);
     const current = await api.scanStatus();
     if (current) onScanStatus(current);
     await reloadLibrary();
@@ -1052,7 +1066,7 @@ function createAppState() {
     select, move, right, left, activate, play, stop, togglePlay, selectKey,
     total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms,
     hideSelection, hideFolder, removeOrHide,
-    looping, setLooping, volume, setVolume, stopOnDrag, setStopOnDrag, stopOnBlur, setStopOnBlur, latency, seekTo, nudge, playRandom, metrics, debug, setDebug,
+    looping, setLooping, volume, setVolume, stopOnDrag, setStopOnDrag, stopOnBlur, setStopOnBlur, latency, seekTo, nudge, playRandom, analysis, metrics, debug, setDebug,
     jumpTo, back, forward, clearHistory, canBack, canForward,
     demo, notice, setNotice, fileOver, setFileOver, addFolder, refreshSource, start, showInFinder, openFolderInFinder, finderForSelection, chooseCommitParent,
   };

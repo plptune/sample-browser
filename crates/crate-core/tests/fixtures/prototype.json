@@ -18270,6 +18270,450 @@
    "rows": []
   },
   {
+   "root": "library",
+   "query": "key:A#",
+   "expanded": [],
+   "totalRows": 23,
+   "matches": 15,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:4|open",
+    "3|s:318@f:4",
+    "3|s:315@f:4",
+    "2|f:5|open",
+    "3|s:287@f:5",
+    "3|s:294@f:5",
+    "3|s:289@f:5",
+    "3|s:293@f:5",
+    "3|s:292@f:5",
+    "3|s:314@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:262@f:16",
+    "2|s:256@f:16",
+    "2|s:252@f:16",
+    "2|s:237@f:16",
+    "2|s:241@f:16",
+    "1|f:17|open",
+    "2|f:18|open",
+    "3|s:352@f:18",
+    "3|s:359@f:18"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:A#",
+   "expanded": [
+    "f:10",
+    "f:11",
+    "f:12"
+   ],
+   "totalRows": 23,
+   "matches": 15,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:4|open",
+    "3|s:318@f:4",
+    "3|s:315@f:4",
+    "2|f:5|open",
+    "3|s:287@f:5",
+    "3|s:294@f:5",
+    "3|s:289@f:5",
+    "3|s:293@f:5",
+    "3|s:292@f:5",
+    "3|s:314@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:262@f:16",
+    "2|s:256@f:16",
+    "2|s:252@f:16",
+    "2|s:237@f:16",
+    "2|s:241@f:16",
+    "1|f:17|open",
+    "2|f:18|open",
+    "3|s:352@f:18",
+    "3|s:359@f:18"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:A#",
+   "expanded": [
+    "f:1",
+    "f:2",
+    "f:3",
+    "f:20",
+    "f:21",
+    "f:22"
+   ],
+   "totalRows": 23,
+   "matches": 15,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:4|open",
+    "3|s:318@f:4",
+    "3|s:315@f:4",
+    "2|f:5|open",
+    "3|s:287@f:5",
+    "3|s:294@f:5",
+    "3|s:289@f:5",
+    "3|s:293@f:5",
+    "3|s:292@f:5",
+    "3|s:314@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:262@f:16",
+    "2|s:256@f:16",
+    "2|s:252@f:16",
+    "2|s:237@f:16",
+    "2|s:241@f:16",
+    "1|f:17|open",
+    "2|f:18|open",
+    "3|s:352@f:18",
+    "3|s:359@f:18"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:A#",
+   "expanded": [
+    "c:fav",
+    "c:1",
+    "v:3",
+    "v:4",
+    "v:5",
+    "p:3"
+   ],
+   "totalRows": 23,
+   "matches": 15,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:4|open",
+    "3|s:318@f:4",
+    "3|s:315@f:4",
+    "2|f:5|open",
+    "3|s:287@f:5",
+    "3|s:294@f:5",
+    "3|s:289@f:5",
+    "3|s:293@f:5",
+    "3|s:292@f:5",
+    "3|s:314@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:262@f:16",
+    "2|s:256@f:16",
+    "2|s:252@f:16",
+    "2|s:237@f:16",
+    "2|s:241@f:16",
+    "1|f:17|open",
+    "2|f:18|open",
+    "3|s:352@f:18",
+    "3|s:359@f:18"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:a#m",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:a#m",
+   "expanded": [
+    "f:10",
+    "f:11",
+    "f:12"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:a#m",
+   "expanded": [
+    "f:1",
+    "f:2",
+    "f:3",
+    "f:20",
+    "f:21",
+    "f:22"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:a#m",
+   "expanded": [
+    "c:fav",
+    "c:1",
+    "v:3",
+    "v:4",
+    "v:5",
+    "p:3"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:Gb",
+   "expanded": [],
+   "totalRows": 11,
+   "matches": 6,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:5|open",
+    "3|s:282@f:5",
+    "3|s:297@f:5",
+    "3|s:284@f:5",
+    "3|s:295@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:257@f:16",
+    "2|s:263@f:16"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:Gb",
+   "expanded": [
+    "f:10",
+    "f:11",
+    "f:12"
+   ],
+   "totalRows": 11,
+   "matches": 6,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:5|open",
+    "3|s:282@f:5",
+    "3|s:297@f:5",
+    "3|s:284@f:5",
+    "3|s:295@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:257@f:16",
+    "2|s:263@f:16"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:Gb",
+   "expanded": [
+    "f:1",
+    "f:2",
+    "f:3",
+    "f:20",
+    "f:21",
+    "f:22"
+   ],
+   "totalRows": 11,
+   "matches": 6,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:5|open",
+    "3|s:282@f:5",
+    "3|s:297@f:5",
+    "3|s:284@f:5",
+    "3|s:295@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:257@f:16",
+    "2|s:263@f:16"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:Gb",
+   "expanded": [
+    "c:fav",
+    "c:1",
+    "v:3",
+    "v:4",
+    "v:5",
+    "p:3"
+   ],
+   "totalRows": 11,
+   "matches": 6,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|open",
+    "2|f:5|open",
+    "3|s:282@f:5",
+    "3|s:297@f:5",
+    "3|s:284@f:5",
+    "3|s:295@f:5",
+    "0|f:10|open",
+    "1|f:16|open",
+    "2|s:257@f:16",
+    "2|s:263@f:16"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "key:F#maj",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:F#maj",
+   "expanded": [
+    "f:10",
+    "f:11",
+    "f:12"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:F#maj",
+   "expanded": [
+    "f:1",
+    "f:2",
+    "f:3",
+    "f:20",
+    "f:21",
+    "f:22"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:F#maj",
+   "expanded": [
+    "c:fav",
+    "c:1",
+    "v:3",
+    "v:4",
+    "v:5",
+    "p:3"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:bbm",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:bbm",
+   "expanded": [
+    "f:10",
+    "f:11",
+    "f:12"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:bbm",
+   "expanded": [
+    "f:1",
+    "f:2",
+    "f:3",
+    "f:20",
+    "f:21",
+    "f:22"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:bbm",
+   "expanded": [
+    "c:fav",
+    "c:1",
+    "v:3",
+    "v:4",
+    "v:5",
+    "p:3"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:Hm",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:Hm",
+   "expanded": [
+    "f:10",
+    "f:11",
+    "f:12"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:Hm",
+   "expanded": [
+    "f:1",
+    "f:2",
+    "f:3",
+    "f:20",
+    "f:21",
+    "f:22"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "library",
+   "query": "key:Hm",
+   "expanded": [
+    "c:fav",
+    "c:1",
+    "v:3",
+    "v:4",
+    "v:5",
+    "p:3"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
    "root": "virtual",
    "query": "",
    "expanded": [],
@@ -22465,6 +22909,288 @@
   {
    "root": "virtual",
    "query": "\"bd\"",
+   "expanded": [
+    "c:fav",
+    "v:1",
+    "v:2",
+    "v:3",
+    "v:4",
+    "v:5"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:A#",
+   "expanded": [],
+   "totalRows": 12,
+   "matches": 15,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:352@c:fav",
+    "0|g:collections|open",
+    "1|c:2|open",
+    "2|s:352@c:2",
+    "2|s:359@c:2",
+    "1|c:4|open",
+    "2|s:252@c:4",
+    "0|v:1|open",
+    "1|v:2|open",
+    "2|s:287@v:2",
+    "2|s:293@v:2"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "key:A#",
+   "expanded": [
+    "g:collections",
+    "c:1",
+    "c:2",
+    "c:3",
+    "c:4"
+   ],
+   "totalRows": 12,
+   "matches": 15,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:352@c:fav",
+    "0|g:collections|open",
+    "1|c:2|open",
+    "2|s:352@c:2",
+    "2|s:359@c:2",
+    "1|c:4|open",
+    "2|s:252@c:4",
+    "0|v:1|open",
+    "1|v:2|open",
+    "2|s:287@v:2",
+    "2|s:293@v:2"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "key:A#",
+   "expanded": [
+    "c:fav",
+    "v:1",
+    "v:2",
+    "v:3",
+    "v:4",
+    "v:5"
+   ],
+   "totalRows": 12,
+   "matches": 15,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:352@c:fav",
+    "0|g:collections|open",
+    "1|c:2|open",
+    "2|s:352@c:2",
+    "2|s:359@c:2",
+    "1|c:4|open",
+    "2|s:252@c:4",
+    "0|v:1|open",
+    "1|v:2|open",
+    "2|s:287@v:2",
+    "2|s:293@v:2"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "key:a#m",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:a#m",
+   "expanded": [
+    "g:collections",
+    "c:1",
+    "c:2",
+    "c:3",
+    "c:4"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:a#m",
+   "expanded": [
+    "c:fav",
+    "v:1",
+    "v:2",
+    "v:3",
+    "v:4",
+    "v:5"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:Gb",
+   "expanded": [],
+   "totalRows": 6,
+   "matches": 6,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:297@c:fav",
+    "0|v:1|open",
+    "1|v:2|open",
+    "2|s:263@v:2",
+    "2|s:284@v:2"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "key:Gb",
+   "expanded": [
+    "g:collections",
+    "c:1",
+    "c:2",
+    "c:3",
+    "c:4"
+   ],
+   "totalRows": 6,
+   "matches": 6,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:297@c:fav",
+    "0|v:1|open",
+    "1|v:2|open",
+    "2|s:263@v:2",
+    "2|s:284@v:2"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "key:Gb",
+   "expanded": [
+    "c:fav",
+    "v:1",
+    "v:2",
+    "v:3",
+    "v:4",
+    "v:5"
+   ],
+   "totalRows": 6,
+   "matches": 6,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:297@c:fav",
+    "0|v:1|open",
+    "1|v:2|open",
+    "2|s:263@v:2",
+    "2|s:284@v:2"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "key:F#maj",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:F#maj",
+   "expanded": [
+    "g:collections",
+    "c:1",
+    "c:2",
+    "c:3",
+    "c:4"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:F#maj",
+   "expanded": [
+    "c:fav",
+    "v:1",
+    "v:2",
+    "v:3",
+    "v:4",
+    "v:5"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:bbm",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:bbm",
+   "expanded": [
+    "g:collections",
+    "c:1",
+    "c:2",
+    "c:3",
+    "c:4"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:bbm",
+   "expanded": [
+    "c:fav",
+    "v:1",
+    "v:2",
+    "v:3",
+    "v:4",
+    "v:5"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:Hm",
+   "expanded": [],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:Hm",
+   "expanded": [
+    "g:collections",
+    "c:1",
+    "c:2",
+    "c:3",
+    "c:4"
+   ],
+   "totalRows": 0,
+   "matches": 0,
+   "rows": []
+  },
+  {
+   "root": "virtual",
+   "query": "key:Hm",
    "expanded": [
     "c:fav",
     "v:1",

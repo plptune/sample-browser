@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate_core::audio::Player;
 use crate_core::{
-    Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, PlaybackOptions, PlaybackStatus,
-    SampleId, ScanStatus, Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder,
+    AnalysisStatus, Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, PlaybackOptions,
+    PlaybackStatus, SampleId, ScanStatus, Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -249,6 +249,13 @@ fn peaks(lib: State<'_, Lib>, id: SampleId) -> Vec<f32> {
     lib.lock().peaks(id).into_iter().map(|x| x as f32).collect()
 }
 
+/// Avancement de l'analyse de fond (tempo, tonalité, boucle / one-shot).
+#[tauri::command]
+#[specta::specta]
+fn analysis_status(lib: State<'_, Lib>) -> AnalysisStatus {
+    lib.lock().analysis_status()
+}
+
 #[tauri::command]
 #[specta::specta]
 fn synonyms(lib: State<'_, Lib>) -> Vec<Vec<String>> {
@@ -428,6 +435,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_hidden,
             set_folder_hidden,
             peaks,
+            analysis_status,
             synonyms,
             set_synonyms,
             plan_commit,

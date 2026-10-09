@@ -102,7 +102,8 @@ enum Cond {
     Tag(String),
     Bpm(Box<dyn Fn(f64) -> bool + Send + Sync>),
     Dur(Box<dyn Fn(f64) -> bool + Send + Sync>),
-    Key(String),
+    /// Classe de hauteur, et le mode s'il est écrit (`key:A` couvre la et la mineur).
+    Key(u8, Option<bool>),
     Kind(SampleKind),
     Fav,
     Untagged,
@@ -162,12 +163,11 @@ fn cond(c: &Cond, s: &Sample, hay: &str, i: usize, hidden: bool) -> bool {
         Cond::Tag(v) => s.tags.contains(v),
         Cond::Bpm(f) => s.bpm.is_some_and(f),
         Cond::Dur(f) => f(s.duration_ms as f64 / 1000.0),
-        Cond::Key(want) => {
-            let Some(have) = s.key.as_ref().map(|k| k.to_lowercase()) else {
-                return false;
-            };
-            have == *want || (!want.ends_with('m') && have.strip_suffix('m').unwrap_or(&have) == want)
-        }
+        Cond::Key(pc, mode) => s
+            .key
+            .as_deref()
+            .and_then(crate::analysis::parse_key)
+            .is_some_and(|(p, minor)| p == *pc && mode.is_none_or(|m| m == minor)),
         Cond::Kind(k) => s.kind == *k,
         Cond::Fav => s.fav,
         Cond::Untagged => s.tags.is_empty(),
@@ -247,6 +247,22 @@ impl Catalog {
     }
 
     /// Oublie l'arbre en cache (à appeler à chaque modification).
+    /// Résultats de l'analyse de fond, appliqués sans recharger le catalogue.
+    pub fn apply_analysis(&mut self, updates: &[crate::indexer::AnalysisUpdate]) {
+        if updates.is_empty() {
+            return;
+        }
+        for u in updates {
+            if let Some(&i) = self.by_id.get(&u.id) {
+                let s = &mut self.samples[i];
+                s.bpm = u.bpm;
+                s.key.clone_from(&u.key);
+                s.kind = u.kind;
+            }
+        }
+        self.touch();
+    }
+
     pub(crate) fn touch(&mut self) {
         *self.cache.get_mut() = None;
     }
@@ -362,7 +378,15 @@ impl Catalog {
                     TokenKind::Filter(key) => match key {
                         FilterKey::Bpm => Cond::Bpm(Box::new(query::parse_range(&t.value, ""))),
                         FilterKey::Dur => Cond::Dur(Box::new(query::parse_range(&t.value, "s"))),
-                        FilterKey::Key => Cond::Key(t.value.to_lowercase()),
+                        FilterKey::Key => match crate::analysis::parse_key(&t.value) {
+                            // Mode écrit : mineur, ou « maj » / « major » ; une note seule couvre les deux.
+                            Some((pc, minor)) => {
+                                let low = t.value.to_lowercase();
+                                let written = minor || ["maj", "major", "dur"].iter().any(|m| low.ends_with(m));
+                                Cond::Key(pc, written.then_some(minor))
+                            }
+                            None => Cond::Never,
+                        },
                         FilterKey::Type => match if t.value == "one-shot" { "oneshot" } else { t.value.as_str() } {
                             "oneshot" => Cond::Kind(SampleKind::Oneshot),
                             "loop" => Cond::Kind(SampleKind::Loop),

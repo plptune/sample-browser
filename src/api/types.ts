@@ -162,6 +162,12 @@ export interface ScanStatus {
   finished: boolean;
 }
 
+/** Analyse de fond (tempo, tonalité, boucle / one-shot) depuis le dernier départ ; done === total : rien en attente. */
+export interface AnalysisStatus {
+  done: number;
+  total: number;
+}
+
 /** État de la lecture (événement ~30 fois par seconde pendant la lecture, puis un dernier à l'arrêt). */
 export interface PlaybackStatus {
   id: SampleId;
@@ -233,6 +239,8 @@ export interface Backend {
   isDemo(): Promise<boolean>;
   /** Scan en cours (null sinon) : pour un scan lancé avant que l'UI n'écoute les événements. */
   scanStatus(): Promise<ScanStatus | null>;
+  /** Avancement de l'analyse de fond (interrogé par les Réglages). */
+  analysisStatus(): Promise<AnalysisStatus>;
   /** S'abonne à la progression de l'indexation ; renvoie la fonction de désabonnement. */
   onScanStatus(cb: (s: ScanStatus) => void): () => void;
   /** Dossier : l'ouvre dans le Finder. Fichier : ouvre son dossier et le sélectionne. */

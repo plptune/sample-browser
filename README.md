@@ -1,4 +1,4 @@
-# Crate — navigateur de samples (phase 5 : bibliothèque réelle, son, glisser, tout au clavier)
+# Crate — navigateur de samples (phase 6 : bibliothèque réelle, son, glisser, analyse de fond)
 
 Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton) :
 une arborescence de dossiers qui s'ouvre sur les samples, un second onglet pour les favoris, collections et dossiers
@@ -74,6 +74,8 @@ CRATE_TRACE=1 pnpm tauri dev   # + trace des commandes et des scans sur stderr
 pnpm tauri build               # Crate.app (macOS)
 cargo test --workspace         # tests Rust (parité, scan réel, persistance…), régénère src/api/bindings.ts
 cargo test --release -p crate-core --test bench_scan -- --ignored --nocapture   # mesures sur 100 000 fichiers
+cargo test --release -p crate-core --test analysis -- --nocapture             # précision de l'analyse (jeu test annoté)
+CRATE_ANALYSIS_DIR=~/Music/Samples cargo test --release -p crate-core --test analysis -- --ignored --nocapture  # audio vs noms d'un vrai dossier
 pnpm parity:fixture            # régénère l'empreinte du mock TypeScript après une modification du mock
 ```
 
@@ -86,6 +88,8 @@ Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une c
 Lecture : Espace, ⏎ ou → ; clic dans la waveform du tiroir pour lire depuis ce point ; boucle, volume et arrêt
 automatique (au glisser, en arrière-plan) dans les Réglages. Glisser un sample (ou la sélection) hors de la fenêtre :
 le fichier part vers Ableton, Logic ou le Finder.
+Tempo, tonalité et boucle / one-shot : pris dans le nom dès le scan (`Bass_Loop_115_Bm`), puis analysés dans l'audio
+en fond (deux threads, repris au lancement suivant ; avancement dans Réglages › Sources). `key:A#` trouve aussi `Bb`.
 Masquer (⌘⌫ ou clic droit) retire un sample ou un sous-dossier de partout sans toucher au disque ; `is:hidden` les
 retrouve, « Afficher » annule. Les réglages (thème, densité, lecture, fenêtre) sont gardés d'un lancement à l'autre.
 Recherche : un mot d'un groupe de synonymes trouve aussi les autres (`kick` trouve `bd`) ; les groupes se modifient

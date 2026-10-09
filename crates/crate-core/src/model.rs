@@ -290,6 +290,15 @@ pub struct ScanStatus {
     pub finished: bool,
 }
 
+/// Analyse de fond (tempo, tonalité, boucle / one-shot) : fichiers analysés / à analyser depuis le dernier
+/// départ. `done == total` : rien en attente.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct AnalysisStatus {
+    pub done: u32,
+    pub total: u32,
+}
+
 /// État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -357,6 +366,10 @@ pub trait Backend {
     fn set_folder_hidden(&mut self, id: u32, hidden: bool);
     /// Pics de waveform d'un sample (256 valeurs 0..1, vide tant qu'ils ne sont pas calculés).
     fn peaks(&self, id: SampleId) -> Vec<f64>;
+    /// Avancement de l'analyse de fond (rien en attente par défaut : données factices).
+    fn analysis_status(&self) -> AnalysisStatus {
+        AnalysisStatus::default()
+    }
     /// Groupes de synonymes appliqués aux mots libres de la recherche.
     fn synonyms(&self) -> Vec<Vec<String>>;
     fn set_synonyms(&mut self, groups: &[Vec<String>]);

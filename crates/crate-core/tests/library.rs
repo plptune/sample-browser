@@ -687,8 +687,184 @@ fn rien_n_est_ecrit_dans_les_dossiers_de_l_utilisateur() {
     .unwrap();
     lib.remove_from_collection(c.id, &ids);
     lib.delete_virtual_folder(v.id);
+    // L'analyse de fond lit les fichiers, elle aussi, sans rien y écrire.
+    wait_for(&mut lib, "analyse", |l| {
+        l.connection()
+            .query_row("SELECT COUNT(*) FROM files WHERE analyzed_at IS NULL", [], |r| r.get::<_, i64>(0))
+            .unwrap()
+            == 0
+    });
     lib.remove_source(src.id);
     drop(lib);
     std::thread::sleep(Duration::from_millis(200));
     assert!(snapshot(&root) == before, "le dossier de l'utilisateur a changé");
+}
+
+/// WAV mono 16 bits à partir d'échantillons (-1..1).
+fn wav_from(path: &Path, rate: u32, x: &[f32]) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let data = x.len() as u32 * 2;
+    let mut b = Vec::with_capacity(44 + data as usize);
+    b.extend_from_slice(b"RIFF");
+    b.extend_from_slice(&(36 + data).to_le_bytes());
+    b.extend_from_slice(b"WAVEfmt ");
+    b.extend_from_slice(&16u32.to_le_bytes());
+    b.extend_from_slice(&1u16.to_le_bytes());
+    b.extend_from_slice(&1u16.to_le_bytes());
+    b.extend_from_slice(&rate.to_le_bytes());
+    b.extend_from_slice(&(rate * 2).to_le_bytes());
+    b.extend_from_slice(&2u16.to_le_bytes());
+    b.extend_from_slice(&16u16.to_le_bytes());
+    b.extend_from_slice(b"data");
+    b.extend_from_slice(&data.to_le_bytes());
+    for v in x {
+        b.extend_from_slice(&((v.clamp(-1.0, 1.0) * 30000.0) as i16).to_le_bytes());
+    }
+    fs::write(path, b).unwrap();
+}
+
+/// Boucle de deux mesures : kick sur les temps, charleston (bruit) sur les contretemps.
+fn beat_loop(path: &Path, bpm: f32) {
+    let rate = 44_100.0;
+    let beat = 60.0 / bpm;
+    let n = (8.0 * beat * rate) as usize;
+    let mut seed = 12345u32;
+    let x: Vec<f32> = (0..n)
+        .map(|i| {
+            let t = i as f32 / rate;
+            let tb = t % beat;
+            let kick = (std::f32::consts::TAU * (50.0 * tb + 3.3 * (1.0 - (-30.0 * tb).exp()))).sin() * (-8.0 * tb).exp();
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let noise = (seed >> 9) as f32 / (1u32 << 23) as f32 * 2.0 - 1.0;
+            let th = (t + beat / 2.0) % beat;
+            0.7 * kick + 0.25 * noise * (-60.0 * th).exp()
+        })
+        .collect();
+    wav_from(path, 44_100, &x);
+}
+
+/// Accord plaqué (fondamentale, tierce, quinte ; 4 harmoniques) d'une seconde.
+fn chord(path: &Path, root_midi: f32, minor: bool) {
+    let rate = 44_100.0;
+    let third = if minor { 3.0 } else { 4.0 };
+    let x: Vec<f32> = (0..44_100)
+        .map(|i| {
+            let t = i as f32 / rate;
+            let env = (t / 0.005).min(1.0) * (-2.0 * t).exp();
+            [0.0, third, 7.0]
+                .iter()
+                .map(|iv| {
+                    let f = 440.0 * 2f32.powf((root_midi + iv - 69.0) / 12.0);
+                    (1..=4)
+                        .map(|h| (std::f32::consts::TAU * f * h as f32 * t).sin() / h as f32)
+                        .sum::<f32>()
+                })
+                .sum::<f32>()
+                * env
+                * 0.2
+        })
+        .collect();
+    wav_from(path, 44_100, &x);
+}
+
+fn sample<'a>(lib: &'a SqliteLibrary, name: &str) -> &'a crate_core::Sample {
+    lib.catalog().samples().iter().find(|s| s.name == name).unwrap()
+}
+
+/// Phase 6 : le nom sert tout de suite, l'analyse audio complète ensuite ; tout est gardé et repris.
+#[test]
+fn analyse_de_fond_et_reprise() {
+    let tmp = Tmp::new("analysis");
+    let root = tmp.join("Samples");
+    beat_loop(&root.join("groove.wav"), 120.0);
+    chord(&root.join("stab.wav"), 57.0, true);
+    beat_loop(&root.join("Drum_Loop_Tight_95_Am.wav"), 120.0);
+    half_second(&root.join("silence.wav"));
+    let db = tmp.join("crate.db");
+
+    // Juste après le scan : ce que disent les noms.
+    let mut lib = library_at(&db);
+    lib.add_source(&root.to_string_lossy()).unwrap();
+    let named = sample(&lib, "Drum_Loop_Tight_95_Am");
+    assert_eq!(
+        (named.bpm, named.key.as_deref(), named.kind),
+        (Some(95.0), Some("Am"), crate_core::SampleKind::Loop)
+    );
+    assert_eq!(sample(&lib, "groove").bpm, None);
+    assert_eq!(
+        lib.analysis_status(),
+        crate_core::AnalysisStatus::default(),
+        "pas d'indexeur en mode direct"
+    );
+    drop(lib);
+
+    // L'app : l'indexeur analyse en fond, le catalogue suit sans rechargement complet.
+    let mut lib = SqliteLibrary::open(&db, Arc::new(|_| {})).unwrap();
+    wait_for(&mut lib, "analyse de fond", |l| {
+        let st = l.analysis_status();
+        st.total == 4 && st.done == 4 && sample(l, "groove").bpm.is_some()
+    });
+    let g = sample(&lib, "groove");
+    assert_eq!((g.bpm, g.kind, g.key.as_deref()), (Some(120.0), crate_core::SampleKind::Loop, None));
+    assert_eq!(sample(&lib, "stab").key.as_deref(), Some("Am"));
+    assert_eq!(sample(&lib, "stab").kind, crate_core::SampleKind::Oneshot);
+    // Le nom l'emporte sur l'audio (95 écrit, 120 joué).
+    assert_eq!(sample(&lib, "Drum_Loop_Tight_95_Am").bpm, Some(95.0));
+    let s = sample(&lib, "silence");
+    assert_eq!((s.bpm, s.key.as_deref(), s.kind), (None, None, crate_core::SampleKind::Oneshot));
+    // Les filtres voient le résultat.
+    let found = |lib: &SqliteLibrary, q: &str| {
+        let page = lib.tree(&TreeRequest {
+            query: q.into(),
+            ..req(&[])
+        });
+        page.matches
+    };
+    assert_eq!(found(&lib, "bpm:118-122"), 1);
+    assert_eq!(found(&lib, "key:Am"), 2);
+    assert_eq!(found(&lib, "key:A"), 2, "une note seule couvre majeur et mineur");
+    assert_eq!(found(&lib, "type:loop"), 2);
+    drop(lib);
+
+    // Reprise : un fichier resté à analyser (app quittée en cours) est repris, et lui seul.
+    let lib = library_at(&db);
+    let analyzed_at = |lib: &SqliteLibrary, name: &str| -> Option<i64> {
+        lib.connection()
+            .query_row("SELECT analyzed_at FROM files WHERE name = ?", [name], |r| r.get(0))
+            .unwrap()
+    };
+    let before = analyzed_at(&lib, "groove");
+    assert!(before.is_some());
+    lib.connection()
+        .execute("UPDATE files SET analyzed_at = NULL, bpm = NULL WHERE name = 'stab'", [])
+        .unwrap();
+    drop(lib);
+    let mut lib = SqliteLibrary::open(&db, Arc::new(|_| {})).unwrap();
+    assert_eq!(sample(&lib, "groove").bpm, Some(120.0), "relu depuis la base, sans réanalyse");
+    wait_for(&mut lib, "reprise", |l| {
+        let st = l.analysis_status();
+        st.total == 1 && st.done == 1
+    });
+    assert_eq!(analyzed_at(&lib, "groove"), before, "déjà analysé : pas refait");
+    assert!(analyzed_at(&lib, "stab").is_some());
+    drop(lib);
+
+    // Nouvelle version de l'analyse : tout est refait au lancement.
+    let lib = library_at(&db);
+    lib.connection()
+        .execute("UPDATE settings SET value = '0' WHERE key = 'analysis_version'", [])
+        .unwrap();
+    drop(lib);
+    let mut lib = SqliteLibrary::open(&db, Arc::new(|_| {})).unwrap();
+    wait_for(&mut lib, "nouvelle version", |l| {
+        let st = l.analysis_status();
+        st.total == 4 && st.done == 4
+    });
+
+    // Mode direct (outils) : analyze_pending fait le même travail sur place.
+    drop(lib);
+    let mut lib = library_at(&db);
+    lib.connection().execute("UPDATE files SET analyzed_at = NULL", []).unwrap();
+    assert_eq!(lib.analyze_pending(), 4);
+    assert_eq!(sample(&lib, "groove").bpm, Some(120.0));
 }

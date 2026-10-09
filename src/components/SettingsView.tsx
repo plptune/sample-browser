@@ -1,6 +1,6 @@
 // Réglages : remplacent l'arbre dans la même colonne (pas de fenêtre secondaire). Échap ou ‹ pour revenir.
 import { For, Show, type JSX } from "solid-js";
-import type { Source } from "../api";
+import type { AnalysisStatus, Source } from "../api";
 import type { Density, ThemePref } from "../state/app";
 import { IconButton } from "./IconButton";
 import { Segmented } from "./Segmented";
@@ -22,6 +22,8 @@ function Row(props: { label: string; hint?: string; children: JSX.Element }) {
 
 export function SettingsView(props: {
   sources: Source[];
+  /** Analyse de fond en cours : « Analyse du tempo et de la tonalité · n / total ». */
+  analysis?: AnalysisStatus | null;
   theme: ThemePref;
   density: Density;
   alwaysOnTop: boolean;
@@ -74,6 +76,15 @@ export function SettingsView(props: {
             </div>
           )}
         </For>
+        <Show when={props.analysis && props.analysis.done < props.analysis.total ? props.analysis : null}>
+          {(a) => (
+            <div class="cr-setting" role="status">
+              <span class="cr-setting__hint cr-num">
+                Analyse du tempo et de la tonalité · {a().done.toLocaleString("fr-FR")} / {a().total.toLocaleString("fr-FR")}
+              </span>
+            </div>
+          )}
+        </Show>
         <button class="cr-settings__add" onClick={() => props.onAddSource?.()}>
           Ajouter un dossier…
         </button>

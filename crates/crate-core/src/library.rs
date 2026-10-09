@@ -85,9 +85,13 @@ impl SqliteLibrary {
     /// Recharge le catalogue si un scan a avancé. À appeler avant de lire (`tree`, `library`…).
     pub fn sync(&mut self) {
         let urgent = self.changes.urgent.swap(false, Ordering::AcqRel);
+        // Résultats d'analyse : appliqués tels quels (déjà en base, donc sans effet après un rechargement).
+        let analyzed = std::mem::take(&mut *self.changes.analyzed.lock().unwrap_or_else(|e| e.into_inner()));
         if urgent || (self.changes.dirty.load(Ordering::Acquire) && self.last_reload.elapsed() >= RELOAD_EVERY) {
             self.changes.dirty.store(false, Ordering::Release);
             self.reload();
+        } else {
+            self.cat.apply_analysis(&analyzed);
         }
     }
 
@@ -97,6 +101,21 @@ impl SqliteLibrary {
             Err(e) => eprintln!("[crate] rechargement : {e}"),
         }
         self.last_reload = Instant::now();
+    }
+
+    /// Analyse tout ce qui attend, sur ce thread (tests et outils ; l'application le fait en fond).
+    pub fn analyze_pending(&mut self) -> usize {
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(2).build().expect("threads d'analyse");
+        let _ = crate::indexer::check_analysis_version(&self.conn);
+        let mut n = 0;
+        while let Ok((k, updates)) = crate::indexer::analysis_batch(&self.conn, &pool) {
+            if k == 0 {
+                break;
+            }
+            n += k;
+            self.cat.apply_analysis(&updates);
+        }
+        n
     }
 
     pub fn catalog(&self) -> &Catalog {
@@ -461,6 +480,10 @@ impl Backend for SqliteLibrary {
         log(self
             .conn
             .execute("UPDATE folders SET hidden = ?1 WHERE id = ?2", params![hidden, id]));
+    }
+
+    fn analysis_status(&self) -> AnalysisStatus {
+        self.changes.analysis_status()
     }
 
     fn peaks(&self, id: SampleId) -> Vec<f64> {

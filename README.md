@@ -4,7 +4,7 @@ Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DA
 une seule arborescence de dossiers qui s'ouvre sur les samples, et en bas le sample courant avec sa waveform.
 Ce dépôt ne contient pour l'instant **que l'interface, entièrement factice** : aucun son, aucun fichier lu, aucune base.
 
-**En ligne :** [design system](https://plptune.github.io/sample-browser/#/gallery) ·
+**En ligne :** [design system (Storybook)](https://plptune.github.io/sample-browser/storybook/) ·
 [prototype](https://plptune.github.io/sample-browser/) — redéployé par `.github/workflows/pages.yml` à chaque push.
 
 ```bash
@@ -14,7 +14,9 @@ pnpm build        # typecheck + build
 ```
 
 - `http://localhost:1420/` : le panneau + une barre de démo (scénario, thème, largeur, densité, grille 4 px).
-- `http://localhost:1420/#/gallery` : tous les composants dans tous leurs états, sombre / clair, 260 / 380 px.
+- `pnpm storybook` → `http://localhost:6006` : le design system dans Storybook — fondations (principes, tokens),
+  chaque composant dans chacun de ses états avec contrôles, et le panneau complet par scénario.
+  Barre d'outils : thème sombre / clair et largeur du panneau (260 → 520 px).
 
 ## Clavier
 
@@ -50,7 +52,9 @@ src/
   state/app.ts  état d'UI (signaux Solid)
   components/   un fichier par composant du design system
   styles/       tokens.css + bundle.css (design system)
-  demo/         barre de démo, scénarios, galerie (hors design system)
+  demo/         barre de démo et scénarios (hors design system)
+  stories/      fondations Storybook (introduction, tokens) ; les stories des composants sont à côté de chaque composant
+.storybook/     configuration Storybook (framework storybook-solidjs-vite)
 docs/design-system.md
 ```
 

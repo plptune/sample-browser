@@ -1,4 +1,4 @@
-// Planche des tokens : couleurs (sombre / clair), typographie, espacements et grille d'alignement.
+// Planche des tokens (Storybook : Fondations/Tokens) : couleurs (sombre / clair), typographie, espacements et grille d'alignement.
 import { For } from "solid-js";
 import { TreeRow } from "../components/TreeRow";
 
@@ -31,7 +31,7 @@ const SIZES = [
 export function Tokens() {
   return (
     <>
-      <h2>Couleurs</h2>
+      <h2 class="tok-h2">Couleurs</h2>
       <div class="gal-row">
         <For each={["dark", "light"] as const}>
           {(theme) => (
@@ -59,8 +59,8 @@ export function Tokens() {
         </For>
       </div>
 
-      <h2>Typographie</h2>
-      <div class="gal-surface cr-root tok-board" data-theme="dark">
+      <h2 class="tok-h2">Typographie</h2>
+      <div class="gal-surface cr-root tok-board">
         <For each={TYPE}>
           {([n, label]) => (
             <div class="tok-type">
@@ -73,9 +73,9 @@ export function Tokens() {
         </For>
       </div>
 
-      <h2>Espacements · dimensions</h2>
+      <h2 class="tok-h2">Espacements · dimensions</h2>
       <div class="gal-row">
-        <div class="gal-surface cr-root tok-board" data-theme="dark">
+        <div class="gal-surface cr-root tok-board">
           <div class="tok-title">Grille de 4 px</div>
           <For each={SPACE}>
             {(n) => (
@@ -86,7 +86,7 @@ export function Tokens() {
             )}
           </For>
         </div>
-        <div class="gal-surface cr-root tok-board" data-theme="dark">
+        <div class="gal-surface cr-root tok-board">
           <div class="tok-title">Hauteurs fixes</div>
           <For each={SIZES}>
             {([n, label]) => (
@@ -99,7 +99,7 @@ export function Tokens() {
             )}
           </For>
         </div>
-        <div class="gal-surface cr-root tok-board" data-theme="dark" style={{ width: "260px" }}>
+        <div class="gal-surface cr-root tok-board" style={{ width: "260px" }}>
           <div class="tok-title">Alignement (gutter 8 · slot 12 · indent 16)</div>
           <div class="tok-grid">
             <div class="tok-grid__lines" />

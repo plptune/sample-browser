@@ -1,7 +1,6 @@
 import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import { PanelShell } from "./components/PanelShell";
 import { DemoBar } from "./demo/DemoBar";
-import { Gallery } from "./demo/Gallery";
 import { SCENARIOS, acOpen } from "./demo/scenarios";
 import { app } from "./state/app";
 
@@ -9,7 +8,6 @@ const isField = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA");
 
 export function App() {
-  const [route, setRoute] = createSignal(location.hash);
   const [scenario, setScenario] = createSignal(3);
   let search: HTMLInputElement | undefined;
 
@@ -64,22 +62,19 @@ export function App() {
         return;
     }
     const sc = SCENARIOS.find((s) => s.key === e.key);
-    if (sc && route() !== "#/gallery") runScenario(sc.id);
+    if (sc) runScenario(sc.id);
   }
 
   onMount(() => {
-    const onHash = () => setRoute(location.hash);
-    window.addEventListener("hashchange", onHash);
     window.addEventListener("keydown", onKey);
     onCleanup(() => {
-      window.removeEventListener("hashchange", onHash);
       window.removeEventListener("keydown", onKey);
     });
     runScenario(scenario());
   });
 
   return (
-    <Show when={route() !== "#/gallery"} fallback={<Gallery />}>
+    <>
       <div class="demo-page" data-theme={app.theme()}>
         <DemoBar scenario={scenario()} onScenario={runScenario} />
         <div class="demo-stage">
@@ -96,6 +91,6 @@ export function App() {
           </div>
         </div>
       </div>
-    </Show>
+    </>
   );
 }

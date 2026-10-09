@@ -25,7 +25,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | `src/styles/tokens.css` | Tokens : couleurs (sombre + clair), typo, espacements, dimensions |
 | `src/styles/bundle.css` | Classes `cr-*` de tous les composants |
 | `src/components/*.tsx` | Un composant Solid par composant documenté |
-| `#/gallery` | Chaque composant dans chacun de ses états, sombre / clair, 260 / 380 px |
+| Storybook (`pnpm storybook`) | Chaque composant dans chacun de ses états, thème et largeur depuis la barre d'outils. Les stories (`*.stories.tsx`) sont à côté des composants. |
 
 ## Tokens
 

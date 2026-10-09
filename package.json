@@ -7,12 +7,18 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o dist/storybook"
   },
   "dependencies": {
     "solid-js": "^1.9.17"
   },
   "devDependencies": {
+    "@storybook/addon-docs": "10.6.1",
+    "@storybook/addon-themes": "10.6.1",
+    "storybook": "10.6.1",
+    "storybook-solidjs-vite": "10.7.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vite-plugin-solid": "^2.11.14"

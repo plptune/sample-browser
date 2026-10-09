@@ -4,6 +4,8 @@ import { app } from "../state/app";
 import { SCENARIOS } from "./scenarios";
 
 const WIDTHS = [260, 300, 380, 520];
+// Storybook est publié à côté du prototype sur Pages ; en dev il tourne sur son propre port.
+const STORYBOOK_URL = import.meta.env.DEV ? "http://localhost:6006" : "./storybook/";
 
 export function DemoBar(props: { scenario: number; onScenario: (id: number) => void }) {
   return (
@@ -34,7 +36,7 @@ export function DemoBar(props: { scenario: number; onScenario: (id: number) => v
         <input type="checkbox" checked={app.grid()} onChange={(e) => app.setGrid(e.currentTarget.checked)} />
         <span>Grille 4 px</span>
       </label>
-      <a class="demo-link" href="#/gallery">Galerie →</a>
+      <a class="demo-link" href={STORYBOOK_URL} target="_blank">Design system (Storybook) →</a>
     </div>
   );
 }

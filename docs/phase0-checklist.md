@@ -30,6 +30,8 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 | 9 | Drag en cours | Ligne glissée atténuée, collection cible encadrée en ambre. Le dépôt ajoute réellement à la collection (mock). | Seules les collections manuelles acceptent un dépôt. |
 | 10 | Erreurs | Fichiers introuvables barrés avec « ! » rouge, tiroir « Fichier introuvable », lecture désactivée. Source « hors ligne » grisée. | Le rouge n'est jamais un aplat : texte et « ! » seulement. |
 | 11 | Réglages | Vue qui remplace l'arbre (‹ pour revenir) : Sources (retirer au survol), Thème, Densité, Toujours au premier plan, Lecture auto. | Pas de fenêtre secondaire. Interrupteurs gris, pas ambre. |
+| 13 | Dossiers virtuels | Onglet Virtuels : Favoris, « Collections » (à plat), Pack 2026 › Drums / Textures, Projets › Night Drive. Épingle à droite de ce qui est aussi affiché dans Bibliothèque. | Les dossiers virtuels sont triés par nom ; les collections dans leur ordre de création. |
+| 14 | Créer un vrai dossier | Résumé (27 fichiers · 2 sous-dossiers · 49,1 Mo), destination, garder l'arborescence, ajouter aux sources, « Créer le dossier » (bouton inversé, sans accent). Puis « fichiers copiés » + Révéler / Terminé. | Copie simulée en phase 1 ; « Ajouter aux sources » crée bien une source qui reproduit l'arborescence. |
 | 12 | Mode waveform | Toutes les lignes de samples en 36 px avec mini-waveform ; dossiers inchangés. | La mini-waveform ne dessine pas les silences (pas de ligne pointillée). |
 
 ## Interactions hors scénario
@@ -38,6 +40,10 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 - [ ] Renommer une collection (menu contextuel) : champ en place, ⏎ valide, Échap annule.
 - [ ] « Nouvelle collection » (clic droit sur « Collections ») : créée et directement en renommage.
 - [ ] ⇧-clic, ⌘-clic, ⇧↑↓ : multi-sélection ; T tague toute la sélection.
+- [ ] Onglets : ⌘1 / ⌘2 ; dans Bibliothèque, les éléments épinglés sont après les sources, avec un repère à droite
+      (dossier en pointillés, liste, étoile). Survoler « Virtuels » en glissant des samples ouvre l'onglet.
+- [ ] Dossiers virtuels : ⌘N (ou +) crée un dossier en renommage ; glisser un dossier sur un autre le déplace ;
+      « Retirer de « X » » sur un sample ; une collection n'accepte pas de sous-dossier.
 - [ ] Favoris : aucune étoile dans l'arbre ; ⌘D, menu contextuel ou étoile grise du tiroir ; dossier « Favoris » en tête
       des collections ; glisser sur « Favoris » ajoute ; `is:fav` filtre.
 - [ ] Échap ferme d'abord la surcouche ouverte (menu, tags, ⌘S), puis quitte les Réglages, puis arrête la lecture.

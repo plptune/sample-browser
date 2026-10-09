@@ -1,7 +1,7 @@
 // Données factices déterministes (graine fixe) : mêmes samples à chaque chargement,
 // pour des captures stables. Aucun aléa au rendu.
 
-import type { Collection, Sample, SampleKind } from "../api/types";
+import type { Collection, Sample, SampleKind, VirtualFolder } from "../api/types";
 
 export interface FolderNode {
   id: number;
@@ -239,23 +239,39 @@ for (const s of SAMPLES) s.fav = s.id % 11 === 0;
   }
 })(SOURCES);
 
-// ---------- Collections ----------
+// ---------- Collections et dossiers virtuels ----------
 
 const byPrefix = (p: string, n: number, step = 1) =>
   SAMPLES.filter((s) => s.name.startsWith(p)).filter((_, i) => i % step === 0).slice(0, n).map((s) => s.id);
 
+/** Collections : regroupements à plat. */
+export const COLLECTIONS: Collection[] = [
+  { id: 1, name: "Go-to kicks", kind: "manual", pinned: true },
+  { id: 2, name: "Vocal chops", kind: "manual", pinned: false },
+  { id: 3, name: "Loops en Am", kind: "smart", pinned: false, query: "type:loop key:Am" },
+  { id: 4, name: "Courts & sombres", kind: "smart", pinned: false, query: "#dark dur:<1s" },
+];
+
 export const COLLECTION_ITEMS: Record<number, number[]> = {
-  1: [...byPrefix("Keys_Loop", 6, 3), ...byPrefix("Pad", 4, 4), ...byPrefix("Bass_Loop", 3, 5), ...byPrefix("Drum_Loop", 5, 6)],
-  2: byPrefix("Kick", 12, 3),
-  3: [...byPrefix("Texture", 10, 2), ...byPrefix("Ambience", 4, 3)],
-  4: byPrefix("Vox_Chop", 14, 1),
+  1: byPrefix("Kick", 12, 3),
+  2: byPrefix("Vox_Chop", 14, 1),
 };
 
-export const COLLECTIONS: Collection[] = [
-  { id: 1, name: "Night Drive", kind: "manual" },
-  { id: 2, name: "Go-to kicks", kind: "manual" },
-  { id: 3, name: "Textures", kind: "manual" },
-  { id: 4, name: "Vocal chops", kind: "manual" },
-  { id: 5, name: "Loops en Am", kind: "smart", query: "type:loop key:Am" },
-  { id: 6, name: "Courts & sombres", kind: "smart", query: "#dark dur:<1s" },
+/** Dossiers virtuels : Projets › Night Drive ; Pack 2026 › Drums, Textures. */
+export const VIRTUAL_FOLDERS: VirtualFolder[] = [
+  { id: 1, name: "Projets", parentId: null, pinned: false },
+  { id: 2, name: "Night Drive", parentId: 1, pinned: false },
+  { id: 3, name: "Pack 2026", parentId: null, pinned: true },
+  { id: 4, name: "Drums", parentId: 3, pinned: false },
+  { id: 5, name: "Textures", parentId: 3, pinned: false },
 ];
+
+export const VIRTUAL_ITEMS: Record<number, number[]> = {
+  2: [...byPrefix("Keys_Loop", 6, 3), ...byPrefix("Pad", 4, 4), ...byPrefix("Bass_Loop", 3, 5), ...byPrefix("Drum_Loop", 5, 6)],
+  3: byPrefix("Riser", 3, 2),
+  4: [...byPrefix("Kick", 4, 5), ...byPrefix("Snare", 4, 5), ...byPrefix("Clap", 2, 4)],
+  5: [...byPrefix("Texture", 10, 2), ...byPrefix("Ambience", 4, 3)],
+};
+
+/** Favoris épinglés dans l'onglet Bibliothèque. */
+export const FAVORITES = { pinned: true };

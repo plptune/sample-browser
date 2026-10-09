@@ -16,6 +16,17 @@ export const commands = {
 	renameCollection: (id: number, name: string) => __TAURI_INVOKE<void>("rename_collection", { id, name }),
 	deleteCollection: (id: number) => __TAURI_INVOKE<void>("delete_collection", { id }),
 	addToCollection: (id: number, ids: number[]) => __TAURI_INVOKE<void>("add_to_collection", { id, ids }),
+	removeFromCollection: (id: number, ids: number[]) => __TAURI_INVOKE<void>("remove_from_collection", { id, ids }),
+	createVirtualFolder: (name: string, parentId: number | null) => __TAURI_INVOKE<VirtualFolder>("create_virtual_folder", { name, parentId }),
+	renameVirtualFolder: (id: number, name: string) => __TAURI_INVOKE<void>("rename_virtual_folder", { id, name }),
+	deleteVirtualFolder: (id: number) => __TAURI_INVOKE<void>("delete_virtual_folder", { id }),
+	moveVirtualFolder: (id: number, parentId: number | null) => __TAURI_INVOKE<void>("move_virtual_folder", { id, parentId }),
+	addToVirtualFolder: (id: number, ids: number[]) => __TAURI_INVOKE<void>("add_to_virtual_folder", { id, ids }),
+	removeFromVirtualFolder: (id: number, ids: number[]) => __TAURI_INVOKE<void>("remove_from_virtual_folder", { id, ids }),
+	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
+	planCommit: (key: string, options: CommitOptions) => __TAURI_INVOKE<CommitPlan>("plan_commit", { key, options }),
+	/**  Phase 1 : copie simulée (aucun fichier écrit). Phase 5 : copie réelle, avec progression par événement. */
+	commitToFolder: (key: string, destination: string, options: CommitOptions) => __TAURI_INVOKE<CommitResult>("commit_to_folder", { key, destination, options }),
 	removeSource: (id: number) => __TAURI_INVOKE<void>("remove_source", { id }),
 	/**  Phase 5 : ouverture réelle dans le Finder. */
 	revealInFinder: (path: string) => __TAURI_INVOKE<void>("reveal_in_finder", { path }),
@@ -24,24 +35,56 @@ export const commands = {
 };
 
 /* Types */
+/**  Collection : simple regroupement de samples, à plat. Smart = recherche enregistrée. */
 export type Collection = Collection_Serialize | Collection_Deserialize;
 
 export type CollectionKind = "manual" | "smart";
 
+/**  Collection : simple regroupement de samples, à plat. Smart = recherche enregistrée. */
 export type Collection_Deserialize = {
 	id: number,
 	name: string,
 	kind: CollectionKind,
+	/**  Aussi affichée à la racine de l'onglet Bibliothèque. */
+	pinned: boolean,
 	/**  Ligne de recherche brute d'une collection smart. */
 	query?: string | null,
 };
 
+/**  Collection : simple regroupement de samples, à plat. Smart = recherche enregistrée. */
 export type Collection_Serialize = {
 	id: number,
 	name: string,
 	kind: CollectionKind,
+	/**  Aussi affichée à la racine de l'onglet Bibliothèque. */
+	pinned: boolean,
 	/**  Ligne de recherche brute d'une collection smart. */
 	query?: string | null,
+};
+
+export type CommitOptions = {
+	keepHierarchy: boolean,
+	addAsSource: boolean,
+};
+
+/**  Ce que « Créer un vrai dossier » copierait. */
+export type CommitPlan = {
+	files: number,
+	/**  Sous-dossiers créés (0 si l'arborescence est aplatie). */
+	folders: number,
+	/**
+	 *  En octets (f64 : un u64 n'a pas d'équivalent sûr en JavaScript). Toujours fini : déclaré `number`
+	 *  côté TypeScript (specta y verrait `number | null`).
+	 */
+	bytes: number,
+	/**  Fichiers introuvables, ignorés. */
+	missing: number,
+};
+
+export type CommitResult = {
+	destination: string,
+	copied: number,
+	skipped: number,
 };
 
 export type FolderRow = FolderRow_Serialize | FolderRow_Deserialize;
@@ -55,6 +98,8 @@ export type FolderRow_Deserialize = {
 	kind: NodeKind,
 	open: boolean,
 	offline?: boolean | null,
+	/**  Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque). */
+	pinned?: boolean | null,
 };
 
 export type FolderRow_Serialize = {
@@ -66,6 +111,8 @@ export type FolderRow_Serialize = {
 	kind: NodeKind,
 	open: boolean,
 	offline?: boolean | null,
+	/**  Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque). */
+	pinned?: boolean | null,
 };
 
 export type Library = Library_Serialize | Library_Deserialize;
@@ -74,15 +121,19 @@ export type Library_Deserialize = {
 	total: number,
 	tags: Tag[],
 	collections: Collection_Deserialize[],
+	virtualFolders: VirtualFolder[],
+	favoritesPinned: boolean,
 };
 
 export type Library_Serialize = {
 	total: number,
 	tags: Tag[],
 	collections: Collection_Serialize[],
+	virtualFolders: VirtualFolder[],
+	favoritesPinned: boolean,
 };
 
-export type NodeKind = "folder" | "group" | "favorites" | "collection" | "smart";
+export type NodeKind = "folder" | "favorites" | "group" | "collection" | "smart" | "virtual";
 
 /**  Discriminant littéral `"node"` d'une ligne de dossier. */
 export type NodeTag = "node";
@@ -152,12 +203,16 @@ export type TreePage_Serialize = {
 };
 
 export type TreeRequest = {
+	root: TreeRoot,
 	/**  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts. */
 	query: string,
 	expanded: string[],
 	offset: number,
 	limit: number,
 };
+
+/**  Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels. */
+export type TreeRoot = "library" | "virtual";
 
 /**
  *  Une ligne de l'arbre, discriminée par le champ `type` ("node" ou "sample") porté par chaque struct.
@@ -176,4 +231,13 @@ export type TreeRow_Deserialize = FolderRow_Deserialize | SampleRow;
  *  (`#[serde(untagged)]` + discriminant littéral : specta décrit mal `#[serde(tag)]` sur des variantes newtype.)
  */
 export type TreeRow_Serialize = FolderRow_Serialize | SampleRow;
+
+/**  Dossier virtuel : arborescence de samples sans déplacer les fichiers. */
+export type VirtualFolder = {
+	id: number,
+	name: string,
+	/**  `None` = racine de l'onglet Virtuels. */
+	parentId: number | null,
+	pinned: boolean,
+};
 

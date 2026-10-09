@@ -22,6 +22,20 @@ sont dans `docs/design-system.md` et l'historique produit dans `docs/plan.md`.
 | `CRATE_TRACE=1` : trace des commandes sur stderr. | Diagnostic en attendant l'overlay de mesures (phase 3). |
 | `rustfmt.toml` : `max_width = 140`. | Cohérent avec la largeur de ligne du code TypeScript. |
 
+## Collections, dossiers virtuels, « Créer un vrai dossier » (9 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Deux concepts distincts : **collections** (à plat, manuelles ou smart) et **dossiers virtuels** (arborescence, `parentId`). | Demande produit : une collection n'a pas de notion de sous-dossier ; un dossier virtuel, si. |
+| Clés : `c:fav`, `g:collections`, `c:<id>`, `v:<id>`. `TreeRequest.root` = `library` ou `virtual`. | Un seul `tree()` pour les deux onglets ; l'UI reste sans logique d'arbre. |
+| Épinglage (`setPinned`) : favoris, collections et dossiers virtuels peuvent apparaître à la racine de Bibliothèque ; masqués pendant une recherche dans Bibliothèque. | Éviter les doublons dans les résultats, comme pour les collections avant. |
+| Un dossier virtuel n'affiche que son contenu propre ; `in:<nom>` couvre ses descendants. | Choix utilisateur (comme un vrai dossier) ; la recherche sert à tout voir. |
+| Glisser un dossier virtuel sur un autre le déplace ; sur le fond de l'onglet, il remonte à la racine ; refusé vers soi-même ou un descendant. | Choix utilisateur (modèle du Finder). |
+| `in:` cherche d'abord une collection, puis un dossier virtuel, puis un chemin. | Ordre stable et documenté ; les noms en double sont rares. |
+| « Créer un vrai dossier » = **copie** vers un nouveau dossier (`planCommit` puis `commitToFolder`), options « garder l'arborescence » et « ajouter aux sources ». Simulé en phase 1 (aucun fichier écrit), progression simulée côté UI. | Seule écriture autorisée sur le disque, jamais destructive ; la copie réelle et les événements de progression arrivent en phase 5. |
+| `CommitPlan.bytes` est un `f64` déclaré `number` (comme `peaks`). | specta y verrait `number \| null`. |
+| Touches de scénario actives dans toutes les vues. | Bug trouvé en route : après le scénario Réglages, les touches suivantes étaient ignorées (le scénario 12 ne se lançait plus). |
+
 ### Risques ouverts
 
 - Chaque ligne de sample transporte ses 256 pics : à sortir du contrat (densité « waveform » seulement, ou commande `peaks(ids)`) avant la phase 3 et les 100 000 fichiers.

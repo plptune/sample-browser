@@ -1,7 +1,9 @@
 import { Match, Show, Switch } from "solid-js";
 import type { TreeRow as Row } from "../api";
+import { api } from "../api";
 import { app } from "../state/app";
 import { Browser } from "./Browser";
+import { CommitView } from "./CommitView";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { EmptyState } from "./EmptyState";
 import { IconButton } from "./IconButton";
@@ -10,13 +12,37 @@ import { SaveSearch } from "./SaveSearch";
 import { ScanStatus } from "./ScanStatus";
 import { SearchField } from "./SearchField";
 import { SettingsView } from "./SettingsView";
+import { Tabs } from "./Tabs";
 import { TagPopover, type TagState } from "./TagPopover";
 
-/** Entrées du menu contextuel selon la ligne visée. */
-function menuFor(row: Row): MenuItem[] {
+/** Chemin lisible d'un dossier virtuel (« Pack 2026 › Drums »). */
+function vfPath(id: number): string {
+  const all = app.library()?.virtualFolders ?? [];
+  const parts: string[] = [];
+  for (let f = all.find((x) => x.id === id); f; f = f.parentId === null ? undefined : all.find((x) => x.id === f!.parentId)) parts.unshift(f.name);
+  return parts.join(" › ");
+}
+
+const pinItem = (key: string, pinned: boolean | null | undefined): MenuItem => ({
+  label: pinned ? "Ne plus afficher dans Bibliothèque" : "Afficher dans Bibliothèque",
+  action: () => app.togglePin(key),
+});
+
+const commitItem = (key: string): MenuItem => ({ label: "Créer un vrai dossier…", action: () => app.openCommit(key) });
+
+/** Entrées du menu contextuel selon la ligne visée ("root" : fond de l'onglet Virtuels). */
+function menuFor(row: Row | undefined): MenuItem[] {
+  if (!row) return [
+    { label: "Nouveau dossier virtuel", shortcut: "⌘N", action: () => app.newVirtualFolder() },
+    { label: "Nouvelle collection", action: () => app.newCollection() },
+  ];
   if (row.type === "sample") {
     const n = Math.max(1, app.selection().length);
-    const manual = app.library()?.collections.filter((c) => c.kind === "manual") ?? [];
+    const lib = app.library();
+    const manual = lib?.collections.filter((c) => c.kind === "manual") ?? [];
+    const vfs = [...(lib?.virtualFolders ?? [])].map((f) => ({ id: f.id, path: vfPath(f.id) })).sort((a, b) => a.path.localeCompare(b.path));
+    const parent = row.parent;
+    const removable = parent.startsWith("v:") || (parent.startsWith("c:") && (parent === "c:fav" || manual.some((c) => `c:${c.id}` === parent)));
     return [
       { label: app.playingId() === row.sample.id ? "Stop" : "Lire", shortcut: "Espace", action: () => app.togglePlay(), disabled: row.sample.missing },
       { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "T", action: () => app.openTagging() },
@@ -25,9 +51,12 @@ function menuFor(row: Row): MenuItem[] {
         shortcut: "⌘D",
         action: () => app.toggleFavorite(),
       },
+      ...(removable ? [{ label: `Retirer de « ${app.nodeName(parent)} »`, action: () => app.removeSelectionFrom(parent) } as MenuItem] : []),
       { type: "separator" },
-      { type: "header", label: "Ajouter à" },
-      ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.dropOnCollection(`c:${c.id}`) })),
+      { type: "header", label: "Ajouter à une collection" },
+      ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.addSelectionTo(`c:${c.id}`) })),
+      { type: "header", label: "Ajouter à un dossier virtuel" },
+      ...vfs.map((f): MenuItem => ({ label: f.path, action: () => app.addSelectionTo(`v:${f.id}`) })),
       { type: "separator" },
       { label: "Révéler dans le Finder", action: () => void 0 },
       { label: "Copier le chemin", action: () => navigator.clipboard?.writeText(row.sample.path) },
@@ -40,15 +69,29 @@ function menuFor(row: Row): MenuItem[] {
         ? [toggle, { label: "Révéler dans le Finder" }, { type: "separator" }, { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) }]
         : [toggle, { label: "Révéler dans le Finder" }];
     case "favorites":
-      return [toggle];
+      return [toggle, pinItem(row.key, row.pinned), { type: "separator" }, commitItem(row.key)];
     case "group":
       return [toggle, { type: "separator" }, { label: "Nouvelle collection", action: () => app.newCollection() }];
+    case "virtual":
+      return [
+        toggle,
+        { label: "Nouveau dossier virtuel dedans", action: () => app.newVirtualFolder(row.key) },
+        { label: "Renommer", action: () => app.setRenamingKey(row.key) },
+        pinItem(row.key, row.pinned),
+        { type: "separator" },
+        commitItem(row.key),
+        { type: "separator" },
+        { label: "Supprimer le dossier virtuel", danger: true, action: () => app.deleteNode(row.key) },
+      ];
     default:
       return [
         toggle,
         { label: "Renommer", action: () => app.setRenamingKey(row.key) },
+        pinItem(row.key, row.pinned),
         { type: "separator" },
-        { label: "Supprimer la collection", danger: true, action: () => app.deleteCollection(row.key) },
+        commitItem(row.key),
+        { type: "separator" },
+        { label: "Supprimer la collection", danger: true, action: () => app.deleteNode(row.key) },
       ];
   }
 }
@@ -67,9 +110,19 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
   return (
     <div class="cr-panel cr-root" data-density={app.density()}>
       <header class="cr-titlebar" data-tauri-drag-region>
-        <span class="cr-titlebar__title" data-tauri-drag-region>
-          Crate
-        </span>
+        <Tabs
+          value={app.tab()}
+          items={[
+            { value: "library", label: "Bibliothèque", shortcut: "⌘1" },
+            { value: "virtual", label: "Virtuels", shortcut: "⌘2" },
+          ]}
+          springLoaded={app.draggingKey() !== null}
+          onChange={(t) => app.switchTab(t)}
+        />
+        <span class="cr-titlebar__fill" data-tauri-drag-region />
+        <Show when={app.tab() === "virtual" && app.view() === "browser" && !app.empty()}>
+          <IconButton icon="plus" label="Nouveau dossier virtuel (⌘N)" onClick={() => app.newVirtualFolder()} />
+        </Show>
         <IconButton
           icon="settings"
           label="Réglages (⌘,)"
@@ -106,6 +159,26 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onAutoPlay={app.setAutoPlay}
             onRemoveSource={app.removeSource}
           />
+        </Match>
+        <Match when={app.view() === "commit" && app.commit()}>
+          {(c) => (
+            <CommitView
+              name={c().name}
+              flat={c().flat}
+              destination={c().destination}
+              options={c().options}
+              plan={c().plan}
+              status={c().status}
+              progress={c().progress}
+              result={c().result}
+              onBack={() => app.closeCommit()}
+              onDestination={app.setCommitDestination}
+              onOptions={app.setCommitOptions}
+              onChoose={() => void 0}
+              onCommit={() => app.runCommit()}
+              onReveal={() => c().result && api.revealInFinder(c().result!.destination)}
+            />
+          )}
         </Match>
         <Match when={true}>
           <SearchField ref={props.searchRef} forceAc={props.forceAc && !app.tagging()} />
@@ -150,8 +223,9 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
 
       <Show when={app.menu()}>
         {(m) => {
-          const row = app.rowByKey(m().rowKey);
-          return row ? <ContextMenu x={m().x} y={m().y} items={menuFor(row)} onClose={() => app.setMenu(null)} /> : null;
+          const row = m().rowKey === "root" ? undefined : app.rowByKey(m().rowKey);
+          if (m().rowKey !== "root" && !row) return null;
+          return <ContextMenu x={m().x} y={m().y} items={menuFor(row)} onClose={() => app.setMenu(null)} />;
         }}
       </Show>
     </div>

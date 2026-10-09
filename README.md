@@ -1,7 +1,8 @@
 # Crate — prototype d'interface (phase 0)
 
 Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DAW (comme le browser d'Ableton) :
-une seule arborescence de dossiers qui s'ouvre sur les samples, et en bas le sample courant avec sa waveform.
+une arborescence de dossiers qui s'ouvre sur les samples, un second onglet pour les favoris, collections et dossiers
+virtuels (qu'on peut transformer en vrai dossier), et en bas le sample courant avec sa waveform.
 Ce dépôt ne contient pour l'instant **que l'interface, entièrement factice** : aucun son, aucun fichier lu, aucune base.
 
 **Plan et prompts à jour :** [`docs/plan.md`](docs/plan.md) · **Validation phase 0 :** [`docs/phase0-checklist.md`](docs/phase0-checklist.md)
@@ -33,11 +34,13 @@ pnpm build        # typecheck + build
 | T | Taguer la sélection (popover) |
 | ⌘D | Favori / pas favori (sélection) |
 | ⌘S | Enregistrer la recherche comme collection smart |
+| ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
+| ⌘N | Nouveau dossier virtuel |
 | ⌘, | Réglages (Échap pour revenir) |
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
 | ⌫ en début de champ | Supprimer la dernière chip |
-| 1–9, 0, -, = | Scénarios de démo 1 à 12 |
+| 1–9, 0, -, =, [, ] | Scénarios de démo 1 à 14 |
 
 Souris : clic sur le chevron = ouvrir / fermer ; clic, ⇧-clic, ⌘-clic = sélection ; double-clic = ouvrir un dossier
 ou lire un sample ; glisser des samples sur une collection manuelle les y ajoute ; clic droit = menu contextuel
@@ -46,7 +49,8 @@ ou lire un sample ; glisser des samples sur une collection manuelle les y ajoute
 ## Scénarios livrés
 
 Les 12 scénarios du plan : 1 Premier lancement · 2 Indexation · 3 Navigation · 4 Recherche active · 5 Aucun résultat ·
-6 Lecture · 7 Tagging · 8 Collections (⌘S) · 9 Drag en cours · 10 Erreurs · 11 Réglages · 12 Mode waveform.
+6 Lecture · 7 Tagging · 8 Collections (⌘S) · 9 Drag en cours · 10 Erreurs · 11 Réglages · 12 Mode waveform ·
+13 Dossiers virtuels (`[`) · 14 Créer un vrai dossier (`]`).
 Validation : [`docs/phase0-checklist.md`](docs/phase0-checklist.md).
 
 ## Fenêtre Tauri et cœur Rust
@@ -99,6 +103,6 @@ audio…) est décrite dans [`docs/plan.md`](docs/plan.md).
 | --- | --- | --- | --- | --- | --- |
 | ![](docs/screens/03-nav.png) | ![](docs/screens/04-search.png) | ![](docs/screens/06-playing.png) | ![](docs/screens/07-tagging.png) | ![](docs/screens/08-collections.png) | ![](docs/screens/09-drag.png) |
 
-| Erreurs | Réglages | Waveform | Clair 260 px | Fenêtre Tauri, données Rust (Linux) |
-| --- | --- | --- | --- | --- |
-| ![](docs/screens/10-errors.png) | ![](docs/screens/11-settings.png) | ![](docs/screens/12-wave.png) | ![](docs/screens/03-nav-light-260.png) | ![](docs/screens/tauri-linux.png) |
+| Erreurs | Réglages | Waveform | Dossiers virtuels | Créer un vrai dossier | Fenêtre Tauri, données Rust (Linux) |
+| --- | --- | --- | --- | --- | --- |
+| ![](docs/screens/10-errors.png) | ![](docs/screens/11-settings.png) | ![](docs/screens/12-wave.png) | ![](docs/screens/13-virtual.png) | ![](docs/screens/14-commit.png) | ![](docs/screens/tauri-linux.png) |

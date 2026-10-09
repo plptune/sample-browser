@@ -41,6 +41,16 @@ export function App() {
       app.toggleFavorite();
       return;
     }
+    if (mod && (e.key === "1" || e.key === "2")) {
+      e.preventDefault();
+      app.switchTab(e.key === "1" ? "library" : "virtual");
+      return;
+    }
+    if (mod && key === "n") {
+      e.preventDefault();
+      app.newVirtualFolder();
+      return;
+    }
     if (mod && e.key === ",") {
       e.preventDefault();
       app.setView(app.view() === "settings" ? "browser" : "settings");
@@ -52,10 +62,18 @@ export function App() {
     if (e.key === "Escape") {
       if (app.menu() || app.tagging() || app.saving() !== null) app.closeOverlays();
       else if (app.view() === "settings") app.setView("browser");
+      else if (app.view() === "commit") app.commit()?.status !== "running" && app.closeCommit();
       else app.stop();
       return;
     }
-    if (app.view() === "settings") return;
+    // Touches de scénario (démo) : actives dans toutes les vues.
+    const sc = SCENARIOS.find((x) => x.key === e.key);
+    if (sc) {
+      e.preventDefault(); // sinon le caractère atterrit dans le champ que le scénario vient de focaliser
+      runScenario(sc.id);
+      return;
+    }
+    if (app.view() !== "browser") return;
 
     const tree = () => document.querySelector<HTMLElement>(".cr-tree");
     switch (e.key) {
@@ -92,11 +110,6 @@ export function App() {
         e.preventDefault();
         search?.focus();
         return;
-    }
-    const sc = SCENARIOS.find((s) => s.key === e.key);
-    if (sc) {
-      e.preventDefault(); // sinon le caractère atterrit dans le champ que le scénario vient de focaliser
-      runScenario(sc.id);
     }
   }
 

@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -15,6 +15,10 @@ const PATHS: Record<IconName, () => JSX.Element> = {
   back: () => <path d="M7.5 2.8 4.3 6l3.2 3.2" />,
   check: () => <path d="M2.8 6.2 5 8.4l4.2-4.8" />,
   minus: () => <path d="M3 6h6" />,
+  // Dossier en pointillés : « virtuel », rien sur le disque.
+  virtual: () => <path d="M1.6 3.2h3.1l1 1.2h4.7v5.2H1.6z" stroke-dasharray="1.4 1.1" />,
+  collection: () => <path d="M3.6 3.4h6.4M3.6 6h6.4M3.6 8.6h6.4M1.8 3.4h.1M1.8 6h.1M1.8 8.6h.1" />,
+  pin: () => <path d="M4.6 1.8h2.8l-.4 2.8 1.6 1.6H3.4L5 4.6zM6 6.2v4" />,
   star: () => <path d="M6 1.9 7.2 4.5l2.8.3-2.1 1.9.6 2.8L6 8.1 3.5 9.5l.6-2.8L2 4.8l2.8-.3z" />,
   "star-fill": () => <path d="M6 1.9 7.2 4.5l2.8.3-2.1 1.9.6 2.8L6 8.1 3.5 9.5l.6-2.8L2 4.8l2.8-.3z" fill="currentColor" />,
   play: () => <path d="M3.5 2.2v7.6L9.8 6z" fill="currentColor" stroke="none" />,

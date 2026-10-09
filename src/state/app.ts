@@ -1,7 +1,10 @@
 // État de l'app (signaux Solid). Toute donnée vient de `api` ; ici on ne garde que l'état d'UI.
 
 import { batch, createRoot, createSignal } from "solid-js";
-import { api, type Library, type NodeKey, type Sample, type SampleId, type Source, type TreeRow } from "../api";
+import {
+  api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type NodeKey, type Sample, type SampleId, type Source,
+  type TreeRoot, type TreeRow,
+} from "../api";
 import { isChip } from "../lib/query";
 
 export type Density = "compact" | "wave";
@@ -10,7 +13,20 @@ export type ThemePref = "dark" | "light" | "system";
 export interface MenuState {
   x: number;
   y: number;
+  /** Ligne visée, ou "root" pour le fond de l'arbre. */
   rowKey: string;
+}
+
+export interface CommitState {
+  key: NodeKey;
+  name: string;
+  flat: boolean; // collection ou favoris : toujours à plat
+  destination: string;
+  options: CommitOptions;
+  plan: CommitPlan | null;
+  status: "idle" | "running" | "done";
+  progress: number; // 0..1 pendant la copie
+  result: CommitResult | null;
 }
 
 function createAppState() {
@@ -23,8 +39,13 @@ function createAppState() {
   const [chips, setChips] = createSignal<string[]>([]);
   const [draft, setDraft] = createSignal("");
 
+  // --- onglets : « Bibliothèque » (sources + épinglés) et « Virtuels » (favoris, collections, dossiers virtuels)
+  const [tab, setTabSignal] = createSignal<TreeRoot>("library");
+  const [expandedByTab, setExpandedByTab] = createSignal<Record<TreeRoot, NodeKey[]>>({ library: [], virtual: [] });
+  const expanded = () => expandedByTab()[tab()];
+  const setExpanded = (keys: NodeKey[], t: TreeRoot = tab()) => setExpandedByTab({ ...expandedByTab(), [t]: keys });
+
   // --- arbre / sélection / lecture
-  const [expanded, setExpanded] = createSignal<NodeKey[]>([]);
   const [cursor, setCursor] = createSignal<string | null>(null); // clé de ligne
   const [selection, setSelection] = createSignal<string[]>([]); // clés de lignes sample
   const [anchor, setAnchor] = createSignal<string | null>(null);
@@ -42,7 +63,8 @@ function createAppState() {
   const [visibleLimit, setVisibleLimit] = createSignal<number | null>(null); // arbre qui se remplit pendant le scan
 
   // --- surcouches (une seule à la fois) et vues
-  const [view, setView] = createSignal<"browser" | "settings">("browser");
+  const [view, setView] = createSignal<"browser" | "settings" | "commit">("browser");
+  const [commit, setCommit] = createSignal<CommitState | null>(null);
   const [tagging, setTagging] = createSignal(false); // popover de tags sur la sélection
   const [saving, setSaving] = createSignal<string | null>(null); // nom en cours pour ⌘S, null = fermé
   const [menu, setMenu] = createSignal<MenuState | null>(null);
@@ -71,7 +93,7 @@ function createAppState() {
   let reqId = 0;
   async function refresh() {
     const id = ++reqId;
-    const page = await api.tree({ query: searchLine(), expanded: expanded(), offset: 0, limit: 2000 });
+    const page = await api.tree({ root: tab(), query: searchLine(), expanded: expanded(), offset: 0, limit: 2000 });
     if (id !== reqId) return; // requête périmée
     batch(() => {
       setRows(page.rows);
@@ -288,7 +310,39 @@ function createAppState() {
     await refresh();
   }
 
-  // --- collections
+  // --- onglets
+  async function switchTab(t: TreeRoot) {
+    if (t === tab()) return;
+    batch(() => {
+      closeOverlays();
+      setTabSignal(t);
+      setView("browser");
+      setSelection([]);
+      setCursor(null);
+    });
+    await refresh();
+  }
+
+  const nodeId = (key: NodeKey) => +key.slice(2);
+  const nodeName = (key: NodeKey) => {
+    const lib = library();
+    if (key === "c:fav") return "Favoris";
+    if (key.startsWith("c:")) return lib?.collections.find((c) => c.id === nodeId(key))?.name ?? "";
+    if (key.startsWith("v:")) return lib?.virtualFolders.find((f) => f.id === nodeId(key))?.name ?? "";
+    return "";
+  };
+
+  /** Ouvre l'onglet Virtuels avec ces nœuds dépliés, puis sélectionne `key` (et le renomme si demandé). */
+  async function revealVirtual(key: NodeKey, open: NodeKey[], rename = false) {
+    setTabSignal("virtual");
+    setView("browser");
+    setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
+    await Promise.all([refresh(), reloadLibrary()]);
+    select(key);
+    if (rename) setRenamingKey(key);
+  }
+
+  // --- collections (à plat) et recherche enregistrée
   function openSaveSearch() {
     if (!searchLine()) return;
     closeOverlays();
@@ -303,43 +357,143 @@ function createAppState() {
     batch(() => {
       setChips([]);
       setDraft("");
-      setExpanded([...new Set([...expanded(), "g:collections"])]);
     });
-    await Promise.all([refresh(), reloadLibrary()]);
-    select(`c:${c.id}`);
+    await revealVirtual(`c:${c.id}`, ["g:collections"]);
   }
 
   /** Nouvelle collection manuelle, aussitôt en renommage. */
   async function newCollection() {
     const c = await api.createCollection("Nouvelle collection");
-    setExpanded([...new Set([...expanded(), "g:collections"])]);
-    await Promise.all([refresh(), reloadLibrary()]);
-    select(`c:${c.id}`);
-    setRenamingKey(`c:${c.id}`);
+    await revealVirtual(`c:${c.id}`, ["g:collections"], true);
   }
 
-  async function renameCollection(key: NodeKey, name: string) {
+  // --- dossiers virtuels (arborescence)
+  async function newVirtualFolder(parent: NodeKey | null = null) {
+    const f = await api.createVirtualFolder("Nouveau dossier", parent ? nodeId(parent) : null);
+    await revealVirtual(`v:${f.id}`, parent ? [parent] : [], true);
+  }
+
+  async function renameNode(key: NodeKey, name: string) {
     setRenamingKey(null);
-    if (name.trim()) await api.renameCollection(+key.slice(2), name.trim());
+    const n = name.trim();
+    if (n && n !== nodeName(key)) {
+      if (key.startsWith("c:")) await api.renameCollection(nodeId(key), n);
+      else if (key.startsWith("v:")) await api.renameVirtualFolder(nodeId(key), n);
+    }
     await Promise.all([refresh(), reloadLibrary()]);
   }
 
-  async function deleteCollection(key: NodeKey) {
-    await api.deleteCollection(+key.slice(2));
+  async function deleteNode(key: NodeKey) {
+    if (key.startsWith("c:")) await api.deleteCollection(nodeId(key));
+    else if (key.startsWith("v:")) await api.deleteVirtualFolder(nodeId(key));
     if (cursor() === key) setCursor(null);
     await Promise.all([refresh(), reloadLibrary()]);
   }
 
-  async function dropOnCollection(key: NodeKey) {
-    const ids = selectedSamples().map((s) => s.id);
+  async function togglePin(key: NodeKey) {
+    const lib = library();
+    const pinned =
+      key === "c:fav"
+        ? lib?.favoritesPinned
+        : key.startsWith("c:")
+          ? lib?.collections.find((c) => c.id === nodeId(key))?.pinned
+          : lib?.virtualFolders.find((f) => f.id === nodeId(key))?.pinned;
+    await api.setPinned(key, !pinned);
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  /** Vrai si `target` peut recevoir ce qui est glissé (samples ou dossier virtuel). */
+  function canDrop(target: NodeKey): boolean {
+    const dragged = draggingKey();
+    if (!dragged) return false;
+    if (dragged.startsWith("v:")) return (target === "root" || target.startsWith("v:")) && target !== dragged;
+    if (target === "c:fav" || target.startsWith("v:")) return true;
+    return target.startsWith("c:") && library()?.collections.find((c) => c.id === nodeId(target))?.kind === "manual";
+  }
+
+  /** Dépôt : ajoute les samples glissés, ou déplace le dossier virtuel glissé. */
+  async function dropOn(target: NodeKey) {
+    const dragged = draggingKey();
+    const ok = canDrop(target);
     batch(() => {
       setDropTarget(null);
       setDraggingKey(null);
     });
+    if (!dragged || !ok) return;
+    if (dragged.startsWith("v:")) {
+      await api.moveVirtualFolder(nodeId(dragged), target === "root" ? null : nodeId(target));
+      if (target !== "root") setExpanded([...new Set([...expanded(), target])]);
+      await Promise.all([refresh(), reloadLibrary()]);
+      return;
+    }
+    await addSelectionTo(target);
+  }
+
+  async function addSelectionTo(target: NodeKey) {
+    const ids = selectedSamples().map((s) => s.id);
     if (!ids.length) return;
-    if (key === "c:fav") await api.setFavorite(ids, true);
-    else await api.addToCollection(+key.slice(2), ids);
+    if (target === "c:fav") await api.setFavorite(ids, true);
+    else if (target.startsWith("c:")) await api.addToCollection(nodeId(target), ids);
+    else if (target.startsWith("v:")) await api.addToVirtualFolder(nodeId(target), ids);
     await refresh();
+  }
+
+  /** Retire la sélection de la collection / du dossier virtuel qui la contient (jamais du disque). */
+  async function removeSelectionFrom(parent: NodeKey) {
+    const ids = selectedSamples().map((s) => s.id);
+    if (parent === "c:fav") await api.setFavorite(ids, false);
+    else if (parent.startsWith("c:")) await api.removeFromCollection(nodeId(parent), ids);
+    else if (parent.startsWith("v:")) await api.removeFromVirtualFolder(nodeId(parent), ids);
+    setSelection([]);
+    await refresh();
+  }
+
+  // --- « Créer un vrai dossier » (copie, jamais de déplacement)
+  async function openCommit(key: NodeKey) {
+    closeOverlays();
+    const name = nodeName(key);
+    const flat = !key.startsWith("v:");
+    const options = { keepHierarchy: !flat, addAsSource: false };
+    setCommit({ key, name, flat, destination: `~/Desktop/${name}`, options, plan: null, status: "idle", progress: 0, result: null });
+    setView("commit");
+    const plan = await api.planCommit(key, options);
+    setCommit((c) => (c ? { ...c, plan } : c));
+  }
+
+  async function setCommitOptions(options: CommitOptions) {
+    const c = commit();
+    if (!c) return;
+    setCommit({ ...c, options, plan: null });
+    const plan = await api.planCommit(c.key, options);
+    setCommit((x) => (x ? { ...x, plan } : x));
+  }
+
+  const setCommitDestination = (destination: string) => setCommit((c) => (c ? { ...c, destination } : c));
+
+  async function runCommit() {
+    const c = commit();
+    if (!c || c.status !== "idle" || !c.destination.trim()) return;
+    setCommit({ ...c, status: "running", progress: 0 });
+    // Progression simulée (phases 0 / 1). Phase 5 : événements de copie envoyés par Rust.
+    const t0 = performance.now();
+    await new Promise<void>((done) => {
+      const tick = (now: number) => {
+        const p = Math.min(1, (now - t0) / 1200);
+        setCommit((x) => (x ? { ...x, progress: p } : x));
+        p < 1 ? requestAnimationFrame(tick) : done();
+      };
+      requestAnimationFrame(tick);
+    });
+    const result = await api.commitToFolder(c.key, c.destination.trim(), c.options);
+    setCommit((x) => (x ? { ...x, status: "done", progress: 1, result } : x));
+    if (c.options.addAsSource) await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  function closeCommit() {
+    batch(() => {
+      setView("browser");
+      setCommit(null);
+    });
   }
 
   async function removeSource(id: number) {
@@ -349,7 +503,7 @@ function createAppState() {
 
   function openMenu(x: number, y: number, rowKey: string) {
     closeOverlays();
-    const row = rowByKey(rowKey);
+    const row = rowKey === "root" ? undefined : rowByKey(rowKey);
     // Clic droit hors sélection : la ligne devient la sélection, comme dans le Finder.
     if (row && !(row.type === "sample" && selection().includes(rowKey))) select(rowKey);
     setMenu({ x, y, rowKey });
@@ -358,7 +512,9 @@ function createAppState() {
   return {
     view, setView, tagging, setTagging, saving, setSaving, menu, setMenu, renamingKey, setRenamingKey,
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
-    toggleFavorite, openSaveSearch, saveSearch, newCollection, renameCollection, deleteCollection, dropOnCollection, removeSource, openMenu,
+    toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
+    tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, addSelectionTo,
+    removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,

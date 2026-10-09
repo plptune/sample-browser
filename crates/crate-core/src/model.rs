@@ -57,16 +57,31 @@ pub enum CollectionKind {
     Smart,
 }
 
+/// Collection : simple regroupement de samples, à plat. Smart = recherche enregistrée.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Collection {
     pub id: u32,
     pub name: String,
     pub kind: CollectionKind,
+    /// Aussi affichée à la racine de l'onglet Bibliothèque.
+    pub pinned: bool,
     /// Ligne de recherche brute d'une collection smart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub query: Option<String>,
+}
+
+/// Dossier virtuel : arborescence de samples sans déplacer les fichiers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct VirtualFolder {
+    pub id: u32,
+    pub name: String,
+    /// `None` = racine de l'onglet Virtuels.
+    pub parent_id: Option<u32>,
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,10 +89,20 @@ pub struct Collection {
 #[serde(rename_all = "lowercase")]
 pub enum NodeKind {
     Folder,
-    Group,
     Favorites,
+    Group,
     Collection,
     Smart,
+    Virtual,
+}
+
+/// Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "lowercase")]
+pub enum TreeRoot {
+    Library,
+    Virtual,
 }
 
 /// Discriminant littéral `"node"` d'une ligne de dossier.
@@ -112,6 +137,10 @@ pub struct FolderRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub offline: Option<bool>,
+    /// Collection ou dossier virtuel épinglé (repère dans l'onglet Bibliothèque).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub pinned: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -148,6 +177,7 @@ impl TreeRow {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TreeRequest {
+    pub root: TreeRoot,
     /// Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts.
     pub query: String,
     pub expanded: Vec<NodeKey>,
@@ -166,10 +196,44 @@ pub struct TreePage {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
 pub struct Library {
     pub total: u32,
     pub tags: Vec<Tag>,
     pub collections: Vec<Collection>,
+    pub virtual_folders: Vec<VirtualFolder>,
+    pub favorites_pinned: bool,
+}
+
+/// Ce que « Créer un vrai dossier » copierait.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CommitPlan {
+    pub files: u32,
+    /// Sous-dossiers créés (0 si l'arborescence est aplatie).
+    pub folders: u32,
+    /// En octets (f64 : un u64 n'a pas d'équivalent sûr en JavaScript). Toujours fini : déclaré `number`
+    /// côté TypeScript (specta y verrait `number | null`).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
+    pub bytes: f64,
+    /// Fichiers introuvables, ignorés.
+    pub missing: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct CommitOptions {
+    pub keep_hierarchy: bool,
+    pub add_as_source: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CommitResult {
+    pub destination: String,
+    pub copied: u32,
+    pub skipped: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -194,5 +258,19 @@ pub trait Backend {
     fn rename_collection(&mut self, id: u32, name: &str);
     fn delete_collection(&mut self, id: u32);
     fn add_to_collection(&mut self, id: u32, ids: &[SampleId]);
+    fn remove_from_collection(&mut self, id: u32, ids: &[SampleId]);
+    fn create_virtual_folder(&mut self, name: &str, parent_id: Option<u32>) -> VirtualFolder;
+    fn rename_virtual_folder(&mut self, id: u32, name: &str);
+    /// Supprime aussi les sous-dossiers ; les fichiers ne sont jamais touchés.
+    fn delete_virtual_folder(&mut self, id: u32);
+    /// Refusé vers soi-même ou un descendant.
+    fn move_virtual_folder(&mut self, id: u32, parent_id: Option<u32>);
+    fn add_to_virtual_folder(&mut self, id: u32, ids: &[SampleId]);
+    fn remove_from_virtual_folder(&mut self, id: u32, ids: &[SampleId]);
+    /// "c:fav", "c:<id>" ou "v:<id>".
+    fn set_pinned(&mut self, key: &str, pinned: bool);
+    fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan;
+    /// Copie vers un nouveau dossier réel ; ne modifie ni ne déplace jamais les sources.
+    fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> CommitResult;
     fn remove_source(&mut self, id: u32);
 }

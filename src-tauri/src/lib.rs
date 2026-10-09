@@ -4,7 +4,10 @@
 
 use std::sync::Mutex;
 
-use crate_core::{Backend, Collection, Library, MockLibrary, SampleId, Source, TreePage, TreeRequest};
+use crate_core::{
+    Backend, Collection, CommitOptions, CommitPlan, CommitResult, Library, MockLibrary, SampleId, Source, TreePage, TreeRequest,
+    VirtualFolder,
+};
 use tauri::State;
 
 type Lib = Mutex<MockLibrary>;
@@ -27,7 +30,8 @@ fn tree(lib: State<'_, Lib>, req: TreeRequest) -> TreePage {
     let page = lib.lock().unwrap().tree(&req);
     trace(|| {
         format!(
-            "tree query={:?} expanded={} → {} lignes",
+            "tree {:?} query={:?} expanded={} → {} lignes",
+            req.root,
             req.query,
             req.expanded.len(),
             page.total_rows
@@ -88,6 +92,68 @@ fn add_to_collection(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
 
 #[tauri::command]
 #[specta::specta]
+fn remove_from_collection(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
+    lib.lock().unwrap().remove_from_collection(id, &ids)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn create_virtual_folder(lib: State<'_, Lib>, name: String, parent_id: Option<u32>) -> VirtualFolder {
+    lib.lock().unwrap().create_virtual_folder(&name, parent_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn rename_virtual_folder(lib: State<'_, Lib>, id: u32, name: String) {
+    lib.lock().unwrap().rename_virtual_folder(id, &name)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn delete_virtual_folder(lib: State<'_, Lib>, id: u32) {
+    lib.lock().unwrap().delete_virtual_folder(id)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn move_virtual_folder(lib: State<'_, Lib>, id: u32, parent_id: Option<u32>) {
+    lib.lock().unwrap().move_virtual_folder(id, parent_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn add_to_virtual_folder(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
+    lib.lock().unwrap().add_to_virtual_folder(id, &ids)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn remove_from_virtual_folder(lib: State<'_, Lib>, id: u32, ids: Vec<SampleId>) {
+    lib.lock().unwrap().remove_from_virtual_folder(id, &ids)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn set_pinned(lib: State<'_, Lib>, key: String, pinned: bool) {
+    lib.lock().unwrap().set_pinned(&key, pinned)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn plan_commit(lib: State<'_, Lib>, key: String, options: CommitOptions) -> CommitPlan {
+    lib.lock().unwrap().plan_commit(&key, options)
+}
+
+/// Phase 1 : copie simulée (aucun fichier écrit). Phase 5 : copie réelle, avec progression par événement.
+#[tauri::command]
+#[specta::specta]
+fn commit_to_folder(lib: State<'_, Lib>, key: String, destination: String, options: CommitOptions) -> CommitResult {
+    trace(|| format!("commit_to_folder {key} → {destination:?} {options:?}"));
+    lib.lock().unwrap().commit_to_folder(&key, &destination, options)
+}
+
+#[tauri::command]
+#[specta::specta]
 fn remove_source(lib: State<'_, Lib>, id: u32) {
     lib.lock().unwrap().remove_source(id)
 }
@@ -119,6 +185,16 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         rename_collection,
         delete_collection,
         add_to_collection,
+        remove_from_collection,
+        create_virtual_folder,
+        rename_virtual_folder,
+        delete_virtual_folder,
+        move_virtual_folder,
+        add_to_virtual_folder,
+        remove_from_virtual_folder,
+        set_pinned,
+        plan_commit,
+        commit_to_folder,
         remove_source,
         reveal_in_finder,
         demo_set_missing,

@@ -34,3 +34,5 @@ export const DragEnCours = scenario(9);
 export const Erreurs = scenario(10);
 export const Reglages = scenario(11);
 export const ModeWaveform = scenario(12);
+export const DossiersVirtuels = scenario(13);
+export const CreerUnVraiDossier = scenario(14);

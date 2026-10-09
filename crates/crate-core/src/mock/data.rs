@@ -2,7 +2,7 @@
 //! dans le même ordre, donc les mêmes 400 samples (ids, noms, chemins, tags…) que le prototype.
 //! Vérifié par `tests/parity.rs` contre une empreinte produite par le code TypeScript.
 
-use crate::model::{Collection, CollectionKind, Sample, SampleKind};
+use crate::model::{Collection, CollectionKind, Sample, SampleKind, VirtualFolder};
 
 /// Générateur mulberry32 (identique à la version JS, arithmétique u32).
 pub struct Rng(u32);
@@ -458,55 +458,74 @@ pub fn samples() -> Vec<Sample> {
     out
 }
 
-/// Les 6 collections de départ (4 manuelles, 2 smart).
+fn by_prefix(samples: &[Sample], p: &str, n: usize, step: usize) -> Vec<u32> {
+    samples
+        .iter()
+        .filter(|s| s.name.starts_with(p))
+        .enumerate()
+        .filter(|(i, _)| i % step == 0)
+        .take(n)
+        .map(|(_, s)| s.id)
+        .collect()
+}
+
+/// Collections de départ : regroupements à plat (2 manuelles, 2 smart).
 pub fn collections() -> Vec<Collection> {
-    let manual = |id: u32, name: &str| Collection {
+    let manual = |id: u32, name: &str, pinned: bool| Collection {
         id,
         name: name.into(),
         kind: CollectionKind::Manual,
+        pinned,
         query: None,
     };
     let smart = |id: u32, name: &str, q: &str| Collection {
         id,
         name: name.into(),
         kind: CollectionKind::Smart,
+        pinned: false,
         query: Some(q.into()),
     };
     vec![
-        manual(1, "Night Drive"),
-        manual(2, "Go-to kicks"),
-        manual(3, "Textures"),
-        manual(4, "Vocal chops"),
-        smart(5, "Loops en Am", "type:loop key:Am"),
-        smart(6, "Courts & sombres", "#dark dur:<1s"),
+        manual(1, "Go-to kicks", true),
+        manual(2, "Vocal chops", false),
+        smart(3, "Loops en Am", "type:loop key:Am"),
+        smart(4, "Courts & sombres", "#dark dur:<1s"),
     ]
 }
 
-/// Contenu des collections manuelles (mêmes règles de sélection que le prototype).
 pub fn collection_items(samples: &[Sample]) -> Vec<(u32, Vec<u32>)> {
-    let by_prefix = |p: &str, n: usize, step: usize| -> Vec<u32> {
-        samples
-            .iter()
-            .filter(|s| s.name.starts_with(p))
-            .enumerate()
-            .filter(|(i, _)| i % step == 0)
-            .take(n)
-            .map(|(_, s)| s.id)
-            .collect()
+    vec![(1, by_prefix(samples, "Kick", 12, 3)), (2, by_prefix(samples, "Vox_Chop", 14, 1))]
+}
+
+/// Dossiers virtuels de départ : Projets › Night Drive ; Pack 2026 › Drums, Textures.
+pub fn virtual_folders() -> Vec<VirtualFolder> {
+    let vf = |id: u32, name: &str, parent_id: Option<u32>, pinned: bool| VirtualFolder {
+        id,
+        name: name.into(),
+        parent_id,
+        pinned,
     };
     vec![
-        (
-            1,
-            [
-                by_prefix("Keys_Loop", 6, 3),
-                by_prefix("Pad", 4, 4),
-                by_prefix("Bass_Loop", 3, 5),
-                by_prefix("Drum_Loop", 5, 6),
-            ]
-            .concat(),
-        ),
-        (2, by_prefix("Kick", 12, 3)),
-        (3, [by_prefix("Texture", 10, 2), by_prefix("Ambience", 4, 3)].concat()),
-        (4, by_prefix("Vox_Chop", 14, 1)),
+        vf(1, "Projets", None, false),
+        vf(2, "Night Drive", Some(1), false),
+        vf(3, "Pack 2026", None, true),
+        vf(4, "Drums", Some(3), false),
+        vf(5, "Textures", Some(3), false),
     ]
 }
+
+pub fn virtual_items(samples: &[Sample]) -> Vec<(u32, Vec<u32>)> {
+    let p = |prefix: &str, n: usize, step: usize| by_prefix(samples, prefix, n, step);
+    vec![
+        (
+            2,
+            [p("Keys_Loop", 6, 3), p("Pad", 4, 4), p("Bass_Loop", 3, 5), p("Drum_Loop", 5, 6)].concat(),
+        ),
+        (3, p("Riser", 3, 2)),
+        (4, [p("Kick", 4, 5), p("Snare", 4, 5), p("Clap", 2, 4)].concat()),
+        (5, [p("Texture", 10, 2), p("Ambience", 4, 3)].concat()),
+    ]
+}
+
+/// Favoris épinglés dans l'onglet Bibliothèque au départ.
+pub const FAVORITES_PINNED: bool = true;

@@ -1,6 +1,6 @@
 // Scénarios de démo : chacun remet l'app dans un état précis et reproductible.
 import { batch, createSignal } from "solid-js";
-import { api, demoSetMissing } from "../api";
+import { api, demoSetMissing, type TreeRoot } from "../api";
 import { SAMPLES } from "../mock/generate";
 import { app } from "../state/app";
 
@@ -21,7 +21,8 @@ function selectSample(prefix: string, nth = 0) {
   return row?.type === "sample" ? row.sample : undefined;
 }
 
-async function reset(expanded: string[] = []) {
+/** Remet l'app à zéro sur un onglet, avec ces nœuds dépliés. */
+async function reset(expanded: string[] = [], tab: TreeRoot = "library") {
   timers.forEach(clearInterval);
   timers = [];
   app.stop();
@@ -33,7 +34,9 @@ async function reset(expanded: string[] = []) {
     app.setVisibleLimit(null);
     app.setChips([]);
     app.setDraft("");
-    app.setExpanded(expanded);
+    app.setTabSignal(tab);
+    app.setExpanded([], tab === "library" ? "virtual" : "library");
+    app.setExpanded(expanded, tab);
     app.setSelection([]);
     app.setCursor(null);
     app.setCurrent(null);
@@ -44,6 +47,7 @@ async function reset(expanded: string[] = []) {
     app.setView("browser");
     app.closeOverlays();
     app.setRenamingKey(null);
+    app.closeCommit();
   });
   await Promise.all([app.refresh(), app.reloadLibrary()]);
 }
@@ -113,8 +117,9 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 6, key: "6", label: "Lecture",
     run: async () => {
-      await reset(["g:collections", "c:1"]);
-      const s = selectSample("Keys_Loop", 0);
+      // Dossier virtuel épinglé dans Bibliothèque (repère à droite), ouvert sur un sous-dossier.
+      await reset(["v:3", "v:5"]);
+      const s = selectSample("Texture", 1);
       document.querySelector<HTMLElement>(".cr-tree")?.focus();
       if (s) app.play(s.id);
     },
@@ -137,8 +142,8 @@ export const SCENARIOS: Scenario[] = [
     id: 8, key: "8", label: "Collections",
     run: async () => {
       // Recherche en cours d'enregistrement comme collection smart (⌘S). L'arbre montre ce qui sera enregistré ;
-      // une recherche masque les collections, donc la collection manuelle ouverte est montrée par les scénarios 6 et 9.
-      await reset(["g:collections", "c:2"]);
+      // après ⏎, la collection apparaît dans l'onglet Virtuels.
+      await reset();
       app.setChips(["#dark", "dur:<1s"]);
       await app.refresh();
       app.openSaveSearch();
@@ -148,12 +153,12 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 9, key: "9", label: "Drag en cours",
     run: async () => {
-      // État figé : un sample de « Textures » glissé au-dessus de la collection « Go-to kicks ».
-      await reset(["g:collections", "c:3"]);
+      // État figé, onglet Virtuels : un sample de « Textures » glissé au-dessus du dossier virtuel « Drums ».
+      await reset(["v:3", "v:5"], "virtual");
       const s = selectSample("Texture", 1);
       const row = app.visible().find((r) => r.type === "sample" && r.sample.id === s?.id);
       if (row) app.setDraggingKey(row.key);
-      app.setDropTarget("c:2");
+      app.setDropTarget("v:4");
     },
   },
   {
@@ -181,6 +186,22 @@ export const SCENARIOS: Scenario[] = [
       app.setDensity("wave");
       const s = selectSample("Drum_Loop", 0);
       if (s) app.play(s.id);
+    },
+  },
+  {
+    id: 13, key: "[", label: "Dossiers virtuels",
+    run: async () => {
+      // Onglet Virtuels : favoris, collections à plat, dossiers virtuels en arborescence.
+      await reset(["g:collections", "v:1", "v:3"], "virtual");
+      app.select("v:3");
+    },
+  },
+  {
+    id: 14, key: "]", label: "Créer un vrai dossier",
+    run: async () => {
+      await reset(["v:3"], "virtual");
+      app.select("v:3");
+      await app.openCommit("v:3");
     },
   },
 ];

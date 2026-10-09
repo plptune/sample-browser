@@ -3,7 +3,18 @@ import { Show, onMount } from "solid-js";
 import { Chevron, Icon } from "./Icon";
 import { Waveform } from "./Waveform";
 
-export type TreeRowKind = "folder" | "group" | "favorites" | "collection" | "smart" | "sample";
+export type TreeRowKind = "folder" | "group" | "favorites" | "collection" | "smart" | "virtual" | "sample";
+
+/** Repère discret à droite : nature d'un élément épinglé (onglet Bibliothèque) ou épinglage (onglet Virtuels). */
+export type TreeRowMarker = "virtual" | "collection" | "favorites" | "pin";
+
+const MARKER_ICON = { virtual: "virtual", collection: "collection", favorites: "star", pin: "pin" } as const;
+const MARKER_LABEL = {
+  virtual: "Dossier virtuel",
+  collection: "Collection",
+  favorites: "Favoris",
+  pin: "Affiché dans Bibliothèque",
+} as const;
 
 export function TreeRow(props: {
   kind: TreeRowKind;
@@ -15,6 +26,8 @@ export function TreeRow(props: {
   progress?: number;
   missing?: boolean;
   offline?: boolean;
+  marker?: TreeRowMarker;
+  draggable?: boolean;
   dropTarget?: boolean;
   dragging?: boolean;
   bpm?: number | null;
@@ -54,7 +67,7 @@ export function TreeRow(props: {
       data-drop-target={props.dropTarget || undefined}
       data-dragging={props.dragging || undefined}
       data-wave={(isSample() && props.wave) || undefined}
-      draggable={isSample() && !props.missing}
+      draggable={props.draggable ?? (isSample() && !props.missing)}
       title={props.title}
       onMouseDown={(e) => props.onMouseDown?.(e)}
       onDblClick={() => props.onDblClick?.()}
@@ -104,6 +117,13 @@ export function TreeRow(props: {
       </div>
       <Show when={props.offline}>
         <span class="cr-node__badge">hors ligne</span>
+      </Show>
+      <Show when={props.marker}>
+        {(m) => (
+          <span class="cr-node__marker" title={MARKER_LABEL[m()]} aria-label={MARKER_LABEL[m()]}>
+            <Icon name={MARKER_ICON[m()]} />
+          </span>
+        )}
       </Show>
       <Show when={isSample()}>
         <span class="cr-col-bpm cr-node__meta">{props.bpm ?? ""}</span>

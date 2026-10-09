@@ -5,7 +5,9 @@ Oct 9, 2026 · @Quentin · remplace la v1 du 8 octobre
 Ce qui change par rapport à la v1, en bref :
 
 - **Phase 0 terminée** : prototype complet, design system dans Storybook, fenêtre Tauri vide, checklist de validation.
-- **Une seule vue** : l'arborescence des sources s'ouvre directement sur les samples. Plus de sidebar à sections, plus de liste à plat.
+- **Une seule vue par onglet** : l'arborescence des sources s'ouvre directement sur les samples. Plus de sidebar à sections, plus de liste à plat.
+- **Deux onglets** : « Bibliothèque » (sources + éléments épinglés) et « Virtuels » (favoris, collections, dossiers virtuels).
+- **Collections** (regroupements à plat) **et dossiers virtuels** (arborescence) ; un dossier virtuel ou une collection peut devenir un vrai dossier (« Créer un vrai dossier », copie).
 - **Le tiroir du bas ne montre que le sample courant** : ▶, nom, temps, étoile favori, waveform.
 - **Favoris discrets** : jamais d'étoile dans l'arbre ; dossier « Favoris », ⌘D, étoile grise dans le tiroir.
 - **La recherche élague l'arbre** au lieu d'ouvrir une liste de résultats.
@@ -16,10 +18,10 @@ Ce qui change par rapport à la v1, en bref :
 Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vivre dans une colonne étroite (~1/5 d'écran, 260–520 px) à côté du DAW, comme le browser d'Ableton. Trois promesses seulement : **indexer vite, trouver instantanément, ranger sans déplacer les fichiers**.
 
 - **Une seule barre de recherche** qui fait tout (texte, tags, filtres). Pas de panneaux de filtres.
-- **Une seule vue** : l'arbre des dossiers sources, qui s'ouvre sur les samples. Les collections sont un dossier virtuel en bas de l'arbre. Les réglages remplacent l'arbre dans la même colonne. Aucune fenêtre secondaire.
+- **Une seule vue par onglet** : « Bibliothèque » = l'arbre des sources, qui s'ouvre sur les samples ; « Virtuels » = favoris, collections et dossiers virtuels. On choisit ce qui apparaît aussi à la racine de Bibliothèque (épingler), marqué d'une petite icône. Les réglages et « Créer un vrai dossier » remplacent l'arbre dans la même colonne. Aucune fenêtre secondaire.
 - **Clavier d'abord** : ⌘F, flèches façon Finder (→ ouvre / entre / lit, ← ferme / remonte), espace, T pour taguer, ⌘D favori, ⌘S enregistrer une recherche.
 - **Zéro attente perçue** : chaque frappe met à jour l'arbre en moins de 16 ms ; aucune action ne bloque l'UI.
-- **Non destructif** : rien n'est jamais écrit dans les dossiers de l'utilisateur ; tout vit dans une base locale.
+- **Non destructif** : rien n'est jamais modifié, déplacé ni supprimé dans les dossiers de l'utilisateur ; tout vit dans une base locale. Seule exception, explicite : « Créer un vrai dossier » **copie** des fichiers dans un **nouveau** dossier choisi par l'utilisateur.
 - **Minimalisme** : gris + un seul accent (ambre, réservé à la lecture, à la progression, au focus et aux cibles de dépôt). Pas de compteurs, pas d'extension de fichier, pas d'icône de dossier ou de fichier.
 
 ## Scope MVP
@@ -30,16 +32,19 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Arbre unique sources → dossiers → samples | Oui | Dossiers puis samples à chaque niveau, même retrait |
 | Recherche unifiée (texte + `#tag` + filtres) | Oui | Élague l'arbre aux dossiers qui ont des résultats, tous ouverts |
 | Tags (popover T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
-| Collections manuelles et smart | Oui | Smart = recherche sauvegardée (⌘S). Ajout par drag & drop ou menu contextuel |
-| Favoris | Oui | Collection système « Favoris » ; ⌘D ; étoile grise dans le tiroir uniquement ; `is:fav` |
+| Collections (à plat) manuelles et smart | Oui | Regroupements de samples, sans sous-dossier. Smart = recherche sauvegardée (⌘S). Ajout par drag & drop ou menu contextuel |
+| Dossiers virtuels (arborescence) | Oui | Samples + sous-dossiers virtuels, sans limite de profondeur. Glisser un dossier sur un autre le déplace. Un dossier n'affiche que son contenu propre (`in:` couvre ses descendants) |
+| Onglets Bibliothèque / Virtuels + épinglage | Oui | ⌘1 / ⌘2. Favoris, collections et dossiers virtuels épinglés apparaissent à la racine de Bibliothèque avec un repère (dossier en pointillés, liste, étoile) |
+| Créer un vrai dossier | Oui | Copie (jamais de déplacement) vers un nouveau dossier ; arborescence gardée ou aplatie ; option « Ajouter aux sources ». Copie réelle en phase 5 |
+| Favoris | Oui | Collection système « Favoris » (onglet Virtuels, épinglée par défaut) ; ⌘D ; étoile grise dans le tiroir uniquement ; `is:fav` |
 | Preview audio instantanée + waveform | Oui | Espace / →, auto-play optionnel (réglage) |
 | Drag & drop vers le DAW / Finder | Oui | Simple file URL, multi-fichiers |
 | Analyse BPM / tonalité / durée | Oui | En tâche de fond, priorité basse |
-| Menu contextuel | Oui | Lire, taguer, favori, ajouter à une collection, renommer / supprimer une collection, retirer une source, révéler dans le Finder |
+| Menu contextuel | Oui | Lire, taguer, favori, ajouter à une collection / un dossier virtuel, retirer de, renommer, supprimer, épingler, créer un vrai dossier, nouveau dossier virtuel, retirer une source, révéler dans le Finder |
 | Réglages dans la colonne | Oui | Sources, thème (sombre / clair / système), densité, toujours au premier plan, lecture auto |
 | Similarity search (ML) | Non, v2 | Vecteur de features par fichier |
 | Classification auto (kick, snare…) | Non, v2 | Commencer par des règles sur le nom |
-| Sous-menu « Ajouter à » | Non, v2 | En MVP : liste à plat des collections manuelles dans le menu |
+| Sous-menu « Ajouter à » | Non, v2 | En MVP : listes à plat dans le menu (collections manuelles, dossiers virtuels avec leur chemin « Pack › Drums ») |
 | Édition audio, slicing, enregistrement live | Non | Hors scope |
 | Windows / Linux | Non | Mac uniquement (le prototype compile sous Linux pour les tests) |
 
@@ -76,13 +81,15 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 
 ## Interface (validée en phase 0)
 
-- **Panneau** : barre titre overlay (72 px réservés aux feux macOS) → recherche (30 px) → statut d'indexation (si scan) → arbre → tiroir.
-- **Arbre** : racine = sources, puis « Collections » (Favoris en premier, puis collections manuelles et smart). Un dossier ouvert liste ses sous-dossiers puis ses samples au même retrait. Samples : nom sans extension, BPM et clé à droite (BPM masqué sous 280 px), mini-waveform en densité « Waveform » (36 px).
+- **Panneau** : barre titre overlay (72 px réservés aux feux macOS, puis les onglets Bibliothèque / Virtuels) → recherche (30 px) → statut d'indexation (si scan) → arbre → tiroir.
+- **Onglet Bibliothèque** : racine = sources, puis les éléments épinglés (Favoris, collections, dossiers virtuels) avec leur repère à droite. **Onglet Virtuels** : Favoris, groupe « Collections » (à plat), dossiers virtuels (arborescence), épingle à droite de ce qui est affiché dans Bibliothèque.
+- **Arbre** : Un dossier ouvert liste ses sous-dossiers puis ses samples au même retrait. Samples : nom sans extension, BPM et clé à droite (BPM masqué sous 280 px), mini-waveform en densité « Waveform » (36 px).
 - **Grille** : icônes (chevron, ▶, !, coche) à 8 px, libellés à 24 px, +16 px par niveau d'arbre.
 - **Recherche** : chips pour les tokens reconnus ; les tokens en cours de frappe (`#ta`) ne filtrent pas ; une recherche masque les collections (sinon doublons) et ouvre tous les dossiers qui ont des résultats.
 - **Tiroir** : ▶ / ■, nom, temps / durée, étoile favori grise, waveform. Rien d'autre (ni tags ni méta).
 - **Surcouches** (une seule à la fois, Échap ferme) : autocomplétion, popover de tags, enregistrement ⌘S, menu contextuel.
-- **Réglages** (⌘,) : remplacent l'arbre ; ‹ ou Échap pour revenir.
+- **Réglages** (⌘,) et **Créer un vrai dossier** : remplacent l'arbre ; ‹ ou Échap pour revenir.
+- **Glisser-déposer** : samples → collection manuelle, dossier virtuel ou Favoris ; dossier virtuel → dossier virtuel (déplacement) ou fond de l'onglet (racine). Survoler l'onglet « Virtuels » pendant un glisser l'ouvre.
 
 ### Clavier
 
@@ -97,6 +104,8 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | T | Taguer la sélection |
 | ⌘D | Favori |
 | ⌘S | Recherche → collection smart |
+| ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
+| ⌘N | Nouveau dossier virtuel |
 | ⌘, | Réglages |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
@@ -113,7 +122,7 @@ Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Ru
 | `bpm:` | `bpm:120-128`, `bpm:>140` | Plage ou comparaison |
 | `key:` | `key:Am`, `key:C` | Tonalité (note seule = majeur + mineur) |
 | `dur:` | `dur:<2s`, `dur:1-4s` | Durée |
-| `in:` | `in:Drums` | Collection ou dossier source |
+| `in:` | `in:Drums` | Collection, sinon dossier virtuel (et ses sous-dossiers), sinon chemin |
 | `type:` | `type:loop`, `type:oneshot` | Loop / one-shot |
 | `is:` | `is:fav`, `is:untagged` | Raccourcis |
 
@@ -189,9 +198,10 @@ Le dépôt contient déjà la phase 0 validée : lis d'abord README.md, docs/pla
 docs/phase0-checklist.md, src/api/types.ts et src/api/mock.ts.
 
 ## Ce qui est figé (ne pas changer sans l'écrire dans docs/decisions.md)
-- L'interface : une seule vue, l'arbre des sources qui s'ouvre sur les samples ; collections (Favoris en tête)
-  dans un dossier virtuel en bas ; tiroir = ▶, nom, temps, étoile favori, waveform ; réglages dans la colonne ;
-  favoris discrets (jamais d'étoile dans l'arbre). Ne recrée ni sidebar, ni liste à plat, ni compteurs.
+- L'interface : deux onglets (Bibliothèque = arbre des sources + éléments épinglés ; Virtuels = favoris, collections
+  à plat, dossiers virtuels en arborescence) ; tiroir = ▶, nom, temps, étoile favori, waveform ; réglages et
+  « Créer un vrai dossier » dans la colonne ; favoris discrets (jamais d'étoile dans l'arbre).
+  Ne recrée ni sidebar, ni liste à plat, ni compteurs.
 - Les composants Solid de src/components et leur CSS (src/styles/tokens.css, bundle.css) : tu branches des
   données, tu ne redessines rien. Aucune couleur, taille ou marge hors des tokens --cr-*.
 - Le contrat src/api/types.ts (interface Backend) : c'est la spécification des commandes Tauri. Si un type doit
@@ -212,7 +222,9 @@ docs/phase0-checklist.md, src/api/types.ts et src/api/mock.ts.
 - Audio : symphonia + cpal côté Rust ; l'UI n'envoie que play / stop / seek et reçoit la position par événement.
 - Waveform : 256 pics par fichier calculés en Rust, stockés en blob.
 - Drag vers le DAW : plugin drag de CrabNebula. File watching : notify. Analyse : rayon, priorité basse.
-- Jamais d'écriture dans les dossiers de l'utilisateur ; tout dans le dossier app data.
+- Jamais de modification, déplacement ou suppression dans les dossiers de l'utilisateur ; tout dans le dossier app
+  data. Seule écriture autorisée : « Créer un vrai dossier » copie dans un nouveau dossier choisi par l'utilisateur
+  (refuser un dossier existant non vide, ne jamais écraser).
 - Dépendances autorisées sans justification : celles citées ici + serde, thiserror, anyhow, tracing, tokio,
   rayon, specta, tauri-specta, @tanstack/solid-virtual. Toute autre : justifie-la dans docs/decisions.md.
 
@@ -223,19 +235,26 @@ files(id, folder_id, path UNIQUE, name, ext, size, mtime, duration_ms, sample_ra
       peaks BLOB NULL, analyzed_at NULL)
 tags(id, name UNIQUE COLLATE NOCASE)
 file_tags(file_id, tag_id, PRIMARY KEY(file_id, tag_id))
-collections(id, name, kind TEXT CHECK(kind IN ('manual','smart')), query TEXT NULL, sort_order)
+collections(id, name, kind TEXT CHECK(kind IN ('manual','smart')), query TEXT NULL, pinned INT, sort_order)
 collection_items(collection_id, file_id, position)
+virtual_folders(id, parent_id NULL REFERENCES virtual_folders ON DELETE CASCADE, name, pinned INT)
+virtual_items(folder_id, file_id, position)
+settings(key PRIMARY KEY, value)   -- dont favorites_pinned
 files_fts = FTS5 external content (name, path_tokens, tags_text), unicode61, prefix='2 3', triggers.
 Index : files(folder_id), files(bpm), files(musical_key), files(duration_ms), files(kind), files(fav),
 file_tags(tag_id).
 Les « Favoris » sont files.fav exposé comme le nœud "c:fav" de l'arbre (pas une ligne de collections).
 
 ## Arbre (tree)
-Clés de nœuds : "f:<id>" dossier, "g:collections" groupe, "c:fav" favoris, "c:<id>" collection.
+Clés de nœuds : "f:<id>" dossier source, "c:fav" favoris, "g:collections" groupe, "c:<id>" collection,
+"v:<id>" dossier virtuel. Deux racines (`root`) : "library" (sources + épinglés, épinglés masqués en recherche)
+et "virtual" (favoris, groupe Collections, dossiers virtuels).
 Lignes renvoyées dans l'ordre d'affichage : à chaque niveau, sous-dossiers triés par nom puis samples triés par
 nom. Sans recherche : un nœud est ouvert s'il est dans `expanded`. Avec recherche : seuls les nœuds qui contiennent
 au moins un résultat restent, tous ouverts, et le groupe Collections est masqué. Pagination offset / limit, total
 séparé. Les pics de waveform ne voyagent que si la densité « waveform » est active (à ajouter au contrat).
+« Créer un vrai dossier » : plan (fichiers, sous-dossiers, octets, introuvables) puis copie ; progression par événement
+Tauri (phase 5) ; option « Ajouter aux sources » qui indexe le nouveau dossier.
 
 ## Langage de recherche
 mots libres → FTS5 préfixe · "phrase" · #tag · -exclusion · bpm:120-128 / bpm:>140 · key:Am · dur:<2s ·
@@ -270,3 +289,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.4 | Une seule vue : l'arbre remplace sidebar + liste ; le tiroir ne garde que le sample courant |
 | v0.5 | Phase 0 complète : tags (T), ⌘S, menu contextuel, réglages dans la colonne, fenêtre Tauri, Storybook |
 | v0.6 | Favoris de retour, discrets : dossier « Favoris », ⌘D, étoile grise dans le tiroir uniquement, `is:fav` |
+| v0.7 | Collections (à plat) **et** dossiers virtuels (arborescence) ; onglets Bibliothèque / Virtuels ; épinglage avec repère ; « Créer un vrai dossier » (copie) |

@@ -1,11 +1,42 @@
 //! Parité avec le prototype : la bibliothèque factice Rust doit produire exactement les mêmes données
 //! que le mock TypeScript (empreinte dans tests/fixtures/prototype.json, générée par `pnpm parity:fixture`).
 
-use crate_core::{Backend, MockLibrary, TreeRequest, TreeRow};
+use crate_core::{Backend, CommitOptions, MockLibrary, TreePage, TreeRequest, TreeRoot, TreeRow};
 use serde_json::Value;
 
 fn fixture() -> Value {
     serde_json::from_str(include_str!("fixtures/prototype.json")).expect("fixture JSON")
+}
+
+fn rows_of(page: &TreePage) -> Vec<String> {
+    page.rows
+        .iter()
+        .map(|r| match r {
+            TreeRow::Node(n) => format!(
+                "{}|{}|{}{}{}",
+                n.depth,
+                n.key,
+                if n.open { "open" } else { "closed" },
+                if n.offline == Some(true) { "|offline" } else { "" },
+                if n.pinned == Some(true) { "|pinned" } else { "" }
+            ),
+            TreeRow::Sample(s) => format!("{}|{}", s.depth, s.key),
+        })
+        .collect()
+}
+
+fn strings(v: &Value) -> Vec<String> {
+    v.as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect()
+}
+
+fn req(root: TreeRoot, query: &str, expanded: Vec<String>) -> TreeRequest {
+    TreeRequest {
+        root,
+        query: query.into(),
+        expanded,
+        offset: 0,
+        limit: 100_000,
+    }
 }
 
 fn round(x: f64) -> f64 {
@@ -53,38 +84,68 @@ fn memes_arbres() {
     let fx = fixture();
     let lib = MockLibrary::new();
     for t in fx["trees"].as_array().unwrap() {
-        let req = TreeRequest {
-            query: t["query"].as_str().unwrap().into(),
-            expanded: t["expanded"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|k| k.as_str().unwrap().to_string())
-                .collect(),
-            offset: 0,
-            limit: 100_000,
-        };
-        let page = lib.tree(&req);
-        let rows: Vec<String> = page
-            .rows
-            .iter()
-            .map(|r| match r {
-                TreeRow::Node(n) => format!(
-                    "{}|{}|{}{}",
-                    n.depth,
-                    n.key,
-                    if n.open { "open" } else { "closed" },
-                    if n.offline == Some(true) { "|offline" } else { "" }
-                ),
-                TreeRow::Sample(s) => format!("{}|{}", s.depth, s.key),
-            })
-            .collect();
-        let expected: Vec<&str> = t["rows"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-        let ctx = format!("query={:?} expanded={:?}", req.query, req.expanded);
-        assert_eq!(rows, expected, "{ctx}");
+        let root: TreeRoot = serde_json::from_value(t["root"].clone()).unwrap();
+        let r = req(root, t["query"].as_str().unwrap(), strings(&t["expanded"]));
+        let page = lib.tree(&r);
+        let ctx = format!("root={root:?} query={:?} expanded={:?}", r.query, r.expanded);
+        assert_eq!(rows_of(&page), strings(&t["rows"]), "{ctx}");
         assert_eq!(page.total_rows as u64, t["totalRows"].as_u64().unwrap(), "{ctx}");
         assert_eq!(page.matches as u64, t["matches"].as_u64().unwrap(), "{ctx}");
     }
+}
+
+#[test]
+fn memes_plans_de_commit() {
+    let fx = fixture();
+    let lib = MockLibrary::new();
+    for p in fx["plans"].as_array().unwrap() {
+        let key = p["key"].as_str().unwrap();
+        let opts = CommitOptions {
+            keep_hierarchy: p["keepHierarchy"].as_bool().unwrap(),
+            add_as_source: false,
+        };
+        let plan = lib.plan_commit(key, opts);
+        let e = &p["plan"];
+        let ctx = format!("plan {key} {opts:?}");
+        assert_eq!(plan.files as u64, e["files"].as_u64().unwrap(), "{ctx}");
+        assert_eq!(plan.folders as u64, e["folders"].as_u64().unwrap(), "{ctx}");
+        assert_eq!(plan.missing as u64, e["missing"].as_u64().unwrap(), "{ctx}");
+        assert_eq!(plan.bytes, e["bytes"].as_f64().unwrap(), "{ctx}");
+    }
+}
+
+#[test]
+fn meme_commit_ajoute_aux_sources() {
+    let fx = fixture();
+    let after = &fx["after"];
+    let mut lib = MockLibrary::new();
+    let res = lib.commit_to_folder(
+        "v:3",
+        "~/Desktop/Pack 2026/",
+        CommitOptions {
+            keep_hierarchy: true,
+            add_as_source: true,
+        },
+    );
+    assert_eq!(serde_json::to_value(&res).unwrap(), after["commit"]);
+    assert_eq!(serde_json::to_value(lib.sources()).unwrap(), after["sources"]);
+    let tree = lib.tree(&req(TreeRoot::Library, "", vec!["f:1000".into(), "f:1001".into(), "f:1002".into()]));
+    assert_eq!(rows_of(&tree), strings(&after["tree"]["rows"]));
+    assert_eq!(tree.matches as u64, after["tree"]["matches"].as_u64().unwrap());
+    let paths: Vec<String> = tree
+        .rows
+        .iter()
+        .filter_map(|r| {
+            if let TreeRow::Sample(s) = r {
+                Some(s.sample.path.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(paths, strings(&after["paths"]));
+    let search = lib.tree(&req(TreeRoot::Library, "riser", vec![]));
+    assert_eq!(rows_of(&search), strings(&after["search"]["rows"]));
 }
 
 #[test]
@@ -98,71 +159,35 @@ fn meme_bibliotheque() {
 #[test]
 fn pagination() {
     let lib = MockLibrary::new();
-    let all = lib.tree(&TreeRequest {
-        query: "kick".into(),
-        expanded: vec![],
-        offset: 0,
-        limit: 10_000,
-    });
+    let all = lib.tree(&req(TreeRoot::Library, "kick", vec![]));
     let page = lib.tree(&TreeRequest {
-        query: "kick".into(),
-        expanded: vec![],
         offset: 5,
         limit: 7,
+        ..req(TreeRoot::Library, "kick", vec![])
     });
     assert_eq!(page.total_rows, all.total_rows);
-    let keys = |p: &crate_core::TreePage| p.rows.iter().map(|r| r.key().to_string()).collect::<Vec<_>>();
+    let keys = |p: &TreePage| p.rows.iter().map(|r| r.key().to_string()).collect::<Vec<_>>();
     assert_eq!(keys(&page), keys(&all)[5..12].to_vec());
 }
 
 #[test]
-fn mutations() {
+fn collections_a_plat() {
     let mut lib = MockLibrary::new();
-    let fav_before = lib
-        .tree(&TreeRequest {
-            query: "is:fav".into(),
-            expanded: vec![],
-            offset: 0,
-            limit: 10_000,
-        })
-        .matches;
-    lib.set_favorite(&[1], true);
-    assert_eq!(
-        lib.tree(&TreeRequest {
-            query: "is:fav".into(),
-            expanded: vec![],
-            offset: 0,
-            limit: 10_000
-        })
-        .matches,
-        fav_before + 1
-    );
-
     lib.add_tag(&[1, 2], "crispy");
     assert_eq!(lib.library().tags.iter().find(|t| t.name == "crispy").map(|t| t.count), Some(2));
     lib.remove_tag(&[1], "crispy");
     assert_eq!(lib.library().tags.iter().find(|t| t.name == "crispy").map(|t| t.count), Some(1));
 
-    let c = lib.create_collection("Croustillants", Some("#crispy"));
-    assert_eq!(c.id, 7);
-    let open = TreeRequest {
-        query: String::new(),
-        expanded: vec!["g:collections".into(), "c:7".into()],
-        offset: 0,
-        limit: 10_000,
-    };
-    assert!(lib.tree(&open).rows.iter().any(|r| r.key() == "s:2@c:7"));
-    lib.rename_collection(7, "Crispy");
-    assert_eq!(lib.library().collections.last().unwrap().name, "Crispy");
+    let smart = lib.create_collection("Croustillants", Some("#crispy"));
+    assert_eq!(smart.id, 5);
+    let open = req(TreeRoot::Virtual, "", vec!["g:collections".into(), "c:5".into()]);
+    assert!(lib.tree(&open).rows.iter().any(|r| r.key() == "s:2@c:5"));
+    lib.add_to_collection(5, &[3]); // smart : refusé
+    assert!(!lib.tree(&open).rows.iter().any(|r| r.key() == "s:3@c:5"));
 
     let m = lib.create_collection("Nouvelle", None);
     lib.add_to_collection(m.id, &[3, 3, 4]);
-    let open = TreeRequest {
-        query: String::new(),
-        expanded: vec!["g:collections".into(), format!("c:{}", m.id)],
-        offset: 0,
-        limit: 10_000,
-    };
+    let open = req(TreeRoot::Virtual, "", vec!["g:collections".into(), format!("c:{}", m.id)]);
     assert_eq!(
         lib.tree(&open)
             .rows
@@ -171,9 +196,69 @@ fn mutations() {
             .count(),
         2
     );
+    lib.remove_from_collection(m.id, &[3]);
+    assert_eq!(
+        lib.tree(&open)
+            .rows
+            .iter()
+            .filter(|r| r.key().ends_with(&format!("@c:{}", m.id)))
+            .count(),
+        1
+    );
+    lib.rename_collection(m.id, "Renommée");
+    assert_eq!(lib.library().collections.last().unwrap().name, "Renommée");
     lib.delete_collection(m.id);
     assert!(!lib.library().collections.iter().any(|c| c.id == m.id));
+}
+
+#[test]
+fn dossiers_virtuels() {
+    let mut lib = MockLibrary::new();
+    let a = lib.create_virtual_folder("Cette année", None);
+    let b = lib.create_virtual_folder("Mars", Some(a.id));
+    assert_eq!(b.parent_id, Some(a.id));
+    // Déplacer « Projets » (1) dans « Mars » ; puis refuser « Cette année » dans son descendant « Mars ».
+    lib.move_virtual_folder(1, Some(b.id));
+    lib.move_virtual_folder(a.id, Some(b.id));
+    let vfs = lib.library().virtual_folders;
+    assert_eq!(vfs.iter().find(|f| f.id == 1).unwrap().parent_id, Some(b.id));
+    assert_eq!(vfs.iter().find(|f| f.id == a.id).unwrap().parent_id, None);
+
+    lib.add_to_virtual_folder(b.id, &[10, 11]);
+    lib.remove_from_virtual_folder(b.id, &[10]);
+    let open = req(TreeRoot::Virtual, "", vec![format!("v:{}", a.id), format!("v:{}", b.id)]);
+    let keys: Vec<String> = lib.tree(&open).rows.iter().map(|r| r.key().to_string()).collect();
+    assert!(keys.contains(&format!("s:11@v:{}", b.id)) && !keys.contains(&format!("s:10@v:{}", b.id)));
+    // `in:` couvre les sous-dossiers.
+    assert!(lib.tree(&req(TreeRoot::Library, "in:cette", vec![])).matches >= 1);
+
+    lib.set_pinned(&format!("v:{}", a.id), true);
+    assert!(lib
+        .tree(&req(TreeRoot::Library, "", vec![]))
+        .rows
+        .iter()
+        .any(|r| r.key() == format!("v:{}", a.id)));
+    lib.set_pinned("c:fav", false);
+    assert!(!lib
+        .tree(&req(TreeRoot::Library, "", vec![]))
+        .rows
+        .iter()
+        .any(|r| r.key() == "c:fav"));
+
+    // Supprimer « Cette année » emporte « Mars » et « Projets » (et « Night Drive »), jamais les fichiers.
+    lib.delete_virtual_folder(a.id);
+    let ids: Vec<u32> = lib.library().virtual_folders.iter().map(|f| f.id).collect();
+    assert_eq!(ids, vec![3, 4, 5]);
+    assert_eq!(lib.library().total, 400);
 
     lib.remove_source(20);
     assert_eq!(lib.sources().len(), 2);
+}
+
+#[test]
+fn favoris() {
+    let mut lib = MockLibrary::new();
+    let before = lib.tree(&req(TreeRoot::Library, "is:fav", vec![])).matches;
+    lib.set_favorite(&[1], true);
+    assert_eq!(lib.tree(&req(TreeRoot::Library, "is:fav", vec![])).matches, before + 1);
 }

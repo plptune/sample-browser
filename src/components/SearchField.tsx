@@ -27,9 +27,8 @@ function suggestionsFor(token: string): { prefix: string; items: AcItem[] } | nu
   }
   if (t.toLowerCase().startsWith("in:")) {
     const q = t.slice(3).toLowerCase();
-    const items = lib.collections
-      .filter((c) => c.name.toLowerCase().startsWith(q))
-      .map((c) => ({ label: `in:${c.name.split(" ")[0]}` }));
+    const names = [...lib.collections.map((c) => c.name), ...lib.virtualFolders.map((f) => f.name)];
+    const items = names.filter((n) => n.toLowerCase().startsWith(q)).map((n) => ({ label: `in:${n.split(" ")[0]}` }));
     return { prefix: neg, items };
   }
   return null;

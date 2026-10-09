@@ -4,7 +4,7 @@
  * Règle : aucun composant n'utilise de valeur en dur hors de ce fichier.
  *
  * Palette volontairement réduite : niveaux de gris + UN accent (ambre).
- * L'accent ne sert qu'à : lecture en cours, progression, focus clavier, favori.
+ * L'accent ne sert qu'à : lecture en cours, progression, focus clavier, cible de dépôt.
  */
 
 :root,
@@ -104,7 +104,11 @@
   --cr-row-h-wave: 36px;  /* ligne avec mini-waveform */
   --cr-item-h: 22px;      /* item de sidebar */
   --cr-header-h: 20px;    /* en-tête de colonne / section */
-  --cr-indent: 12px;      /* retrait par niveau d'arbre */
+  /* Grille horizontale : deux colonnes, partout dans le panneau.
+     icônes (chevron, repère, ▶) à --cr-gutter, libellés à --cr-gutter + --cr-slot + --cr-space-1. */
+  --cr-gutter: var(--cr-space-2);                       /* 8 px */
+  --cr-slot: var(--cr-icon);                            /* 12 px : emplacement d'icône */
+  --cr-indent: calc(var(--cr-slot) + var(--cr-space-1)); /* 16 px : un niveau = le chevron enfant sous le libellé parent */
   --cr-icon: 12px;
   --cr-icon-btn: 20px;
   --cr-chip-h: 16px;      /* chips de requête, tags */

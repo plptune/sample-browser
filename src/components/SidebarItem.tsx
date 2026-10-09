@@ -4,7 +4,7 @@ import { Chevron } from "./Icon";
 export function SidebarItem(props: {
   label: string;
   depth?: number;
-  mark?: "manual" | "smart" | "fav";
+  mark?: "manual" | "smart";
   expandable?: boolean;
   open?: boolean;
   selected?: boolean;
@@ -35,19 +35,22 @@ export function SidebarItem(props: {
       onDragLeave={() => props.onDragLeave?.()}
       onDrop={(e) => props.onDrop?.(e)}
     >
-      <Show when={props.expandable} fallback={<span class="cr-item__spacer" />}>
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onToggle?.();
-          }}
-        >
+      {/* Emplacement fixe : chevron (dossier), repère (collection) ou vide — le libellé reste toujours sur la même colonne. */}
+      <span
+        class="cr-item__slot"
+        onClick={(e) => {
+          if (!props.expandable) return;
+          e.stopPropagation();
+          props.onToggle?.();
+        }}
+      >
+        <Show when={props.expandable}>
           <Chevron open={props.open} />
-        </span>
-      </Show>
-      <Show when={props.mark}>
-        <span class="cr-item__mark" data-kind={props.mark} />
-      </Show>
+        </Show>
+        <Show when={!props.expandable && props.mark}>
+          <span class="cr-item__mark" data-kind={props.mark} />
+        </Show>
+      </span>
       <Show when={props.renaming} fallback={<span class="cr-item__label">{props.label}</span>}>
         <RenameInput value={props.label} onDone={(v) => props.onRename?.(v)} />
       </Show>

@@ -20,7 +20,6 @@ export interface Sample {
   key: string | null; // "Am", "F#"…
   kind: SampleKind;
   tags: string[];
-  fav: boolean;
   missing: boolean;
   peaks: number[]; // 256 valeurs 0..1
 }
@@ -48,7 +47,6 @@ export interface FolderNode {
 
 export type Scope =
   | { type: "all" }
-  | { type: "fav" }
   | { type: "untagged" }
   | { type: "recent" }
   | { type: "collection"; id: number }
@@ -71,7 +69,6 @@ export interface SearchPage {
 
 export interface Library {
   total: number;
-  favCount: number;
   untaggedCount: number;
   recentCount: number;
   tags: Tag[];
@@ -82,7 +79,6 @@ export interface Library {
 export interface Backend {
   library(): Promise<Library>;
   search(req: SearchRequest): Promise<SearchPage>;
-  setFavorite(ids: SampleId[], fav: boolean): Promise<void>;
   addTag(ids: SampleId[], tag: string): Promise<void>;
   removeTag(ids: SampleId[], tag: string): Promise<void>;
   renameCollection(id: number, name: string): Promise<void>;

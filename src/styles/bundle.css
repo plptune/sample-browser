@@ -263,7 +263,7 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-2);
-  padding: 0 var(--cr-space-2);
+  padding: 0 var(--cr-space-2) 0 var(--cr-gutter);
   background: var(--cr-surface);
   border-bottom: var(--cr-border) solid var(--cr-line);
   font-size: var(--cr-fs-xs);
@@ -318,7 +318,7 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);
-  padding: 0 var(--cr-space-1) 0 var(--cr-space-1);
+  padding: 0 var(--cr-space-2) 0 var(--cr-gutter);
   font-size: var(--cr-fs-sm);
   font-weight: var(--cr-fw-medium);
   color: var(--cr-text-3);
@@ -363,7 +363,7 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);
-  padding: 0 var(--cr-space-2) 0 calc(var(--cr-space-1) + var(--depth) * var(--cr-indent));
+  padding: 0 var(--cr-space-2) 0 calc(var(--cr-gutter) + var(--depth) * var(--cr-indent));
   color: var(--cr-text);
   white-space: nowrap;
 }
@@ -386,16 +386,20 @@
   color: var(--cr-text-3);
 }
 
-.cr-item__spacer {
-  width: var(--cr-icon);
+/* Emplacement fixe avant le libellé : chevron, repère de collection ou vide. */
+.cr-item__slot {
+  width: var(--cr-slot);
+  height: 100%;
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cr-item__mark {
   width: var(--cr-mark);
   height: var(--cr-mark);
   flex: none;
-  margin: 0 calc((var(--cr-icon) - var(--cr-mark)) / 2);
   border-radius: 1px;
   background: var(--cr-text-3);
 }
@@ -404,10 +408,6 @@
   background: none;
   box-shadow: inset 0 0 0 var(--cr-border) var(--cr-text-3);
   border-radius: 50%;
-}
-
-.cr-item__mark[data-kind="fav"] {
-  background: var(--cr-accent);
 }
 
 .cr-item__label {
@@ -451,7 +451,7 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);
-  padding: 0 var(--cr-space-2) 0 0;
+  padding: 0 var(--cr-space-2) 0 var(--cr-gutter);
 }
 
 .cr-list__header {
@@ -473,7 +473,7 @@
 }
 
 .cr-col-state {
-  width: var(--cr-space-4);
+  width: var(--cr-slot);
   flex: none;
   display: flex;
   justify-content: center;
@@ -547,12 +547,6 @@
   white-space: nowrap;
 }
 
-.cr-row__fav {
-  margin-left: var(--cr-space-1);
-  font-size: var(--cr-fs-xs);
-  color: var(--cr-text-3);
-}
-
 .cr-row__meta {
   color: var(--cr-text-2);
 }
@@ -596,16 +590,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--cr-space-1);
-  padding: var(--cr-space-1) var(--cr-space-2) var(--cr-space-2);
+  padding: var(--cr-space-1) var(--cr-space-2) var(--cr-space-2) var(--cr-gutter);
   background: var(--cr-surface);
   border-top: var(--cr-border) solid var(--cr-line);
 }
 
+/* Le bouton lecture déborde dans la gouttière pour que son icône tombe sur la colonne
+   des icônes et le titre sur celle des libellés. */
 .cr-drawer__head {
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);
-  margin-left: calc(-1 * var(--cr-space-1));
+  margin-left: calc((var(--cr-slot) - var(--cr-icon-btn)) / 2);
+}
+
+.cr-drawer__head > .cr-icon-btn:first-child {
+  margin-right: calc((var(--cr-slot) - var(--cr-icon-btn)) / 2);
 }
 
 .cr-drawer__title {

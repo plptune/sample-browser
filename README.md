@@ -19,7 +19,6 @@ pnpm build        # typecheck + build
 | ⌘F ou `/` | Recherche |
 | ↑ ↓ (⇧ pour étendre) | Naviguer dans la liste |
 | Espace / → / ← | Lecture-stop / lire / stop (fausse lecture) |
-| ⌘D | Favori |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
 | ⌫ en début de champ | Supprimer la dernière chip |
 | 1–6, 0, = | Scénarios de démo |

@@ -47,7 +47,6 @@ function matchToken(s: Sample, t: QueryToken): boolean {
         case "type":
           return s.kind === (t.value === "one-shot" ? "oneshot" : t.value);
         case "is":
-          if (t.value === "fav") return s.fav;
           if (t.value === "untagged") return s.tags.length === 0;
           return false;
         case "in": {
@@ -68,8 +67,6 @@ function inScope(s: Sample, scope: Scope): boolean {
   switch (scope.type) {
     case "all":
       return true;
-    case "fav":
-      return s.fav;
     case "untagged":
       return s.tags.length === 0;
     case "recent":
@@ -103,7 +100,6 @@ export const mockBackend: Backend = {
     );
     return {
       total: SAMPLES.length,
-      favCount: SAMPLES.filter((s) => s.fav).length,
       untaggedCount: SAMPLES.filter((s) => s.tags.length === 0).length,
       recentCount: RECENT_IDS.length,
       tags,
@@ -119,13 +115,6 @@ export const mockBackend: Backend = {
     const all = SAMPLES.filter((s) => inScope(s, req.scope) && matchLine(s, req.query)).sort(SORTERS[req.sort]);
     // copies : l'UI reçoit des valeurs, comme à travers l'IPC Tauri
     return { items: all.slice(req.offset, req.offset + req.limit).map((s) => ({ ...s })), total: all.length };
-  },
-
-  async setFavorite(ids, fav) {
-    for (const id of ids) {
-      const s = byId.get(id);
-      if (s) s.fav = fav;
-    }
   },
 
   async addTag(ids, tag) {

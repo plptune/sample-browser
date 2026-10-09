@@ -55,9 +55,6 @@ export function SampleRow(props: {
       <div class="cr-col-name cr-row__main">
         <span class="cr-row__name">
           {s().name}
-          <Show when={s().fav}>
-            <span class="cr-row__fav" aria-label="favori">★</span>
-          </Show>
         </span>
         <Show when={props.wave}>
           <Waveform

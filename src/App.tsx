@@ -28,11 +28,6 @@ export function App() {
     if (isField(e.target)) return;
 
     const list = () => document.querySelector<HTMLElement>(".cr-list");
-    if (mod && e.key.toLowerCase() === "d") {
-      e.preventDefault();
-      app.toggleFavorite();
-      return;
-    }
     if (mod) return;
 
     switch (e.key) {

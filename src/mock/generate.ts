@@ -209,7 +209,6 @@ function makeSamples(): Sample[] {
         key,
         kind: cat.kind,
         tags: [...tags].sort(),
-        fav: rand() < 0.08,
         missing: false,
         peaks: peaksFor(cat.shape, beats),
       });

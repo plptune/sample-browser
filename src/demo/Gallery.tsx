@@ -20,9 +20,9 @@ const VARIANTS = [
 ] as const;
 
 const find = (p: string, n = 0) => SAMPLES.filter((s) => s.name.startsWith(p))[n];
-const kick = { ...find("Kick", 3), fav: false, missing: false };
-const kickFav = { ...find("Kick", 5), fav: true, missing: false };
-const loop = { ...find("Keys_Loop", 2), fav: false, missing: false };
+const kick = { ...find("Kick", 3), missing: false };
+const kick2 = { ...find("Kick", 5), missing: false };
+const loop = { ...find("Keys_Loop", 2), missing: false };
 const missing = { ...find("Clap", 1), missing: true };
 
 function Frames(props: { render: (theme: string) => JSX.Element }) {
@@ -152,7 +152,6 @@ export function Gallery() {
             </button>
             <SidebarItem label="Défaut" />
             <SidebarItem label="Sélectionné" selected />
-            <SidebarItem label="Favoris" mark="fav" />
             <SidebarItem label="Collection manuelle" mark="manual" />
             <SidebarItem label="Collection smart" mark="smart" />
             <SidebarItem label="Cible de dépôt" mark="manual" dropTarget />
@@ -170,10 +169,10 @@ export function Gallery() {
       <Frames
         render={(theme) => (
           <>
-            <State label="défaut · favori · sélection (liste non focus)">
+            <State label="défaut · sélection (liste non focus)">
               <div class="cr-list">
                 <SampleRow sample={kick} />
-                <SampleRow sample={kickFav} />
+                <SampleRow sample={kick2} />
                 <SampleRow sample={loop} selected />
               </div>
             </State>
@@ -181,7 +180,7 @@ export function Gallery() {
               <div class="cr-list" data-focused>
                 <SampleRow sample={kick} selected />
                 <SampleRow sample={loop} playing progress={0.4} />
-                <SampleRow sample={kickFav} dragging />
+                <SampleRow sample={kick2} dragging />
                 <SampleRow sample={missing} />
               </div>
             </State>

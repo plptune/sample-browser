@@ -59,7 +59,6 @@ export function Sidebar() {
           <>
             <Section id="library" title="Bibliothèque">
               {item("Tous les samples", { type: "all" })}
-              {item("Favoris", { type: "fav" })}
               {item("Récents", { type: "recent" })}
               {item("Non tagués", { type: "untagged" })}
             </Section>

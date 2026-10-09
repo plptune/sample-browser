@@ -202,14 +202,6 @@ function createAppState() {
   }
 
   // --- actions sur la sélection
-  async function toggleFavorite() {
-    const ids = selection();
-    if (!ids.length) return;
-    const allFav = ids.every((id) => byId(id)?.fav);
-    await api.setFavorite(ids, !allFav);
-    await Promise.all([refresh(), reloadLibrary()]);
-  }
-
   async function renameCollection(id: number, name: string) {
     setRenamingId(null);
     if (name.trim()) await api.renameCollection(id, name.trim());
@@ -233,7 +225,7 @@ function createAppState() {
     setDraggingId, setRenamingId, setEmpty, setScan, setVisibleLimit, setTheme, setWidth, setDensity, setGrid,
     setChips, setDraft, setSelection, setCursor,
     refresh, reloadLibrary, byId, setQueryDraft, removeChip, editChip, clearQuery, goTo, select, move,
-    play, stop, togglePlay, freezePlayback, toggleFavorite, renameCollection, toggleSection, toggleFolder,
+    play, stop, togglePlay, freezePlayback, renameCollection, toggleSection, toggleFolder,
   };
 }
 

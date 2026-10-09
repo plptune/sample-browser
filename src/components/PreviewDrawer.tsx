@@ -14,7 +14,6 @@ export function PreviewDrawer(props: {
   themeKey?: string;
   onTogglePlay?: () => void;
   onToggleAuto?: () => void;
-  onToggleFav?: () => void;
 }) {
   const s = () => props.sample;
   const elapsed = () => (s() ? formatDuration(props.playing ? s()!.durationMs * props.progress : 0) : "");

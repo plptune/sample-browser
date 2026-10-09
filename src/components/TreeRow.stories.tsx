@@ -7,7 +7,7 @@ const meta = {
   component: TreeRow,
   args: { kind: "folder", label: "Drums", depth: 0 },
   argTypes: {
-    kind: { control: "inline-radio", options: ["folder", "group", "collection", "smart", "sample"] },
+    kind: { control: "inline-radio", options: ["folder", "group", "favorites", "collection", "smart", "sample"] },
     depth: { control: { type: "range", min: 0, max: 4 } },
     progress: { control: { type: "range", min: 0, max: 1, step: 0.01 } },
   },
@@ -48,6 +48,7 @@ export const Arbre: Story = {
       <TreeRow kind="sample" label={kick.name} depth={2} />
       <TreeRow kind="folder" label="Field Recordings" depth={0} offline />
       <TreeRow kind="group" label="Collections" depth={0} open />
+      <TreeRow kind="favorites" label="Favoris" depth={1} />
       <TreeRow kind="collection" label="Night Drive" depth={1} />
       <TreeRow kind="smart" label="Loops en Am" depth={1} />
     </div>

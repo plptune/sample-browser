@@ -20,6 +20,11 @@ function menuFor(row: Row): MenuItem[] {
     return [
       { label: app.playingId() === row.sample.id ? "Stop" : "Lire", shortcut: "Espace", action: () => app.togglePlay(), disabled: row.sample.missing },
       { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "T", action: () => app.openTagging() },
+      {
+        label: app.selectedSamples().every((s) => s.fav) ? "Retirer des favoris" : "Ajouter aux favoris",
+        shortcut: "⌘D",
+        action: () => app.toggleFavorite(),
+      },
       { type: "separator" },
       { type: "header", label: "Ajouter à" },
       ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.dropOnCollection(`c:${c.id}`) })),
@@ -34,6 +39,8 @@ function menuFor(row: Row): MenuItem[] {
       return row.parent === null
         ? [toggle, { label: "Révéler dans le Finder" }, { type: "separator" }, { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) }]
         : [toggle, { label: "Révéler dans le Finder" }];
+    case "favorites":
+      return [toggle];
     case "group":
       return [toggle, { type: "separator" }, { label: "Nouvelle collection", action: () => app.newCollection() }];
     default:
@@ -125,6 +132,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             progress={app.progress()}
             themeKey={app.theme()}
             onTogglePlay={() => app.togglePlay()}
+            onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
           />
           <Show when={app.tagging()}>
             <TagPopover

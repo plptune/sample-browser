@@ -21,6 +21,7 @@ export interface Sample {
   kind: SampleKind;
   tags: string[];
   missing: boolean;
+  fav: boolean;
   peaks: number[]; // 256 valeurs 0..1
 }
 
@@ -38,11 +39,11 @@ export interface Collection {
 
 /**
  * Nœud de l'arbre. Clés stables :
- * "f:<id>" dossier source · "g:collections" groupe des collections · "c:<id>" collection.
+ * "f:<id>" dossier source · "g:collections" groupe des collections · "c:fav" favoris · "c:<id>" collection.
  */
 export type NodeKey = string;
 
-export type NodeKind = "folder" | "group" | "collection" | "smart";
+export type NodeKind = "folder" | "group" | "favorites" | "collection" | "smart";
 
 export interface FolderRow {
   type: "node";
@@ -97,6 +98,7 @@ export interface Backend {
   library(): Promise<Library>;
   sources(): Promise<Source[]>;
   tree(req: TreeRequest): Promise<TreePage>;
+  setFavorite(ids: SampleId[], fav: boolean): Promise<void>;
   addTag(ids: SampleId[], tag: string): Promise<void>;
   removeTag(ids: SampleId[], tag: string): Promise<void>;
   /** Collection manuelle si `query` est absent, smart sinon (la ligne de recherche brute). */

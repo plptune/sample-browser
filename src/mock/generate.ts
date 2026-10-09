@@ -218,6 +218,7 @@ function makeSamples(): Sample[] {
         kind: cat.kind,
         tags: [...tags].sort(),
         missing: false,
+        fav: false,
         peaks: peaksFor(cat.shape, beats),
       });
     }
@@ -226,6 +227,9 @@ function makeSamples(): Sample[] {
 }
 
 export const SAMPLES: Sample[] = makeSamples();
+
+// Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
+for (const s of SAMPLES) s.fav = s.id % 11 === 0;
 
 // Nombre de samples par dossier (cumulé vers les parents).
 (function count(nodes: FolderNode[]): void {

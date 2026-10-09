@@ -3,7 +3,7 @@ import { Show, onMount } from "solid-js";
 import { Chevron, Icon } from "./Icon";
 import { Waveform } from "./Waveform";
 
-export type TreeRowKind = "folder" | "group" | "collection" | "smart" | "sample";
+export type TreeRowKind = "folder" | "group" | "favorites" | "collection" | "smart" | "sample";
 
 export function TreeRow(props: {
   kind: TreeRowKind;

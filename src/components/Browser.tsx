@@ -28,7 +28,7 @@ export function Browser() {
             if (app.cursor() === row.key) el?.scrollIntoView({ block: "nearest" });
           });
           if (row.type === "node") {
-            const manual = row.kind === "collection";
+            const manual = row.kind === "collection" || row.kind === "favorites"; // cibles de dépôt
             return (
               <TreeRow
                 ref={(r) => (el = r)}

@@ -4,6 +4,8 @@ Navigateur de samples pour Mac, pensé pour une colonne étroite à côté du DA
 une seule arborescence de dossiers qui s'ouvre sur les samples, et en bas le sample courant avec sa waveform.
 Ce dépôt ne contient pour l'instant **que l'interface, entièrement factice** : aucun son, aucun fichier lu, aucune base.
 
+**Plan et prompts à jour :** [`docs/plan.md`](docs/plan.md) · **Validation phase 0 :** [`docs/phase0-checklist.md`](docs/phase0-checklist.md)
+
 **En ligne :** [design system (Storybook)](https://plptune.github.io/sample-browser/storybook/) ·
 [prototype](https://plptune.github.io/sample-browser/) — redéployé par `.github/workflows/pages.yml` à chaque push.
 
@@ -29,6 +31,7 @@ pnpm build        # typecheck + build
 | Espace | Lecture / stop du sample courant (fausse lecture) |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample |
 | T | Taguer la sélection (popover) |
+| ⌘D | Favori / pas favori (sélection) |
 | ⌘S | Enregistrer la recherche comme collection smart |
 | ⌘, | Réglages (Échap pour revenir) |
 | Échap | Fermer la surcouche ouverte, sinon stop |

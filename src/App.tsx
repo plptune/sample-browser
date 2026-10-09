@@ -37,6 +37,11 @@ export function App() {
       app.openSaveSearch();
       return;
     }
+    if (mod && key === "d" && !isField(e.target)) {
+      e.preventDefault();
+      app.toggleFavorite();
+      return;
+    }
     if (mod && e.key === ",") {
       e.preventDefault();
       app.setView(app.view() === "settings" ? "browser" : "settings");

@@ -477,6 +477,11 @@
   margin-right: calc((var(--cr-slot) - var(--cr-icon-btn)) / 2);
 }
 
+/* Bouton favori : son icône s'aligne sur le bord droit de la waveform. */
+.cr-drawer__head > .cr-icon-btn:last-child:not(:first-child) {
+  margin-right: calc((var(--cr-slot) - var(--cr-icon-btn)) / 2);
+}
+
 .cr-drawer[data-empty] .cr-drawer__title {
   color: var(--cr-text-3);
 }

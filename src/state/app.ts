@@ -76,6 +76,10 @@ function createAppState() {
     batch(() => {
       setRows(page.rows);
       setMatches(page.matches);
+      // Le tiroir garde le sample courant à jour (favori, tags) s'il est encore visible.
+      const cur = current();
+      const fresh = cur && page.rows.find((r) => r.type === "sample" && r.sample.id === cur.id);
+      if (fresh && fresh.type === "sample") setCurrent(fresh.sample);
     });
   }
 
@@ -276,6 +280,14 @@ function createAppState() {
     await Promise.all([refresh(), reloadLibrary()]);
   }
 
+  // --- favoris : bascule sur la sélection (tous favoris → on retire, sinon on ajoute)
+  async function toggleFavorite(samples = selectedSamples()) {
+    if (!samples.length) return;
+    const all = samples.every((s) => s.fav);
+    await api.setFavorite(samples.map((s) => s.id), !all);
+    await refresh();
+  }
+
   // --- collections
   function openSaveSearch() {
     if (!searchLine()) return;
@@ -325,7 +337,8 @@ function createAppState() {
       setDraggingKey(null);
     });
     if (!ids.length) return;
-    await api.addToCollection(+key.slice(2), ids);
+    if (key === "c:fav") await api.setFavorite(ids, true);
+    else await api.addToCollection(+key.slice(2), ids);
     await refresh();
   }
 
@@ -345,7 +358,7 @@ function createAppState() {
   return {
     view, setView, tagging, setTagging, saving, setSaving, menu, setMenu, renamingKey, setRenamingKey,
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
-    openSaveSearch, saveSearch, newCollection, renameCollection, deleteCollection, dropOnCollection, removeSource, openMenu,
+    toggleFavorite, openSaveSearch, saveSearch, newCollection, renameCollection, deleteCollection, dropOnCollection, removeSource, openMenu,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,

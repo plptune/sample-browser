@@ -11,6 +11,7 @@ export function PreviewDrawer(props: {
   progress: number;
   themeKey?: string;
   onTogglePlay?: () => void;
+  onToggleFav?: () => void;
 }) {
   const s = () => props.sample;
   const time = () => {
@@ -33,6 +34,15 @@ export function PreviewDrawer(props: {
           {s() ? s()!.name : "Aucun sample"}
         </span>
         <span class="cr-drawer__time">{time()}</span>
+        {/* Favori : discret, gris, seulement ici (jamais dans les lignes de l'arbre). */}
+        <Show when={s()}>
+          <IconButton
+            icon={s()!.fav ? "star-fill" : "star"}
+            label={s()!.fav ? "Retirer des favoris (⌘D)" : "Ajouter aux favoris (⌘D)"}
+            active={s()!.fav}
+            onClick={() => props.onToggleFav?.()}
+          />
+        </Show>
       </div>
       <div class="cr-drawer__wave cr-wave">
         <Show when={s() && !s()!.missing}>

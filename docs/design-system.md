@@ -6,7 +6,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 
 1. **Gris d'abord, un seul accent.** L'ambre (`--cr-accent`) n'apparaît que pour : la lecture en cours,
    une progression, le focus clavier, une cible de dépôt. Jamais en aplat décoratif.
-2. **Pas d'icône sans fonction.** 11 icônes au total (`Icon.tsx`), trait 1,2 px sur 12 × 12.
+2. **Pas d'icône sans fonction.** 13 icônes au total (`Icon.tsx`), trait 1,2 px sur 12 × 12.
    Pas d'icône de dossier ni de fichier : le chevron suffit à distinguer un dossier d'un sample.
 3. **La hiérarchie vient du texte**, pas des couleurs : `--cr-text` → `-2` → `-3` → `-disabled`.
 4. **Grille de 4 px**, hauteurs fixes (ligne 24 px, 36 px avec waveform, item 22 px, en-tête 20 px).
@@ -54,7 +54,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | Browser (arbre) | `cr-tree` | `data-focused` | **La seule vue.** Sources à la racine, puis « Collections ». Chaque dossier liste ses sous-dossiers puis ses samples, au même retrait. |
 | TreeRow | `cr-node` | `data-kind=folder/group/collection/smart/sample`, `data-selected`, `data-playing`, `data-missing`, `data-offline`, `data-drop-target`, `data-dragging`, `data-wave`, `--depth`, renommage en place (`cr-node__input`) | Une seule hauteur (24 px). `cr-node__slot` (12 px) : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide. Samples : BPM et clé à droite, BPM masqué sous 280 px. |
 | Waveform | `cr-wave` (canvas) | progression | Barres 2 px, partie lue en accent + tête de lecture 1 px. |
-| PreviewDrawer | `cr-drawer` | vide / arrêt / lecture / introuvable | Uniquement ▶, nom du sample courant, temps / durée et waveform. |
+| PreviewDrawer | `cr-drawer` | vide / arrêt / lecture / favori / introuvable | ▶, nom du sample courant, temps / durée, étoile favori (grise, seul endroit où elle apparaît) et waveform. |
 | TagPill | `cr-tag` | `data-active`, `data-variant=add` | Contour 1 px, pas de couleur par tag. Plus affiché dans le panneau (v0.4), gardé dans le DS. |
 | TagPopover | `cr-popover` | item `data-state=all/some/none`, `data-active` | Touche T sur la sélection. ✓ = tous les samples ont le tag, – = certains. Saisie = filtre ; un nom inconnu propose « Créer ». Coche sur la colonne des icônes. |
 | SaveSearch | `cr-save` | — | ⌘S sur une recherche : nom de la collection smart, ⏎ enregistre, Échap annule. Seul champ à contour accent avec le renommage. |
@@ -69,7 +69,8 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 
 - **Ligne de 24 px** au lieu des 28 px du plan : plus proche de la densité d'Ableton. Un seul token à changer.
 - **Tags sans couleur.** Le schéma prévoit `color_index` ; je l'ignore visuellement pour rester gris.
-- **Pas de favoris** (v0.3) : ni ★, ni ⌘D, ni entrée « Favoris ». Les collections manuelles couvrent ce besoin.
+- **Favoris discrets** (v0.6, après un retrait en v0.3) : jamais d'étoile dans l'arbre. Un dossier système « Favoris » en tête des collections,
+  ⌘D et le menu contextuel pour basculer, une étoile grise (pleine si favori) dans le tiroir, `is:fav` dans la recherche.
 - **Une seule vue (v0.4)** : plus de sidebar ni de liste à plat. L'arbre des sources s'ouvre directement sur les samples ;
   les collections sont un dossier virtuel en bas. En recherche, seuls les dossiers contenant des résultats restent, tous ouverts,
   et les collections sont masquées (elles dupliqueraient les résultats). Plus de « Tous les samples / Récents / Non tagués »

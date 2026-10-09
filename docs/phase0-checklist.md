@@ -38,6 +38,8 @@ Cocher une ligne = « validé tel quel ». Tout écart se corrige en phase 0, pa
 - [ ] Renommer une collection (menu contextuel) : champ en place, ⏎ valide, Échap annule.
 - [ ] « Nouvelle collection » (clic droit sur « Collections ») : créée et directement en renommage.
 - [ ] ⇧-clic, ⌘-clic, ⇧↑↓ : multi-sélection ; T tague toute la sélection.
+- [ ] Favoris : aucune étoile dans l'arbre ; ⌘D, menu contextuel ou étoile grise du tiroir ; dossier « Favoris » en tête
+      des collections ; glisser sur « Favoris » ajoute ; `is:fav` filtre.
 - [ ] Échap ferme d'abord la surcouche ouverte (menu, tags, ⌘S), puis quitte les Réglages, puis arrête la lecture.
 
 ## Fenêtre Tauri

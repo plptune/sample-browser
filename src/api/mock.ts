@@ -45,6 +45,7 @@ function matchToken(s: Sample, t: QueryToken): boolean {
         case "type":
           return s.kind === (t.value === "one-shot" ? "oneshot" : t.value);
         case "is":
+          if (t.value === "fav") return s.fav;
           return t.value === "untagged" ? s.tags.length === 0 : false;
         case "in": {
           const v = t.value.toLowerCase();
@@ -91,7 +92,10 @@ function childNodes(key: NodeKey | null): NodeInfo[] {
   const folderInfo = (f: FolderNode): NodeInfo => ({ key: `f:${f.id}`, name: f.name, kind: "folder", offline: f.offline });
   if (key === null) return [...SOURCES.map(folderInfo), { key: "g:collections", name: "Collections", kind: "group" }];
   if (key === "g:collections")
-    return COLLECTIONS.map((c) => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection" }));
+    return [
+      { key: "c:fav", name: "Favoris", kind: "favorites" },
+      ...COLLECTIONS.map((c): NodeInfo => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection" })),
+    ];
   if (key.startsWith("f:")) return folders.get(+key.slice(2))?.children.map(folderInfo) ?? [];
   return [];
 }
@@ -101,6 +105,7 @@ function childSamples(key: NodeKey): Sample[] {
     const id = +key.slice(2);
     return SAMPLES.filter((s) => s.folderId === id).sort(byName);
   }
+  if (key === "c:fav") return SAMPLES.filter((s) => s.fav).sort(byName);
   if (key.startsWith("c:")) return collectionSamples(+key.slice(2)).sort(byName);
   return [];
 }
@@ -153,6 +158,13 @@ export const mockBackend: Backend = {
       totalRows: rows.length,
       matches: searching ? SAMPLES.filter(match).length : SAMPLES.length,
     };
+  },
+
+  async setFavorite(ids, fav) {
+    for (const id of ids) {
+      const s = byId.get(id);
+      if (s) s.fav = fav;
+    }
   },
 
   async addTag(ids, tag) {

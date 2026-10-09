@@ -16,4 +16,5 @@ type Story = StoryObj<typeof meta>;
 export const Vide: Story = { args: { sample: null } };
 export const Arret: Story = {};
 export const Lecture: Story = { args: { sample: loop, playing: true, progress: 0.4 } };
+export const Favori: Story = { args: { sample: { ...kick, fav: true } } };
 export const Introuvable: Story = { args: { sample: missing } };

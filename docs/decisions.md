@@ -40,12 +40,11 @@ sont dans `docs/design-system.md` et l'historique produit dans `docs/plan.md`.
 
 | Décision | Raison |
 | --- | --- |
-| Gardées, en version minimale : raccourcis vers des sous-dossiers, historique de navigation, taper pour sauter (maintenant) ; masquer des fichiers (phase 5), lecture aléatoire, boucle + volume, lecture depuis un point de la waveform, arrêt de la lecture au drag / à la perte de focus (phase 4), synonymes (phase 3), actualiser une source (phase 2). | Utiles au quotidien, coût faible, aucune nouvelle surface d'interface. |
+| Gardées, en version minimale : raccourcis vers des sous-dossiers, historique de navigation (maintenant) ; masquer des fichiers (phase 5), lecture aléatoire, boucle + volume, lecture depuis un point de la waveform, arrêt de la lecture au drag / à la perte de focus (phase 4), synonymes (phase 3), actualiser une source (phase 2). | Utiles au quotidien, coût faible, aucune nouvelle surface d'interface. |
 | **Écartées** : correction manuelle du BPM ou de la clé, renommage à l'export, détection des doublons exacts. | Choix utilisateur : pas besoin. |
 | Raccourci = nœud `p:<id>` (`kind: "shortcut"`, `target: "f:<id>"`) à la racine de Bibliothèque, après les sources ; seulement pour un sous-dossier (une source est déjà à la racine). Il ne se déplie pas : l'UI saute au vrai dossier (`ancestors(key)` puis ouverture). | Le dossier n'existe qu'une fois dans l'arbre : pas de doublons de lignes, sélection et lecture sans ambiguïté. |
 | Historique : un instantané (onglet, chips, brouillon, dossiers ouverts des deux onglets, curseur) avant chaque **saut** (onglet, chip, raccourci, recherche enregistrée), 50 au plus ; ouvrir un dossier n'en est pas un. ⌥← / ⌥→ hors des champs, ⌘[ / ⌘] partout, boutons 4 / 5 de la souris. | Revenir en arrière ramène l'arbre tel qu'on l'a quitté, sans devoir défaire chaque dépliage. |
-| Taper pour sauter : lettres, chiffres et ponctuation quand le focus n'est pas dans un champ ; saisie remise à zéro après 800 ms ; « kk » passe au k suivant ; Espace reste la lecture. Le tagging passe de T à **⌘T**. | T entrait en conflit avec la saisie. |
-| Les touches de scénario de la démo restent actives, sauf au milieu d'une saisie (les chiffres complètent alors la saisie). | Démo et tests inchangés. |
+| **En attente** : taper pour sauter (taper le début d'un nom pour y aller). Codé puis retiré ; le tagging reste sur T. | Choix utilisateur : intérêt pas évident pour l'instant. À reprendre seulement si le besoin apparaît (il obligerait à déplacer le tagging sur ⌘T). |
 
 ### Risques ouverts
 

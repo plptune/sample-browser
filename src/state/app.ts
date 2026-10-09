@@ -413,29 +413,6 @@ function createAppState() {
     select(target);
   }
 
-  // --- taper pour sauter : la première ligne visible dont le nom commence par la saisie
-  const TYPE_AHEAD_MS = 800;
-  let typed = "";
-  let typedAt = -Infinity;
-  const typingAhead = () => performance.now() - typedAt < TYPE_AHEAD_MS;
-
-  function typeAhead(ch: string) {
-    typed = typingAhead() ? typed + ch.toLowerCase() : ch.toLowerCase();
-    typedAt = performance.now();
-    const list = visible();
-    if (!list.length) return;
-    const i = list.findIndex((r) => r.key === cursor());
-    // « kkk » passe d'une ligne en k à la suivante ; « ki » affine à partir de la ligne courante.
-    const repeated = [...typed].every((c) => c === typed[0]);
-    const prefix = repeated ? typed[0] : typed;
-    const start = repeated ? i + 1 : Math.max(i, 0);
-    for (let k = 0; k < list.length; k++) {
-      const row = list[(start + k) % list.length];
-      const name = row.type === "node" ? row.name : row.sample.name;
-      if (name.toLowerCase().startsWith(prefix)) return select(row.key);
-    }
-  }
-
   // --- onglets
   async function switchTab(t: TreeRoot) {
     if (t === tab()) return;
@@ -651,7 +628,7 @@ function createAppState() {
     setWidth, setDensity, setGrid, setChips, setDraft, setSelection, setCursor, setCurrent, setExpanded,
     refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
     select, move, right, left, activate, play, stop, togglePlay,
-    jumpTo, back, forward, clearHistory, canBack, canForward, typeAhead, typingAhead,
+    jumpTo, back, forward, clearHistory, canBack, canForward,
   };
 }
 

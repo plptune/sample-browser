@@ -46,11 +46,6 @@ export function App() {
       app.switchTab(e.key === "1" ? "library" : "virtual");
       return;
     }
-    if (mod && key === "t" && !isField(e.target)) {
-      e.preventDefault();
-      app.openTagging();
-      return;
-    }
     // Historique : ⌘[ / ⌘] partout, ⌥← / ⌥→ hors des champs (où ils déplacent le curseur d'un mot).
     if (mod && (e.key === "[" || e.key === "]")) {
       e.preventDefault();
@@ -82,9 +77,9 @@ export function App() {
       else app.stop();
       return;
     }
-    // Touches de scénario (démo) : actives dans toutes les vues, sauf au milieu d'une saisie « taper pour sauter ».
+    // Touches de scénario (démo) : actives dans toutes les vues.
     const sc = SCENARIOS.find((x) => x.key === e.key);
-    if (sc && !(app.view() === "browser" && app.typingAhead())) {
+    if (sc) {
       e.preventDefault(); // sinon le caractère atterrit dans le champ que le scénario vient de focaliser
       runScenario(sc.id);
       return;
@@ -117,15 +112,15 @@ export function App() {
         e.preventDefault();
         app.activate();
         return;
+      case "t":
+      case "T":
+        e.preventDefault();
+        app.openTagging();
+        return;
       case "/":
         e.preventDefault();
         search?.focus();
         return;
-    }
-    // Taper pour sauter : lettres, chiffres et ponctuation (Espace reste la lecture).
-    if (e.key.length === 1 && !e.altKey && e.key !== " ") {
-      e.preventDefault();
-      app.typeAhead(e.key);
     }
   }
 

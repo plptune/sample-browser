@@ -19,7 +19,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 
 - **Une seule barre de recherche** qui fait tout (texte, tags, filtres). Pas de panneaux de filtres.
 - **Une seule vue par onglet** : « Bibliothèque » = l'arbre des sources, qui s'ouvre sur les samples ; « Virtuels » = favoris, collections et dossiers virtuels. On choisit ce qui apparaît aussi à la racine de Bibliothèque (épingler), marqué d'une petite icône. Les réglages et « Créer un vrai dossier » remplacent l'arbre dans la même colonne. Aucune fenêtre secondaire.
-- **Clavier d'abord** : ⌘F, flèches façon Finder (→ ouvre / entre / lit, ← ferme / remonte), espace, taper pour sauter, ⌘T pour taguer, ⌥← / ⌥→ historique, ⌘D favori, ⌘S enregistrer une recherche.
+- **Clavier d'abord** : ⌘F, flèches façon Finder (→ ouvre / entre / lit, ← ferme / remonte), espace, T pour taguer, ⌥← / ⌥→ historique, ⌘D favori, ⌘S enregistrer une recherche.
 - **Zéro attente perçue** : chaque frappe met à jour l'arbre en moins de 16 ms ; aucune action ne bloque l'UI.
 - **Non destructif** : rien n'est jamais modifié, déplacé ni supprimé dans les dossiers de l'utilisateur ; tout vit dans une base locale. Seule exception, explicite : « Créer un vrai dossier » **copie** des fichiers dans un **nouveau** dossier choisi par l'utilisateur.
 - **Minimalisme** : gris + un seul accent (ambre, réservé à la lecture, à la progression, au focus et aux cibles de dépôt). Pas de compteurs, pas d'extension de fichier, pas d'icône de dossier ou de fichier.
@@ -31,7 +31,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Ajout de dossiers sources (drag & drop dans l'app, ⌘O) | Oui | Scan en arrière-plan, l'app reste utilisable |
 | Arbre unique sources → dossiers → samples | Oui | Dossiers puis samples à chaque niveau, même retrait |
 | Recherche unifiée (texte + `#tag` + filtres) | Oui | Élague l'arbre aux dossiers qui ont des résultats, tous ouverts |
-| Tags (popover ⌘T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
+| Tags (popover T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
 | Collections (à plat) manuelles et smart | Oui | Regroupements de samples, sans sous-dossier. Smart = recherche sauvegardée (⌘S). Ajout par drag & drop ou menu contextuel |
 | Dossiers virtuels (arborescence) | Oui | Samples + sous-dossiers virtuels, sans limite de profondeur. Glisser un dossier sur un autre le déplace. Un dossier n'affiche que son contenu propre (`in:` couvre ses descendants) |
 | Onglets Bibliothèque / Virtuels + épinglage | Oui | ⌘1 / ⌘2. Favoris, collections et dossiers virtuels épinglés apparaissent à la racine de Bibliothèque avec un repère (dossier en pointillés, liste, étoile) |
@@ -102,9 +102,8 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ← | Fermer un dossier, sinon remonter au parent |
 | Espace | Lecture / stop |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |
-| a–z, 0–9 | Taper pour sauter (« kk » : k suivant) |
 | ⌥← / ⌥→, ⌘[ / ⌘] | Historique de navigation |
-| ⌘T | Taguer la sélection |
+| T | Taguer la sélection |
 | ⌘D | Favori |
 | ⌘S | Recherche → collection smart |
 | ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
@@ -295,4 +294,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v0.5 | Phase 0 complète : tags (T), ⌘S, menu contextuel, réglages dans la colonne, fenêtre Tauri, Storybook |
 | v0.6 | Favoris de retour, discrets : dossier « Favoris », ⌘D, étoile grise dans le tiroir uniquement, `is:fav` |
 | v0.7 | Collections (à plat) **et** dossiers virtuels (arborescence) ; onglets Bibliothèque / Virtuels ; épinglage avec repère ; « Créer un vrai dossier » (copie) |
-| v0.8 | Idées reprises de Sononym, en version simple : raccourcis vers des sous-dossiers, historique ⌥← / ⌥→, taper pour sauter (le tagging passe sur ⌘T) ; planifiés : masquer, lecture aléatoire, boucle + volume, lecture depuis un point, arrêt au drag / perte de focus, synonymes, actualiser une source |
+| v0.8 | Idées reprises de Sononym, en version simple : raccourcis vers des sous-dossiers, historique ⌥← / ⌥→ ; planifiés : masquer, lecture aléatoire, boucle + volume, lecture depuis un point, arrêt au drag / perte de focus, synonymes, actualiser une source ; en attente : taper pour sauter |

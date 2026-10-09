@@ -45,7 +45,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
     const removable = parent.startsWith("v:") || (parent.startsWith("c:") && (parent === "c:fav" || manual.some((c) => `c:${c.id}` === parent)));
     return [
       { label: app.playingId() === row.sample.id ? "Stop" : "Lire", shortcut: "Espace", action: () => app.togglePlay(), disabled: row.sample.missing },
-      { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "⌘T", action: () => app.openTagging() },
+      { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "T", action: () => app.openTagging() },
       {
         label: app.selectedSamples().every((s) => s.fav) ? "Retirer des favoris" : "Ajouter aux favoris",
         shortcut: "⌘D",

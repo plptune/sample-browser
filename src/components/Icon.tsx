@@ -1,0 +1,52 @@
+// Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
+import type { JSX } from "solid-js";
+
+export type IconName = "search" | "chevron" | "play" | "stop" | "close" | "plus" | "settings" | "sidebar" | "loop";
+
+// Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
+const PATHS: Record<IconName, () => JSX.Element> = {
+  search: () => (
+    <>
+      <circle cx="5.2" cy="5.2" r="3.4" />
+      <path d="M7.7 7.7 10.6 10.6" />
+    </>
+  ),
+  chevron: () => <path d="M4.5 2.8 7.7 6 4.5 9.2" />,
+  play: () => <path d="M3.5 2.2v7.6L9.8 6z" fill="currentColor" stroke="none" />,
+  stop: () => <rect x="3" y="3" width="6" height="6" fill="currentColor" stroke="none" />,
+  close: () => <path d="M3.2 3.2l5.6 5.6M8.8 3.2 3.2 8.8" />,
+  plus: () => <path d="M6 2.5v7M2.5 6h7" />,
+  settings: () => <path d="M2 3.5h8M2 8.5h8M4.5 2v3M7.5 7v3" />,
+  sidebar: () => (
+    <>
+      <rect x="1.6" y="2.1" width="8.8" height="7.8" rx="1" />
+      <path d="M1.6 5h8.8" />
+    </>
+  ),
+  loop: () => <path d="M2.5 6.5V5.5a2 2 0 0 1 2-2h4.5M7.5 2l1.5 1.5L7.5 5M9.5 5.5v1a2 2 0 0 1-2 2H3M4.5 10 3 8.5 4.5 7" />,
+};
+
+export function Icon(props: { name: IconName; class?: string }) {
+  return (
+    <svg
+      class={`cr-icon ${props.class ?? ""}`}
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      {PATHS[props.name]()}
+    </svg>
+  );
+}
+
+export function Chevron(props: { open?: boolean }) {
+  return (
+    <svg class="cr-chevron" data-open={props.open || undefined} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4.5 2.8 7.7 6 4.5 9.2" />
+    </svg>
+  );
+}

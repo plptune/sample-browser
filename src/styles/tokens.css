@@ -1,0 +1,129 @@
+/*
+ * Crate — design tokens
+ * Source unique des couleurs, tailles, espacements et polices.
+ * Règle : aucun composant n'utilise de valeur en dur hors de ce fichier.
+ *
+ * Palette volontairement réduite : niveaux de gris + UN accent (ambre).
+ * L'accent ne sert qu'à : lecture en cours, progression, focus clavier, favori.
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces — du plus profond au plus élevé */
+  --cr-bg: #1b1b1b;            /* fond de la liste */
+  --cr-surface: #232323;       /* barre titre, sidebar, tiroir */
+  --cr-surface-raised: #2c2c2c;/* champs, popovers */
+  --cr-hover: #2a2a2a;
+  --cr-selected: #3b3b3b;      /* sélection, liste non focus */
+  --cr-selected-focus: #4a4a4a;/* sélection, liste focus */
+  --cr-line: #111111;          /* séparateurs de zones */
+  --cr-line-soft: #2e2e2e;     /* séparateurs internes */
+
+  /* Texte */
+  --cr-text: #d8d8d8;
+  --cr-text-strong: #f2f2f2;
+  --cr-text-2: #9a9a9a;
+  --cr-text-3: #6a6a6a;
+  --cr-text-disabled: #4c4c4c;
+
+  /* Accent unique */
+  --cr-accent: #e8a33d;
+  --cr-accent-soft: rgba(232, 163, 61, 0.16);
+  --cr-on-accent: #1b1b1b;
+
+  /* États système (utilisés avec parcimonie, jamais en aplat) */
+  --cr-danger: #d0705f;
+
+  /* Waveform */
+  --cr-wave: #7a7a7a;
+  --cr-wave-played: var(--cr-accent);
+  --cr-wave-mini: #626262;
+
+  --cr-shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px #000;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --cr-bg: #e4e4e4;
+  --cr-surface: #d8d8d8;
+  --cr-surface-raised: #f0f0f0;
+  --cr-hover: #dadada;
+  --cr-selected: #c6c6c6;
+  --cr-selected-focus: #b4b4b4;
+  --cr-line: #b0b0b0;
+  --cr-line-soft: #cdcdcd;
+
+  --cr-text: #252525;
+  --cr-text-strong: #000000;
+  --cr-text-2: #5c5c5c;
+  --cr-text-3: #8a8a8a;
+  --cr-text-disabled: #ababab;
+
+  --cr-accent: #c67a12;
+  --cr-accent-soft: rgba(198, 122, 18, 0.16);
+  --cr-on-accent: #ffffff;
+
+  --cr-danger: #b2452f;
+
+  --cr-wave: #6e6e6e;
+  --cr-wave-played: var(--cr-accent);
+  --cr-wave-mini: #9c9c9c;
+
+  --cr-shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.18), 0 0 0 1px #a8a8a8;
+}
+
+:root {
+  /* Typo — une seule famille, quatre tailles */
+  --cr-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --cr-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --cr-fs-xs: 10px;  /* en-têtes de section, méta */
+  --cr-fs-sm: 11px;  /* lignes, items */
+  --cr-fs-md: 12px;  /* recherche, titres du tiroir */
+  --cr-fs-lg: 13px;  /* états vides */
+  --cr-fw-regular: 400;
+  --cr-fw-medium: 500;
+  --cr-fw-bold: 600;
+  --cr-tracking-caps: 0.06em;
+
+  /* Espacement — grille de 4 px */
+  --cr-space-0: 2px;
+  --cr-space-1: 4px;
+  --cr-space-2: 8px;
+  --cr-space-3: 12px;
+  --cr-space-4: 16px;
+  --cr-space-6: 24px;
+
+  /* Dimensions fixes */
+  --cr-titlebar-h: 28px;
+  --cr-traffic-w: 72px;   /* réserve des feux macOS (titleBarStyle Overlay) */
+  --cr-field-h: 24px;
+  --cr-row-h: 24px;       /* ligne compacte */
+  --cr-row-h-wave: 36px;  /* ligne avec mini-waveform */
+  --cr-item-h: 22px;      /* item de sidebar */
+  --cr-header-h: 20px;    /* en-tête de colonne / section */
+  --cr-indent: 12px;      /* retrait par niveau d'arbre */
+  --cr-icon: 12px;
+  --cr-icon-btn: 20px;
+  --cr-chip-h: 16px;      /* chips de requête, tags */
+  --cr-mark: 6px;         /* repère de collection */
+  --cr-input-min: 64px;
+  --cr-sidebar-max: 42%;  /* part max de la colonne prise par la sidebar */
+  --cr-empty-max: 220px;
+  --cr-wave-h: 44px;      /* waveform du tiroir */
+  --cr-wave-mini-h: 12px;
+
+  /* Colonnes de la liste */
+  --cr-col-bpm: 32px;
+  --cr-col-key: 28px;
+  --cr-col-dur: 36px;
+
+  --cr-radius: 2px;
+  --cr-radius-lg: 4px;
+  --cr-border: 1px;
+
+  --cr-dur-fast: 80ms;
+  --cr-z-pop: 10;
+}

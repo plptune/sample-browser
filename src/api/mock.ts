@@ -1,6 +1,7 @@
 // Backend factice (phase 0). Filtre naïf en JS sur les mocks, juste pour l'illusion.
 // Remplacé en phase 1 par src/api/tauri.ts (invoke) — l'UI ne change pas.
 
+import { naturalCompare } from "../lib/natural";
 import { parseLine, type QueryToken } from "../lib/query";
 import { COLLECTIONS, COLLECTION_ITEMS, ROOT_PATHS, SAMPLES, SOURCES, TAGS, type FolderNode } from "../mock/generate";
 import type { Backend, Collection, FolderRow, Library, NodeKey, NodeKind, Sample, TreePage, TreeRequest, TreeRow } from "./types";
@@ -71,7 +72,8 @@ const folders = new Map<number, FolderNode>();
   }
 })(SOURCES);
 
-const byName = (a: Sample, b: Sample) => a.name.localeCompare(b.name, "en", { numeric: true });
+// Même ordre que le cœur Rust (crate-core/src/natural.rs), indépendant de la locale.
+const byName = (a: Sample, b: Sample) => naturalCompare(a.name, b.name);
 
 function collectionSamples(id: number): Sample[] {
   const c = COLLECTIONS.find((c) => c.id === id);

@@ -149,11 +149,18 @@ Tout est dans le dépôt `plptune/sample-browser` :
 - Contrat : `src/api/types.ts` (interface `Backend`) + implémentation factice `src/api/mock.ts`.
 - Validation : `docs/phase0-checklist.md`. Décisions : `docs/design-system.md`.
 
-### Phases 1 à 6 — Le moteur
+### Phase 1 — Branchement ✅ terminée
+
+- Workspace Cargo : `crates/crate-core` (modèle, langage de recherche, tri, bibliothèque factice, trait `Backend`) + `src-tauri` (13 commandes typées).
+- `src/api/tauri.ts` dans la fenêtre, `mock.ts` ailleurs ; types générés dans `src/api/bindings.ts`, vérifiés par `src/api/contract.ts`.
+- Parité prouvée par test : mêmes 400 samples, mêmes 76 arbres que le prototype. Fenêtre pilotée au clavier : scénarios identiques, données servies par Rust.
+- CI : workflow « CI » (fmt, clippy, tests, fichiers générés à jour, builds). Décisions et risques : `docs/decisions.md`.
+
+### Phases 2 à 6 — Le moteur
 
 Chaque phase finit sur une app utilisable et un critère de sortie mesurable.
 
-1. **Branchement** — workspace Cargo (`crates/crate-core` + `src-tauri`), commandes Tauri pour **toutes** les méthodes de `Backend`, renvoyant encore les données factices (portées en Rust). `src/api/tauri.ts` + sélection automatique du backend (Tauri → `tauri.ts`, navigateur / Storybook → `mock.ts`). tauri-specta génère `src/api/bindings.ts`.
+1. ✅ **Branchement** — workspace Cargo (`crates/crate-core` + `src-tauri`), commandes Tauri pour **toutes** les méthodes de `Backend`, renvoyant encore les données factices (portées en Rust). `src/api/tauri.ts` + sélection automatique du backend (Tauri → `tauri.ts`, navigateur / Storybook → `mock.ts`). tauri-specta génère `src/api/bindings.ts`.
    - Sortie : le prototype tourne à l'identique dans la fenêtre Tauri, mais ses données passent par Rust ; un test vérifie que les types générés et `types.ts` sont compatibles.
 2. **Index + scan** — schéma SQLite, indexeur sur un thread dédié, scan des dossiers (métadonnées rapides), `notify`, `sources()` / `removeSource()` / ajout de dossier (⌘O + dépôt), statut d'indexation par événement.
    - Sortie : 100 000 fichiers indexés en < 60 s, UI fluide pendant le scan, arbre réel affiché.

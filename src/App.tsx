@@ -7,8 +7,7 @@ import { app } from "./state/app";
 const isField = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA");
 
-/** Dans la fenêtre Tauri : le panneau seul, plein cadre. Dans le navigateur : la scène de démo. */
-const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+import { inTauri } from "./lib/env";
 
 export function App() {
   const [scenario, setScenario] = createSignal(3);

@@ -36,7 +36,7 @@ export function Browser() {
                 label={row.name}
                 depth={row.depth}
                 open={row.open}
-                offline={row.offline}
+                offline={row.offline ?? undefined}
                 selected={app.cursor() === row.key}
                 dropTarget={app.dropTarget() === row.key}
                 renaming={app.renamingKey() === row.key}

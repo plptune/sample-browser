@@ -15,7 +15,7 @@ export interface Sample {
   durationMs: number;
   sampleRate: number;
   bitDepth: number;
-  channels: 1 | 2;
+  channels: number; // 1 ou 2
   bpm: number | null;
   key: string | null; // "Am", "F#"…
   kind: SampleKind;
@@ -34,7 +34,7 @@ export interface Collection {
   id: number;
   name: string;
   kind: "manual" | "smart";
-  query?: string; // ligne de recherche brute pour une smart collection
+  query?: string | null; // ligne de recherche brute pour une smart collection
 }
 
 /**
@@ -53,7 +53,7 @@ export interface FolderRow {
   name: string;
   kind: NodeKind;
   open: boolean;
-  offline?: boolean;
+  offline?: boolean | null;
 }
 
 export interface SampleRow {

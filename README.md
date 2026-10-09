@@ -49,43 +49,49 @@ Les 12 scénarios du plan : 1 Premier lancement · 2 Indexation · 3 Navigation 
 6 Lecture · 7 Tagging · 8 Collections (⌘S) · 9 Drag en cours · 10 Erreurs · 11 Réglages · 12 Mode waveform.
 Validation : [`docs/phase0-checklist.md`](docs/phase0-checklist.md).
 
-## Fenêtre Tauri
+## Fenêtre Tauri et cœur Rust
 
 ```bash
-pnpm tauri dev      # fenêtre 320 × 760, barre titre overlay, prototype sans la barre de démo
-pnpm tauri build    # Crate.app (macOS)
+pnpm tauri dev                 # fenêtre 320 × 760 ; les données viennent de Rust (crates/crate-core)
+CRATE_TRACE=1 pnpm tauri dev   # + trace des commandes sur stderr
+pnpm tauri build               # Crate.app (macOS)
+cargo test --workspace         # tests Rust, parité avec le prototype, régénère src/api/bindings.ts
+pnpm parity:fixture            # régénère l'empreinte du mock TypeScript après une modification du mock
 ```
 
-Phase 0 : aucune commande Rust (`src-tauri` = fenêtre seulement). Chaque push construit aussi un `Crate.app` sur macOS
-(workflow « Tauri (macOS) », artefact `Crate-macos`, non signé : clic droit → Ouvrir au premier lancement).
+Phase 1 : le cœur Rust sert encore les données factices du prototype (mêmes samples, mêmes arbres, vérifié par test).
+Dans le navigateur et Storybook, l'UI utilise le mock TypeScript ; dans la fenêtre, les commandes Rust.
+Chaque push construit aussi un `Crate.app` sur macOS (workflow « Tauri (macOS) », artefact `Crate-macos`,
+non signé : clic droit → Ouvrir au premier lancement).
 
 ## Structure
 
 ```
 src/
-  api/          contrat Backend (types.ts) + implémentation factice (mock.ts)
+  api/          contrat Backend (types.ts), mock.ts, tauri.ts, bindings.ts (généré), contract.ts (vérif.)
   mock/         ~400 samples déterministes (graine fixe), tags, collections, arborescence
   lib/query.ts  découpage de la ligne de recherche en tokens / chips
   state/app.ts  état d'UI (signaux Solid)
   components/   un fichier par composant du design system
   styles/       tokens.css + bundle.css (design system)
   demo/         barre de démo et scénarios (hors design system)
-src-tauri/      fenêtre Tauri 2 (aucune commande en phase 0)
+crates/crate-core/  cœur Rust sans Tauri : modèle, recherche, tri, bibliothèque factice, trait Backend
+src-tauri/      fenêtre Tauri 2 : une commande typée par méthode du contrat
+scripts/        empreinte de parité TS → Rust
   stories/      fondations Storybook (introduction, tokens) ; les stories des composants sont à côté de chaque composant
 .storybook/     configuration Storybook (framework storybook-solidjs-vite)
 docs/design-system.md
 ```
 
-## Passage à Tauri / Rust (phase 1)
+## Architecture
 
-L'UI ne parle au « backend » qu'à travers `src/api/index.ts` (interface `Backend`, toutes les méthodes sont `async`).
-Pour brancher Rust :
+```
+UI SolidJS ─► src/api/index.ts (Backend) ─┬─ mock.ts   navigateur, Storybook, Pages
+                                          └─ tauri.ts  fenêtre ─► src-tauri (commandes) ─► crates/crate-core
+```
 
-1. `pnpm tauri init` (devUrl `http://localhost:1420`, frontendDist `../dist`) — le port Vite est déjà fixé.
-2. Écrire les commandes Rust avec les mêmes signatures que `Backend` ; générer les types TS avec tauri-specta.
-3. Créer `src/api/tauri.ts` (appels `invoke`) et changer une ligne dans `src/api/index.ts`.
-
-Les composants, le CSS et le state ne bougent pas.
+Les composants, le CSS et l'état ne dépendent que du contrat `src/api/types.ts`. La suite (index SQLite, recherche,
+audio…) est décrite dans [`docs/plan.md`](docs/plan.md).
 
 ## Captures
 
@@ -93,6 +99,6 @@ Les composants, le CSS et le state ne bougent pas.
 | --- | --- | --- | --- | --- | --- |
 | ![](docs/screens/03-nav.png) | ![](docs/screens/04-search.png) | ![](docs/screens/06-playing.png) | ![](docs/screens/07-tagging.png) | ![](docs/screens/08-collections.png) | ![](docs/screens/09-drag.png) |
 
-| Erreurs | Réglages | Waveform | Clair 260 px | Fenêtre Tauri (Linux) |
+| Erreurs | Réglages | Waveform | Clair 260 px | Fenêtre Tauri, données Rust (Linux) |
 | --- | --- | --- | --- | --- |
 | ![](docs/screens/10-errors.png) | ![](docs/screens/11-settings.png) | ![](docs/screens/12-wave.png) | ![](docs/screens/03-nav-light-260.png) | ![](docs/screens/tauri-linux.png) |

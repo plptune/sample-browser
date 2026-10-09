@@ -1,0 +1,16 @@
+[package]
+name = "crate-core"
+description = "Cœur de Crate : modèle, langage de recherche, arbre, données. Aucune dépendance à Tauri."
+version.workspace = true
+edition.workspace = true
+
+[features]
+# Dérive specta::Type sur le modèle, pour générer les types TypeScript (activé par src-tauri).
+specta = ["dep:specta"]
+
+[dependencies]
+serde = { workspace = true }
+specta = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

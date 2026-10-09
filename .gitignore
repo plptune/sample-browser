@@ -2,5 +2,6 @@ node_modules
 dist
 .DS_Store
 shots
+/target
 src-tauri/target
 src-tauri/gen/schemas

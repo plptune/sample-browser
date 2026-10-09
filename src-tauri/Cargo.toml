@@ -1,8 +1,8 @@
 [package]
 name = "crate-app"
-version = "0.0.1"
-description = "Crate — navigateur de samples (phase 0 : fenêtre seulement, aucune commande Rust)"
-edition = "2021"
+description = "Crate — couche Tauri : commandes fines au-dessus de crate-core"
+version.workspace = true
+edition.workspace = true
 
 [lib]
 name = "crate_app_lib"
@@ -12,4 +12,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+crate-core = { path = "../crates/crate-core", features = ["specta"] }
 tauri = { version = "2", features = [] }
+serde = { workspace = true }
+specta = { workspace = true }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta-typescript = "0.0.12"

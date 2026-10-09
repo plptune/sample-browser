@@ -1,7 +1,6 @@
 // Scénarios de démo : chacun remet l'app dans un état précis et reproductible.
 import { batch, createSignal } from "solid-js";
-import { api } from "../api";
-import { mockSetMissing } from "../api/mock";
+import { api, demoSetMissing } from "../api";
 import { SAMPLES } from "../mock/generate";
 import { app } from "../state/app";
 
@@ -26,7 +25,7 @@ async function reset(expanded: string[] = []) {
   timers.forEach(clearInterval);
   timers = [];
   app.stop();
-  mockSetMissing([]);
+  await demoSetMissing([]);
   batch(() => {
     setAcOpen(false);
     app.setEmpty(false);
@@ -162,7 +161,7 @@ export const SCENARIOS: Scenario[] = [
     run: async () => {
       const claps = SAMPLES.filter((s) => s.name.startsWith("Clap") && s.folderId === 13);
       await reset(["f:10", "f:11", "f:13", "f:20"]);
-      mockSetMissing([claps[0].id, claps[2].id, claps[3].id]);
+      await demoSetMissing([claps[0].id, claps[2].id, claps[3].id]);
       await app.refresh();
       const row = app.visible().find((r) => r.type === "sample" && r.sample.id === claps[2].id);
       if (row) app.select(row.key);

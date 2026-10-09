@@ -1,0 +1,512 @@
+//! Données factices déterministes. Port exact de `src/mock/generate.ts` : même graine, mêmes tirages
+//! dans le même ordre, donc les mêmes 400 samples (ids, noms, chemins, tags…) que le prototype.
+//! Vérifié par `tests/parity.rs` contre une empreinte produite par le code TypeScript.
+
+use crate::model::{Collection, CollectionKind, Sample, SampleKind};
+
+/// Générateur mulberry32 (identique à la version JS, arithmétique u32).
+pub struct Rng(u32);
+
+impl Rng {
+    pub fn new(seed: u32) -> Self {
+        Rng(seed)
+    }
+
+    pub fn next_f64(&mut self) -> f64 {
+        self.0 = self.0.wrapping_add(0x6d2b_79f5);
+        let mut t = self.0;
+        t = (t ^ (t >> 15)).wrapping_mul(t | 1);
+        t ^= t.wrapping_add((t ^ (t >> 7)).wrapping_mul(t | 61));
+        (t ^ (t >> 14)) as f64 / 4_294_967_296.0
+    }
+
+    fn pick<'a, T>(&mut self, xs: &'a [T]) -> &'a T {
+        &xs[(self.next_f64() * xs.len() as f64).floor() as usize]
+    }
+
+    fn between(&mut self, lo: f64, hi: f64) -> f64 {
+        lo + self.next_f64() * (hi - lo)
+    }
+
+    fn int(&mut self, lo: i64, hi: i64) -> i64 {
+        self.between(lo as f64, (hi + 1) as f64).floor() as i64
+    }
+}
+
+pub const SEED: u32 = 0xc4a7e;
+
+pub const TAGS: [&str; 12] = [
+    "warm", "dark", "bright", "punchy", "lofi", "vinyl", "airy", "gritty", "clean", "analog", "tape", "wide",
+];
+
+const KEYS: [&str; 15] = ["C", "Cm", "D", "Dm", "E", "Em", "F", "Fm", "F#m", "G", "Gm", "A", "Am", "Bb", "Bm"];
+const ADJ: [&str; 15] = [
+    "Dusty", "Warm", "Punchy", "Lofi", "Tape", "Deep", "Bright", "Crunchy", "Vinyl", "Soft", "Hard", "Analog", "Dark", "Airy", "Round",
+];
+
+/// Nœud de l'arborescence des sources.
+#[derive(Debug, Clone)]
+pub struct FolderNode {
+    pub id: u32,
+    pub name: String,
+    pub offline: bool,
+    pub children: Vec<FolderNode>,
+}
+
+fn node(id: u32, name: &str, children: Vec<FolderNode>) -> FolderNode {
+    FolderNode {
+        id,
+        name: name.into(),
+        offline: false,
+        children,
+    }
+}
+
+/// Les 3 sources, sur 3 niveaux (mêmes ids que le prototype).
+pub fn sources() -> Vec<FolderNode> {
+    let mut field = node(
+        20,
+        "Field Recordings",
+        vec![node(21, "Paris", vec![node(22, "Metro", vec![])]), node(23, "Forest", vec![])],
+    );
+    field.offline = true;
+    vec![
+        node(
+            1,
+            "Splice",
+            vec![node(
+                2,
+                "packs",
+                vec![
+                    node(3, "Dusty Tapes Vol.2", vec![]),
+                    node(4, "Night Textures", vec![]),
+                    node(5, "Lofi Keys", vec![]),
+                ],
+            )],
+        ),
+        node(
+            10,
+            "Samples",
+            vec![
+                node(
+                    11,
+                    "Drums",
+                    vec![
+                        node(12, "Kicks", vec![]),
+                        node(13, "Snares", vec![]),
+                        node(14, "Hats", vec![]),
+                        node(15, "Perc", vec![]),
+                    ],
+                ),
+                node(16, "Bass", vec![]),
+                node(17, "Vocals", vec![node(18, "Chops", vec![])]),
+            ],
+        ),
+        field,
+    ]
+}
+
+pub fn root_path(id: u32) -> &'static str {
+    match id {
+        1 => "~/Splice/sounds",
+        10 => "~/Music/Samples",
+        20 => "/Volumes/Field SSD",
+        _ => "",
+    }
+}
+
+/// Chemin complet de chaque dossier (racine = chemin de la source).
+fn folder_paths(nodes: &[FolderNode], base: Option<&str>, out: &mut Vec<(u32, String)>) {
+    for n in nodes {
+        let p = match base {
+            None => root_path(n.id).to_string(),
+            Some(b) => format!("{b}/{}", n.name),
+        };
+        folder_paths(&n.children, Some(&p), out);
+        out.push((n.id, p));
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Shape {
+    Hit,
+    Loop,
+    Swell,
+    Noise,
+}
+
+struct Category {
+    name: &'static str,
+    kind: SampleKind,
+    folders: &'static [u32],
+    count: u32,
+    dur: (f64, f64),
+    bars: &'static [u32],
+    bpm: (i64, i64),
+    keyed: bool,
+    tags: &'static [&'static str],
+    shape: Shape,
+}
+
+const fn oneshot(
+    name: &'static str,
+    folders: &'static [u32],
+    count: u32,
+    dur: (f64, f64),
+    keyed: bool,
+    tags: &'static [&'static str],
+    shape: Shape,
+) -> Category {
+    Category {
+        name,
+        kind: SampleKind::Oneshot,
+        folders,
+        count,
+        dur,
+        bars: &[],
+        bpm: (0, 0),
+        keyed,
+        tags,
+        shape,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+const fn looped(
+    name: &'static str,
+    folders: &'static [u32],
+    count: u32,
+    bars: &'static [u32],
+    bpm: (i64, i64),
+    keyed: bool,
+    tags: &'static [&'static str],
+    shape: Shape,
+) -> Category {
+    Category {
+        name,
+        kind: SampleKind::Loop,
+        folders,
+        count,
+        dur: (0.0, 0.0),
+        bars,
+        bpm,
+        keyed,
+        tags,
+        shape,
+    }
+}
+
+const CATEGORIES: [Category; 16] = [
+    oneshot(
+        "Kick",
+        &[12, 12, 3],
+        46,
+        (180.0, 720.0),
+        false,
+        &["punchy", "dark", "warm", "tape", "analog", "clean"],
+        Shape::Hit,
+    ),
+    oneshot(
+        "Snare",
+        &[13, 13, 3],
+        38,
+        (140.0, 520.0),
+        false,
+        &["punchy", "bright", "gritty", "vinyl", "tape"],
+        Shape::Hit,
+    ),
+    oneshot(
+        "Clap",
+        &[13, 3],
+        20,
+        (150.0, 450.0),
+        false,
+        &["bright", "wide", "clean", "lofi"],
+        Shape::Hit,
+    ),
+    oneshot(
+        "HiHat",
+        &[14, 14, 3],
+        34,
+        (50.0, 260.0),
+        false,
+        &["bright", "airy", "clean", "gritty"],
+        Shape::Hit,
+    ),
+    oneshot(
+        "OpenHat",
+        &[14],
+        14,
+        (300.0, 900.0),
+        false,
+        &["bright", "airy", "vinyl"],
+        Shape::Hit,
+    ),
+    oneshot(
+        "Perc",
+        &[15, 15, 3],
+        30,
+        (80.0, 600.0),
+        false,
+        &["warm", "lofi", "analog", "dark"],
+        Shape::Hit,
+    ),
+    looped(
+        "Drum_Loop",
+        &[3, 3, 11],
+        36,
+        &[1, 2, 4],
+        (84, 140),
+        false,
+        &["lofi", "tape", "vinyl", "punchy", "gritty"],
+        Shape::Loop,
+    ),
+    looped(
+        "Top_Loop",
+        &[3, 14],
+        18,
+        &[1, 2],
+        (90, 130),
+        false,
+        &["airy", "bright", "lofi"],
+        Shape::Loop,
+    ),
+    oneshot(
+        "Bass",
+        &[16],
+        26,
+        (400.0, 2200.0),
+        true,
+        &["dark", "warm", "analog", "gritty"],
+        Shape::Hit,
+    ),
+    looped(
+        "Bass_Loop",
+        &[16],
+        18,
+        &[2, 4],
+        (80, 128),
+        true,
+        &["dark", "warm", "analog"],
+        Shape::Loop,
+    ),
+    looped(
+        "Keys_Loop",
+        &[5, 5],
+        28,
+        &[4, 8],
+        (70, 96),
+        true,
+        &["lofi", "warm", "vinyl", "tape"],
+        Shape::Swell,
+    ),
+    oneshot(
+        "Pad",
+        &[4, 4, 5],
+        22,
+        (3000.0, 9000.0),
+        true,
+        &["airy", "wide", "dark", "warm"],
+        Shape::Swell,
+    ),
+    oneshot(
+        "Texture",
+        &[4, 4, 23],
+        20,
+        (4000.0, 14000.0),
+        false,
+        &["dark", "wide", "airy", "gritty"],
+        Shape::Noise,
+    ),
+    oneshot(
+        "Vox_Chop",
+        &[18],
+        24,
+        (200.0, 1400.0),
+        true,
+        &["airy", "bright", "lofi", "wide"],
+        Shape::Hit,
+    ),
+    oneshot("Riser", &[4], 10, (2000.0, 6000.0), false, &["bright", "wide"], Shape::Swell),
+    oneshot(
+        "Ambience",
+        &[22, 23],
+        16,
+        (12000.0, 40000.0),
+        false,
+        &["wide", "dark", "airy"],
+        Shape::Noise,
+    ),
+];
+
+fn peaks_for(rng: &mut Rng, shape: Shape, beats: f64) -> Vec<f64> {
+    let n = 256usize;
+    let attack = rng.between(2.0, 8.0);
+    let decay = rng.between(3.0, 14.0);
+    let swell_at = rng.between(0.35, 0.7);
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let fi = i as f64;
+        let t = fi / n as f64;
+        let env = match shape {
+            Shape::Hit => {
+                if fi < attack {
+                    fi / attack
+                } else {
+                    (-(fi - attack) / (decay * 4.0)).exp()
+                }
+            }
+            Shape::Loop => {
+                let pos = (t * beats * 2.0) % 1.0; // croches
+                let strong = ((t * beats * 2.0).floor() as i64) % 2 == 0;
+                (-pos * 7.0).exp() * if strong { 1.0 } else { 0.55 } + 0.08
+            }
+            Shape::Swell => {
+                if t < swell_at {
+                    (t / swell_at).powf(1.6)
+                } else {
+                    1.0 - ((t - swell_at) / (1.0 - swell_at)).powf(2.0) * 0.85
+                }
+            }
+            Shape::Noise => 0.45 + 0.25 * (t * 9.0 + beats).sin() + 0.15 * (t * 23.0).sin(),
+        };
+        out.push((env * (0.7 + 0.3 * rng.next_f64())).clamp(0.02, 1.0));
+    }
+    out
+}
+
+/// Les 400 samples, dans l'ordre de génération (ids 1..=400).
+pub fn samples() -> Vec<Sample> {
+    let mut rng = Rng::new(SEED);
+    let mut paths = Vec::new();
+    folder_paths(&sources(), None, &mut paths);
+    let path_of = |id: u32| paths.iter().find(|(f, _)| *f == id).map(|(_, p)| p.clone()).unwrap_or_default();
+
+    let mut out = Vec::new();
+    let mut id = 1;
+    for cat in &CATEGORIES {
+        for i in 1..=cat.count {
+            let folder_id = *rng.pick(cat.folders);
+            let adj = *rng.pick(&ADJ);
+            let key = if cat.keyed { Some(rng.pick(&KEYS).to_string()) } else { None };
+            let mut bpm = None;
+            let mut beats = 4.0;
+            let (duration_ms, name) = if cat.kind == SampleKind::Loop {
+                let b = rng.int(cat.bpm.0, cat.bpm.1);
+                bpm = Some(b as f64);
+                let bars = *rng.pick(cat.bars);
+                beats = (bars * 4) as f64;
+                let dur = crate::query::js_round((beats * 60000.0) / b as f64);
+                let name = match &key {
+                    Some(k) => format!("{}_{adj}_{b}_{k}", cat.name),
+                    None => format!("{}_{adj}_{b}", cat.name),
+                };
+                (dur, name)
+            } else {
+                let dur = crate::query::js_round(rng.between(cat.dur.0, cat.dur.1));
+                let name = match &key {
+                    Some(k) => format!("{}_{adj}_{k}_{i:02}", cat.name),
+                    None => format!("{}_{adj}_{i:02}", cat.name),
+                };
+                (dur, name)
+            };
+            let tag_count = if rng.next_f64() < 0.14 {
+                0
+            } else {
+                (rng.int(1, 3) as usize).min(cat.tags.len())
+            };
+            // Ensemble ordonné comme un Set JS (ordre d'insertion), trié à la fin.
+            let mut tags: Vec<String> = Vec::new();
+            while tags.len() < tag_count {
+                let t = rng.pick(cat.tags).to_string();
+                if !tags.contains(&t) {
+                    tags.push(t);
+                }
+            }
+            let adj_tag = adj.to_lowercase();
+            if adj_tag != "deep" && TAGS.contains(&adj_tag.as_str()) && tag_count > 0 && !tags.contains(&adj_tag) {
+                tags.push(adj_tag);
+            }
+            tags.sort();
+            let ext = if rng.next_f64() < 0.85 { "wav" } else { "aif" };
+            let sample_rate = if rng.next_f64() < 0.75 { 44100 } else { 48000 };
+            let bit_depth = if rng.next_f64() < 0.6 { 24 } else { 16 };
+            let channels = if cat.shape == Shape::Hit && rng.next_f64() < 0.6 { 1 } else { 2 };
+            let peaks = peaks_for(&mut rng, cat.shape, beats);
+            out.push(Sample {
+                id,
+                path: format!("{}/{name}.{ext}", path_of(folder_id)),
+                name,
+                ext: ext.into(),
+                folder_id,
+                duration_ms: duration_ms as u32,
+                sample_rate,
+                bit_depth,
+                channels,
+                bpm,
+                key,
+                kind: cat.kind,
+                tags,
+                missing: false,
+                // Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
+                fav: id % 11 == 0,
+                peaks,
+            });
+            id += 1;
+        }
+    }
+    out
+}
+
+/// Les 6 collections de départ (4 manuelles, 2 smart).
+pub fn collections() -> Vec<Collection> {
+    let manual = |id: u32, name: &str| Collection {
+        id,
+        name: name.into(),
+        kind: CollectionKind::Manual,
+        query: None,
+    };
+    let smart = |id: u32, name: &str, q: &str| Collection {
+        id,
+        name: name.into(),
+        kind: CollectionKind::Smart,
+        query: Some(q.into()),
+    };
+    vec![
+        manual(1, "Night Drive"),
+        manual(2, "Go-to kicks"),
+        manual(3, "Textures"),
+        manual(4, "Vocal chops"),
+        smart(5, "Loops en Am", "type:loop key:Am"),
+        smart(6, "Courts & sombres", "#dark dur:<1s"),
+    ]
+}
+
+/// Contenu des collections manuelles (mêmes règles de sélection que le prototype).
+pub fn collection_items(samples: &[Sample]) -> Vec<(u32, Vec<u32>)> {
+    let by_prefix = |p: &str, n: usize, step: usize| -> Vec<u32> {
+        samples
+            .iter()
+            .filter(|s| s.name.starts_with(p))
+            .enumerate()
+            .filter(|(i, _)| i % step == 0)
+            .take(n)
+            .map(|(_, s)| s.id)
+            .collect()
+    };
+    vec![
+        (
+            1,
+            [
+                by_prefix("Keys_Loop", 6, 3),
+                by_prefix("Pad", 4, 4),
+                by_prefix("Bass_Loop", 3, 5),
+                by_prefix("Drum_Loop", 5, 6),
+            ]
+            .concat(),
+        ),
+        (2, by_prefix("Kick", 12, 3)),
+        (3, [by_prefix("Texture", 10, 2), by_prefix("Ambience", 4, 3)].concat()),
+        (4, by_prefix("Vox_Chop", 14, 1)),
+    ]
+}

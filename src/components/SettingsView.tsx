@@ -29,7 +29,6 @@ const [lastTab, setLastTab] = createSignal<SettingsTab>("sources");
 
 const COLOR_ROLES: { role: ColorRole; label: string; hint: string }[] = [
   { role: "accent", label: "Accent", hint: "Playback, progress, focus" },
-  { role: "primary", label: "Selection", hint: "Selected row, active tab" },
   { role: "bg", label: "Background", hint: "Surfaces follow it" },
 ];
 

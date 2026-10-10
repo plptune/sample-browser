@@ -404,6 +404,7 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v1.2 | Phase 6 : analyse de fond (nom, chunk acid, audio) ; `key:` avec enharmonies ; avancement dans les Réglages |
 | v1.3 | Fichiers MIDI : index, préécoute au piano synthétique, tempo et tonalité lus dans les notes, `type:midi`, repère « MIDI » |
 | v1.4 | Deux modes d'affichage : colonne et grande fenêtre (arbre large + inspecteur), ⌘⇧F |
+| v1.9 | Une seule couleur (ambre) ; sélection en inversion |
 | v1.8 | Dossiers aplatis (clic droit › Flatten, menu des filtres), engrenage des options de recherche, waveform sans état intermédiaire |
 | v1.7 | Retours n° 2 : interface en anglais, tiroir réorganisé, waveform HD et tête fluide, fondus (plus de clic), explorer épuré (nom.ext, lignes de parenté), ← / →, recherche à plat, glisser sans pastille |
 | v1.6 | Recherche depuis le DAW : ⌘F dans Live / Bitwig ouvre la recherche de Crate, Échap ou un glisser y revient |

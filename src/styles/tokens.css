@@ -3,11 +3,11 @@
  * Source unique des couleurs, tailles, espacements et polices.
  * Règle : aucun composant n'utilise de valeur en dur hors de ce fichier.
  *
- * Palette volontairement réduite : niveaux de gris + un accent (ambre) + un primaire (bleu).
- * - L'accent ne sert qu'à : lecture en cours, progression, focus clavier, cible de dépôt.
- * - Le primaire ne sert qu'à la sélection (lignes de l'arbre, onglet actif).
- * Trois couleurs de base par thème (--cr-bg, --cr-accent, --cr-primary), modifiables dans les Réglages :
- * les surfaces, lignes et sélections en découlent (color-mix), un réglage suffit donc à tout repeindre.
+ * Palette volontairement réduite : niveaux de gris + UNE couleur, l'accent (ambre), et ses nuances.
+ * - L'accent sert à : lecture en cours, progression, focus clavier, cible de dépôt, filtre actif.
+ * - La sélection n'a pas de couleur : elle inverse le texte et le fond (fond clair en thème sombre, et l'inverse).
+ * Deux couleurs de base par thème (--cr-bg, --cr-accent), modifiables dans les Réglages : surfaces et lignes
+ * découlent du fond (color-mix), un réglage suffit donc à tout repeindre.
  */
 
 :root,
@@ -17,7 +17,6 @@
   /* Couleurs de base */
   --cr-bg: #232323;            /* fond de la liste */
   --cr-accent: #e8a33d;
-  --cr-primary: #3d74d9;
   --cr-on-accent: #1b1b1b;
 
   /* Surfaces — du plus profond au plus élevé, dérivées du fond */
@@ -30,9 +29,10 @@
   --cr-line-soft: color-mix(in srgb, var(--cr-bg), #fff 6%);       /* séparateurs internes */
   --cr-guide: color-mix(in srgb, var(--cr-bg), #fff 6%);           /* lignes de parenté de l'arbre (décor, très doux) */
 
-  /* Sélection de l'arbre : teinte du primaire */
-  --cr-row-selected: color-mix(in srgb, var(--cr-primary) 30%, var(--cr-bg));       /* liste non focus */
-  --cr-row-selected-focus: color-mix(in srgb, var(--cr-primary) 55%, var(--cr-bg)); /* liste focus */
+  /* Sélection de l'arbre (et onglet actif) : inversion. Fond clair, texte du fond ; un peu moins franc sans focus. */
+  --cr-row-selected: var(--cr-text-2);          /* liste non focus */
+  --cr-row-selected-focus: var(--cr-text-strong); /* liste focus */
+  --cr-on-row-selected: var(--cr-bg);
 
   /* Texte */
   --cr-text: #d8d8d8;
@@ -59,7 +59,6 @@
 
   --cr-bg: #e4e4e4;
   --cr-accent: #c67a12;
-  --cr-primary: #2f6fe0;
   --cr-on-accent: #ffffff;
 
   --cr-surface: color-mix(in srgb, var(--cr-bg), #000 5%);
@@ -71,8 +70,9 @@
   --cr-line-soft: color-mix(in srgb, var(--cr-bg), #000 10%);
   --cr-guide: color-mix(in srgb, var(--cr-bg), #000 7%);
 
-  --cr-row-selected: color-mix(in srgb, var(--cr-primary) 25%, var(--cr-bg));
-  --cr-row-selected-focus: color-mix(in srgb, var(--cr-primary) 50%, var(--cr-bg));
+  --cr-row-selected: var(--cr-text-2);
+  --cr-row-selected-focus: var(--cr-text-strong);
+  --cr-on-row-selected: var(--cr-bg);
 
   --cr-text: #252525;
   --cr-text-strong: #000000;

@@ -16,7 +16,7 @@ const meta = {
     autoPlay: true,
     initialTab: "sources",
     fontSize: "base",
-    colors: { accent: "#e8a33d", primary: "#3d74d9", bg: "#232323" },
+    colors: { accent: "#e8a33d", bg: "#232323" },
     customColors: {},
     synonyms: [
       ["kick", "bd", "bassdrum"],
@@ -40,7 +40,7 @@ export const Apparence: StoryObj<typeof meta> = { args: { initialTab: "appearanc
 
 /** Une couleur changée : bouton × pour la rétablir, et « Rétablir toutes les couleurs ». */
 export const CouleurModifiee: StoryObj<typeof meta> = {
-  args: { initialTab: "appearance", fontSize: "lg", colors: { accent: "#e8a33d", primary: "#2fae6a", bg: "#232323" }, customColors: { primary: "#2fae6a" } },
+  args: { initialTab: "appearance", fontSize: "lg", colors: { accent: "#2fae6a", bg: "#232323" }, customColors: { accent: "#2fae6a" } },
 };
 
 /** Lecture, avec « Depuis le DAW » : ⌘F pris seulement dans Live et Bitwig. */

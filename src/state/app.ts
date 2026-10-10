@@ -20,7 +20,7 @@ export type ThemePref = "dark" | "light" | "system";
 /** Taille du texte (Réglages › Apparence) : S, M (défaut), L. */
 export type FontSize = "sm" | "base" | "lg";
 /** Couleurs de base modifiables, par thème ; absentes = celles du design system. */
-export type ColorRole = "accent" | "primary" | "bg";
+export type ColorRole = "accent" | "bg";
 export type ColorOverrides = Partial<Record<"dark" | "light", Partial<Record<ColorRole, string>>>>;
 
 export interface MenuState {

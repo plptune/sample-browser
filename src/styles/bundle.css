@@ -113,7 +113,7 @@
 
 .cr-tab[data-active] {
   background: var(--cr-row-selected-focus);
-  color: var(--cr-text-strong);
+  color: var(--cr-on-row-selected);
 }
 
 .cr-titlebar .cr-icon-btn {
@@ -155,7 +155,7 @@
 }
 
 .cr-icon-btn[data-primary] {
-  color: var(--cr-primary);
+  color: var(--cr-accent);
 }
 
 .cr-icon-btn[data-accent][data-active] {
@@ -434,6 +434,11 @@
   pointer-events: none;
 }
 
+/* La ligne inversée reste nette : pas de lignes de parenté par-dessus. */
+.cr-node[data-selected]::before {
+  display: none;
+}
+
 .cr-node[data-wave] {
   height: var(--cr-row-h-wave);
 }
@@ -442,10 +447,10 @@
   background: var(--cr-hover);
 }
 
-/* Sélection : teinte du primaire (plus franche quand la liste a le focus). */
+/* Sélection : inversion (fond clair et texte foncé en thème sombre, l'inverse en clair) ; tout le contenu suit. */
 .cr-node[data-selected] {
   background: var(--cr-row-selected);
-  color: var(--cr-text-strong);
+  color: var(--cr-on-row-selected);
 }
 
 .cr-tree[data-focused] .cr-node[data-selected] {
@@ -504,13 +509,14 @@
   color: var(--cr-text-2);
 }
 
-/* Dossier aplati : son icône (à astérisque) en couleur primaire, pour signaler l'état inhabituel. */
+/* Dossier aplati : son icône (à astérisque) en couleur d'accent, pour signaler l'état inhabituel. */
 .cr-node[data-flattened] .cr-node__icon {
-  color: var(--cr-primary);
+  color: var(--cr-accent);
 }
 
-.cr-node[data-selected] .cr-node__icon {
-  color: var(--cr-text);
+.cr-node[data-selected] .cr-node__icon,
+.cr-node[data-selected] .cr-node__label {
+  color: var(--cr-on-row-selected);
 }
 
 .cr-node__main {
@@ -556,7 +562,7 @@
 }
 
 .cr-node[data-selected] .cr-node__meta {
-  color: var(--cr-text);
+  color: var(--cr-on-row-selected);
 }
 
 .cr-node__playing {
@@ -1353,7 +1359,7 @@
 .cr-col-fmt { width: var(--cr-col-fmt); padding-left: var(--cr-space-3); }
 .cr-col-tags { width: var(--cr-col-tags); color: var(--cr-text-2); }
 /* Sur la ligne sélectionnée (fond bleu), tout le texte passe en clair : contraste ≥ 4,5:1 (tests/e2e/contraste.spec.ts). */
-.cr-node[data-selected] .cr-col-tags { color: var(--cr-text); }
+.cr-node[data-selected] .cr-col-tags { color: var(--cr-on-row-selected); }
 
 .cr-colhead {
   flex: none;

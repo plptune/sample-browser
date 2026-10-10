@@ -116,9 +116,9 @@ test("Réglages en onglets : taille du texte et couleurs", async ({ page }) => {
   await page.getByRole("button", { name: "Reset background color" }).click();
   expect(await cssVar(page, "--cr-bg")).toBe("#232323");
 
-  await page.getByLabel("Selection color").fill("#00aa00");
+  await page.getByLabel("Accent color").fill("#00aa00");
   await page.getByRole("button", { name: "Reset all colors" }).click();
-  expect(await cssVar(page, "--cr-primary")).toBe("#3d74d9");
+  expect(await cssVar(page, "--cr-accent")).toBe("#e8a33d");
 
   // Les lignes suivent la taille du texte (virtualisation comprise).
   await page.keyboard.press("Escape");

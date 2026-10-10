@@ -1,7 +1,7 @@
 // Couleurs choisies dans les Réglages → variables CSS du design system.
 import type { ColorOverrides, ColorRole } from "../state/app";
 
-const VARS: Record<ColorRole, string> = { accent: "--cr-accent", primary: "--cr-primary", bg: "--cr-bg" };
+const VARS: Record<ColorRole, string> = { accent: "--cr-accent", bg: "--cr-bg" };
 
 /** Luminance relative (WCAG) d'une couleur #rrggbb. */
 export function luminance(hex: string): number {
@@ -32,6 +32,6 @@ export const COLOR_VARS = [...Object.values(VARS), "--cr-on-accent"];
 
 /** Couleurs de base du design system (mêmes valeurs que tokens.css), montrées tant qu'on ne les a pas changées. */
 export const DEFAULT_COLORS: Record<"dark" | "light", Record<ColorRole, string>> = {
-  dark: { accent: "#e8a33d", primary: "#3d74d9", bg: "#232323" },
-  light: { accent: "#c67a12", primary: "#2f6fe0", bg: "#e4e4e4" },
+  dark: { accent: "#e8a33d", bg: "#232323" },
+  light: { accent: "#c67a12", bg: "#e4e4e4" },
 };

@@ -188,6 +188,13 @@ sont le même signal (lu 160).
 | **Réglages en onglets** : Sources, Apparence, Lecture, Recherche. | Demandé : la liste devenait longue. |
 | **Test de contraste** automatique (`tests/e2e/contraste.spec.ts`, WCAG ≥ 4,5:1) sur le texte des lignes (sélectionnées ou non), du tiroir et de l'inspecteur, dans les deux thèmes et les deux modes. Les tags des lignes passent de `text-3` à `text-2` (2,9:1 → 5,6:1). | Signalé à l'essai : tags illisibles sur la ligne sélectionnée en mode grand. Le test empêche que ça revienne. |
 
+## Une seule couleur, sélection inversée (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Une seule couleur, l'ambre (`--cr-accent`)**, et ses nuances : lecture, progression, focus, cible de dépôt, filtre actif (entonnoir, dossier aplati). Le bleu primaire disparaît ; Réglages › Apparence ne propose plus que l'accent et le fond. | Demandé : du bleu et de l'orange se faisaient concurrence ; l'orange de la preview donne le ton. |
+| **Sélection en inversion** : fond clair et texte foncé en thème sombre, l'inverse en clair (`--cr-text-strong` / `--cr-bg`), un peu moins franche quand la liste n'a pas le focus (`--cr-text-2`). Même traitement pour l'onglet actif. Pas de lignes de parenté sur la ligne sélectionnée. | Demandé. Le contraste reste ≥ 4,5:1 (test e2e). |
+
 ## Dossiers aplatis et waveform sans étapes (10 oct. 2026)
 
 | Décision | Raison |

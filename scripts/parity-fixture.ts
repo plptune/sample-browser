@@ -87,6 +87,24 @@ for (const s of SAMPLES) {
   const m = await mockBackend.memberships(s.id);
   if (m.length) memberships[s.id] = m;
 }
+// Résultats à plat (option de la recherche) : deux onglets, quelques requêtes.
+const FLAT_QUERIES = ["kick", "#warm", "type:midi", "in:go", "vocal -kick"];
+const flat: { root: string; query: string; rows: string[] }[] = [];
+for (const root of ["library", "virtual"] as const) {
+  for (const query of FLAT_QUERIES) {
+    const page = await mockBackend.tree({ root, query, expanded: [], offset: 0, limit: 100000, flat: true });
+    flat.push({ root, query, rows: rowsOf(page) });
+  }
+}
+// Forme d'onde détaillée du prototype (dérivée des pics) : somme arrondie, pour 3 samples et 2 largeurs.
+const waveforms: { id: number; buckets: number; len: number; maxSum: number; rmsSum: number }[] = [];
+for (const id of [SAMPLES[0].id, SAMPLES[57].id, SAMPLES[SAMPLES.length - 1].id]) {
+  for (const buckets of [97, 640]) {
+    const w = await mockBackend.waveform(id, buckets);
+    const sum = (a: number[]) => round(a.reduce((x, y) => x + y, 0));
+    waveforms.push({ id, buckets, len: w.max.length, maxSum: sum(w.max), rmsSum: sum(w.rms) });
+  }
+}
 const ancestors = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (k) => [k, await mockBackend.ancestors(k)])));
 
 // Raccourcis : épingler un sous-dossier, refuser une source, retirer, puis revenir à l'état initial.
@@ -113,6 +131,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after };
+const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, waveforms };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

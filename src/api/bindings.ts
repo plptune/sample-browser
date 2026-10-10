@@ -33,6 +33,11 @@ export const commands = {
 	setFolderHidden: (id: number, hidden: boolean) => __TAURI_INVOKE<void>("set_folder_hidden", { id, hidden }),
 	/**  Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ». */
 	peaks: (id: number) => __TAURI_INVOKE<(number | null)[]>("peaks", { id }),
+	/**
+	 *  Forme d'onde détaillée à la largeur affichée (tiroir, inspecteur). Vraie bibliothèque : le fichier est décodé
+	 *  hors du verrou de la bibliothèque, sur un fil à part ; prototype : dérivée des 256 pics.
+	 */
+	waveform: (id: number, buckets: number) => typedError<Waveform, null>(__TAURI_INVOKE("waveform", { id, buckets })),
 	/**  Avancement de l'analyse de fond (tempo, tonalité, boucle / one-shot). */
 	analysisStatus: () => __TAURI_INVOKE<AnalysisStatus>("analysis_status"),
 	synonyms: () => __TAURI_INVOKE<string[][]>("synonyms"),
@@ -378,6 +383,11 @@ export type TreeRequest_Deserialize = {
 	peaks?: boolean,
 	/**  Ligne dont on veut la position (`TreePage.focusIndex`) : pour y faire défiler l'arbre. */
 	focus?: string | null,
+	/**
+	 *  Résultats à plat (option de la recherche) : en recherche, seulement les samples trouvés, sans dossiers, à
+	 *  la profondeur 0, chacun une seule fois, dans l'ordre de l'arbre. Sans effet hors recherche.
+	 */
+	flat?: boolean,
 };
 
 export type TreeRequest_Serialize = {
@@ -391,6 +401,11 @@ export type TreeRequest_Serialize = {
 	peaks?: boolean,
 	/**  Ligne dont on veut la position (`TreePage.focusIndex`) : pour y faire défiler l'arbre. */
 	focus?: string | null,
+	/**
+	 *  Résultats à plat (option de la recherche) : en recherche, seulement les samples trouvés, sans dossiers, à
+	 *  la profondeur 0, chacun une seule fois, dans l'ordre de l'arbre. Sans effet hors recherche.
+	 */
+	flat?: boolean,
 };
 
 /**  Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels. */
@@ -421,6 +436,16 @@ export type VirtualFolder = {
 	/**  `None` = racine de l'onglet Virtuels. */
 	parentId: number | null,
 	pinned: boolean,
+};
+
+/**
+ *  Forme d'onde détaillée (tiroir, inspecteur) : par colonne, minimum, maximum et RMS, normalisés sur le maximum
+ *  absolu du fichier (−1..1, RMS 0..1). Calculée à la largeur affichée, à la demande.
+ */
+export type Waveform = {
+	min: number[],
+	max: number[],
+	rms: number[],
 };
 
 /* Tauri Specta runtime */

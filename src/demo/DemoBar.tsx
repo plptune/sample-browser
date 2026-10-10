@@ -11,30 +11,30 @@ export function DemoBar(props: { scenario: number; onScenario: (id: number) => v
   return (
     <div class="demo-bar">
       <label class="demo-group">
-        <span>Scénario</span>
+        <span>Scenario</span>
         <select value={props.scenario} onChange={(e) => { props.onScenario(+e.currentTarget.value); e.currentTarget.blur(); }}>
           <For each={SCENARIOS}>{(s) => <option value={s.id}>{`${s.key} · ${s.label}`}</option>}</For>
         </select>
       </label>
       <div class="demo-group">
-        <span>Thème</span>
-        <button data-on={app.theme() === "dark" || undefined} onClick={() => app.setTheme("dark")}>Sombre</button>
-        <button data-on={app.theme() === "light" || undefined} onClick={() => app.setTheme("light")}>Clair</button>
+        <span>Theme</span>
+        <button data-on={app.theme() === "dark" || undefined} onClick={() => app.setTheme("dark")}>Dark</button>
+        <button data-on={app.theme() === "light" || undefined} onClick={() => app.setTheme("light")}>Light</button>
       </div>
       <div class="demo-group">
-        <span>Largeur</span>
+        <span>Width</span>
         <For each={WIDTHS}>
           {(w) => <button data-on={app.width() === w || undefined} onClick={() => app.setWidth(w)}>{w}</button>}
         </For>
       </div>
       <div class="demo-group">
-        <span>Densité</span>
-        <button data-on={app.density() === "compact" || undefined} onClick={() => app.setDensity("compact")}>Compacte</button>
+        <span>Density</span>
+        <button data-on={app.density() === "compact" || undefined} onClick={() => app.setDensity("compact")}>Compact</button>
         <button data-on={app.density() === "wave" || undefined} onClick={() => app.setDensity("wave")}>Waveform</button>
       </div>
       <label class="demo-group">
         <input type="checkbox" checked={app.grid()} onChange={(e) => app.setGrid(e.currentTarget.checked)} />
-        <span>Grille 4 px</span>
+        <span>4 px grid</span>
       </label>
       <a class="demo-link" href={STORYBOOK_URL} target="_blank">Design system (Storybook) →</a>
     </div>

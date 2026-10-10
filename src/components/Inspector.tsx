@@ -1,7 +1,7 @@
 // Mode grand : le sample courant en détail, à droite de l'arbre (remplace le tiroir du mode colonne).
 // Grande waveform, lecture, métadonnées, tags modifiables, collections et dossiers virtuels qui le contiennent.
 import { For, Show } from "solid-js";
-import type { NodeKey, Sample } from "../api";
+import type { NodeKey, Sample, Waveform as WaveformData } from "../api";
 import { formatChannels, formatDuration, formatFormat, isMidi } from "../lib/format";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -12,6 +12,9 @@ export function Inspector(props: {
   sample?: Sample | null;
   /** Pics du sample (demandés à part). Défaut : `sample.peaks`. */
   peaks?: number[];
+  /** Forme d'onde détaillée à la largeur affichée (Rust) ; sinon les 256 pics. */
+  loadDetail?: (buckets: number) => Promise<WaveformData>;
+  looping?: boolean;
   playing: boolean;
   progress: number;
   themeKey?: string;
@@ -34,12 +37,12 @@ export function Inspector(props: {
   };
   const kind = () => {
     const x = s()!;
-    const k = x.kind === "loop" ? "boucle" : "one-shot";
-    return isMidi(x) ? `MIDI · ${k}` : k === "boucle" ? "Boucle" : "One-shot";
+    const k = x.kind === "loop" ? "loop" : "one-shot";
+    return isMidi(x) ? `MIDI · ${k}` : k === "loop" ? "Loop" : "One-shot";
   };
   return (
-    <aside class="cr-inspector" aria-label="Inspecteur">
-      <Show when={s()} fallback={<div class="cr-inspector__empty">Choisissez un sample</div>}>
+    <aside class="cr-inspector" aria-label="Inspector">
+      <Show when={s()} fallback={<div class="cr-inspector__empty">Pick a sample</div>}>
         {(x) => (
           <>
             <div class="cr-inspector__head">
@@ -48,31 +51,35 @@ export function Inspector(props: {
               </span>
               <IconButton
                 icon={x().fav ? "star-fill" : "star"}
-                label={x().fav ? "Retirer des favoris (⌘D)" : "Ajouter aux favoris (⌘D)"}
+                label={x().fav ? "Remove from favorites (⌘D)" : "Add to favorites (⌘D)"}
                 active={x().fav}
                 onClick={() => props.onToggleFav?.()}
               />
             </div>
             <Show when={(props.selectionCount ?? 1) > 1}>
               <div class="cr-inspector__note">
-                {props.selectionCount} samples sélectionnés : tags et favori s'appliquent aux {props.selectionCount}.
+                {props.selectionCount} samples selected: tags and favorite apply to all {props.selectionCount}.
               </div>
             </Show>
 
             <div class="cr-inspector__wave cr-wave">
-              <Show when={!x().missing} fallback={<div class="cr-drawer__error">Fichier introuvable</div>}>
+              <Show when={!x().missing} fallback={<div class="cr-drawer__error">File not found</div>}>
                 <Waveform
                   peaks={props.peaks ?? x().peaks}
                   progress={props.playing ? props.progress : undefined}
                   themeKey={props.themeKey}
                   onSeek={props.onSeek}
+                  loadDetail={props.loadDetail}
+                  detailKey={x().id}
+                  durationMs={x().durationMs}
+                  looping={props.looping}
                 />
               </Show>
             </div>
             <div class="cr-inspector__transport">
               <IconButton
                 icon={props.playing ? "stop" : "play"}
-                label={props.playing ? "Stop (espace)" : "Lire (espace)"}
+                label={props.playing ? "Stop (Space)" : "Play (Space)"}
                 active={props.playing}
                 accent
                 disabled={x().missing}
@@ -84,11 +91,11 @@ export function Inspector(props: {
             <dl class="cr-inspector__meta">
               <dt>BPM</dt>
               <dd class="cr-num">{x().bpm ?? "—"}</dd>
-              <dt>Clé</dt>
+              <dt>Key</dt>
               <dd>{x().key ?? "—"}</dd>
               <dt>Type</dt>
               <dd>{kind()}</dd>
-              <dt>Durée</dt>
+              <dt>Length</dt>
               <dd class="cr-num">{formatDuration(x().durationMs)} s</dd>
               <dt>Format</dt>
               <dd>
@@ -104,7 +111,7 @@ export function Inspector(props: {
                   {(t) => (
                     <span class="cr-tag cr-tag--removable">
                       {t}
-                      <button class="cr-tag__remove" aria-label={`Retirer le tag ${t}`} onClick={() => props.onRemoveTag?.(t)}>
+                      <button class="cr-tag__remove" aria-label={`Remove tag ${t}`} onClick={() => props.onRemoveTag?.(t)}>
                         <Icon name="close" />
                       </button>
                     </span>
@@ -117,8 +124,8 @@ export function Inspector(props: {
             </section>
 
             <section class="cr-inspector__section">
-              <h3 class="cr-inspector__h">Dans</h3>
-              <Show when={props.memberships?.length} fallback={<span class="cr-inspector__none">Aucune collection</span>}>
+              <h3 class="cr-inspector__h">In</h3>
+              <Show when={props.memberships?.length} fallback={<span class="cr-inspector__none">No collection</span>}>
                 <ul class="cr-inspector__list">
                   <For each={props.memberships}>
                     {(m) => (
@@ -135,12 +142,12 @@ export function Inspector(props: {
             </section>
 
             <section class="cr-inspector__section">
-              <h3 class="cr-inspector__h">Fichier</h3>
+              <h3 class="cr-inspector__h">File</h3>
               <span class="cr-inspector__path" title={x().path}>
                 {x().path}
               </span>
               <div>
-                <Button onClick={() => props.onReveal?.()}>Afficher dans le Finder</Button>
+                <Button onClick={() => props.onReveal?.()}>Show in Finder</Button>
               </div>
             </section>
           </>

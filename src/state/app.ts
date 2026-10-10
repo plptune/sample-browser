@@ -151,7 +151,13 @@ function createAppState() {
   let lastSig = "";
   const [scrollReset, setScrollReset] = createSignal(0); // le virtualiseur remonte en haut quand il change
 
-  const baseRequest = () => ({ root: tab(), query: searchLine(), expanded: expanded(), peaks: density() === "wave" });
+  // Option de recherche : résultats à plat (samples seulement, sans l'arborescence).
+  const [flatResults, setFlatResultsSignal] = createSignal(false);
+  const setFlatResults = (v: boolean) => {
+    setFlatResultsSignal(v);
+    if (searching()) void refresh();
+  };
+  const baseRequest = () => ({ root: tab(), query: searchLine(), expanded: expanded(), peaks: density() === "wave", flat: flatResults() });
 
   function place(arr: (TreeRow | undefined)[], offset: number, page: TreeRow[]) {
     page.forEach((r, i) => {
@@ -486,7 +492,18 @@ function createAppState() {
     const n = shownTotal();
     if (!n) return;
     const i = indexOf(cursor());
-    const next = Math.max(0, Math.min(n - 1, i < 0 ? 0 : i + delta));
+    let next = Math.max(0, Math.min(n - 1, i < 0 ? 0 : i + delta));
+    // En recherche, ↑ / ↓ ne s'arrêtent que sur les samples : les dossiers (tous ouverts) sont sautés.
+    if (searching()) {
+      const dir = delta < 0 ? -1 : 1;
+      let j = next;
+      for (; j >= 0 && j < n; j += dir) {
+        await ensureRange(j, j + 1);
+        if (rows()[j]?.type === "sample") break;
+      }
+      if (j < 0 || j >= n) return; // plus de sample dans ce sens : on reste où l'on est
+      next = j;
+    }
     await ensureRange(next, next + 1);
     const r = rows()[next];
     if (r) select(r.key, extend ? "range" : "replace");
@@ -503,22 +520,24 @@ function createAppState() {
     select(key);
   }
 
-  /** → : ouvre un dossier fermé, entre dans un dossier ouvert, lit un sample. */
+  /** → : ouvre le dossier sélectionné (le curseur reste dessus) ; un raccourci y saute. Rien sur un sample. */
   async function right() {
     const row = rowByKey(cursor());
     if (!row) return move(0);
-    if (row.type === "sample") return play(row.sample.id);
+    if (row.type === "sample") return;
     if (row.target) return jumpTo(row.target);
     if (!row.open) return setOpen(row.key, true);
-    move(1);
   }
 
-  /** ← : ferme un dossier ouvert, sinon remonte au dossier parent. */
+  /** ← : ferme le dossier sélectionné ; sur un sample ou un dossier fermé, ferme son parent et le sélectionne. */
   async function left() {
     const row = rowByKey(cursor());
-    if (!row) return;
-    if (row.type === "node" && row.open && !searching()) return setOpen(row.key, false);
-    if (row.parent) await selectKey(row.parent);
+    if (!row || searching()) return; // en recherche, l'arbre reste entièrement ouvert
+    if (row.type === "node" && row.open) return setOpen(row.key, false);
+    if (!row.parent) return;
+    const parent = row.parent;
+    await setOpen(parent, false);
+    await selectKey(parent);
   }
 
   function activate() {
@@ -546,7 +565,7 @@ function createAppState() {
         setProgress(0);
       }
     });
-    if (s.error) setNotice("Ce fichier ne peut pas être lu.");
+    if (s.error) setNotice("This file can't be played.");
   });
 
   function play(id: SampleId, startMs = 0) {
@@ -770,7 +789,7 @@ function createAppState() {
   const nodeId = (key: NodeKey) => +key.slice(2);
   const nodeName = (key: NodeKey) => {
     const lib = library();
-    if (key === "c:fav") return "Favoris";
+    if (key === "c:fav") return "Favorites";
     if (key.startsWith("c:")) return lib?.collections.find((c) => c.id === nodeId(key))?.name ?? "";
     if (key.startsWith("v:")) return lib?.virtualFolders.find((f) => f.id === nodeId(key))?.name ?? "";
     return "";
@@ -808,13 +827,13 @@ function createAppState() {
 
   /** Nouvelle collection manuelle, aussitôt en renommage. */
   async function newCollection() {
-    const c = await api.createCollection("Nouvelle collection");
+    const c = await api.createCollection("New collection");
     await revealVirtual(`c:${c.id}`, ["g:collections"], true);
   }
 
   // --- dossiers virtuels (arborescence)
   async function newVirtualFolder(parent: NodeKey | null = null) {
-    const f = await api.createVirtualFolder("Nouveau dossier", parent ? nodeId(parent) : null);
+    const f = await api.createVirtualFolder("New folder", parent ? nodeId(parent) : null);
     await revealVirtual(`v:${f.id}`, parent ? [parent] : [], true);
   }
 
@@ -900,14 +919,14 @@ function createAppState() {
     await api.setHidden(ids, hidden);
     if (hidden) setSelected([]);
     await Promise.all([refresh(), reloadLibrary()]);
-    if (hidden) setNotice(`${ids.length > 1 ? `${ids.length} samples masqués` : "Sample masqué"} : « is:hidden » pour les retrouver.`);
+    if (hidden) setNotice(`${ids.length > 1 ? `${ids.length} samples hidden` : "Sample hidden"}: search “is:hidden” to find ${ids.length > 1 ? "them" : "it"} again.`);
   }
 
   async function hideFolder(key: NodeKey, hidden: boolean) {
     if (!key.startsWith("f:")) return;
     await api.setFolderHidden(+key.slice(2), hidden);
     await Promise.all([refresh(), reloadLibrary()]);
-    if (hidden) setNotice(`Dossier « ${rowByKey(key)?.type === "node" ? (rowByKey(key) as { name: string }).name : ""} » masqué : « is:hidden » pour le retrouver.`);
+    if (hidden) setNotice(`Folder “${rowByKey(key)?.type === "node" ? (rowByKey(key) as { name: string }).name : ""}” hidden: search “is:hidden” to find it again.`);
   }
 
   /** ⌘⌫ : retire de la collection / du dossier virtuel ; ailleurs, masque. Jamais de suppression de fichier. */
@@ -1076,6 +1095,7 @@ function createAppState() {
     fontSize: FontSize;
     colors: ColorOverrides;
     dawShortcut: DawShortcutConfig;
+    flatResults: boolean;
   }
   /** Mode d'affichage mémorisé : appliqué à la fenêtre une fois l'app lancée. */
   let savedLayout: Layout = "side";
@@ -1098,6 +1118,7 @@ function createAppState() {
       if (p.layout === "full" || p.layout === "side") savedLayout = p.layout;
       if (p.fontSize === "sm" || p.fontSize === "base" || p.fontSize === "lg") setFontSize(p.fontSize);
       if (p.colors && typeof p.colors === "object") setColorOverrides(p.colors);
+      if (typeof p.flatResults === "boolean") setFlatResultsSignal(p.flatResults);
       const d = p.dawShortcut;
       if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut(d);
     });
@@ -1116,6 +1137,7 @@ function createAppState() {
       fontSize: fontSize(),
       colors: colorOverrides(),
       dawShortcut: dawShortcut(),
+      flatResults: flatResults(),
     };
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(p));
@@ -1158,7 +1180,7 @@ function createAppState() {
   // --- Finder : un sample y est affiché (sélectionné dans son dossier), un dossier y est ouvert.
   async function showInFinder(path: string | null | undefined) {
     if (!path) return;
-    if (!inTauri) return setNotice("« Ouvrir dans le Finder » marche dans l'app Mac, pas dans ce prototype.");
+    if (!inTauri) return setNotice("“Open in Finder” works in the Mac app, not in this prototype.");
     await api.revealInFinder(path);
   }
 
@@ -1188,7 +1210,7 @@ function createAppState() {
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
     layout, toggleLayout, memberships, removeTag, addTag,
-    fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, returnToDaw,
+    flatResults, setFlatResults, fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, returnToDaw,
     tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,

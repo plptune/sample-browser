@@ -353,3 +353,51 @@ fn favoris() {
     lib.set_favorite(&[1], true);
     assert_eq!(lib.tree(&req(TreeRoot::Library, "is:fav", vec![])).matches, before + 1);
 }
+
+#[test]
+fn memes_resultats_a_plat() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    let cases = fx["flat"].as_array().unwrap();
+    assert!(!cases.is_empty());
+    for c in cases {
+        let root = if c["root"] == "virtual" {
+            TreeRoot::Virtual
+        } else {
+            TreeRoot::Library
+        };
+        let q = c["query"].as_str().unwrap();
+        let page = lib.tree(&TreeRequest {
+            flat: true,
+            ..req(root, q, vec![])
+        });
+        let rows = rows_of(&page);
+        assert_eq!(rows, strings(&c["rows"]), "à plat {:?} {q}", c["root"]);
+        assert!(
+            rows.iter().all(|r| r.starts_with("0|s:")),
+            "que des samples à la profondeur 0 : {q}"
+        );
+    }
+    // Hors recherche, l'option ne change rien.
+    let base = lib.tree(&req(TreeRoot::Library, "", vec![]));
+    let flat = lib.tree(&TreeRequest {
+        flat: true,
+        ..req(TreeRoot::Library, "", vec![])
+    });
+    assert_eq!(rows_of(&base), rows_of(&flat));
+}
+
+#[test]
+fn memes_formes_d_onde() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    for c in fx["waveforms"].as_array().unwrap() {
+        let (id, buckets) = (c["id"].as_u64().unwrap() as u32, c["buckets"].as_u64().unwrap() as u32);
+        let w = lib.waveform(id, buckets);
+        assert_eq!(w.max.len() as u64, c["len"].as_u64().unwrap());
+        let sum = |a: &[f32]| round(a.iter().map(|&x| x as f64).sum());
+        assert!((sum(&w.max) - c["maxSum"].as_f64().unwrap()).abs() < 1e-3, "max {id}/{buckets}");
+        assert!((sum(&w.rms) - c["rmsSum"].as_f64().unwrap()).abs() < 1e-3, "rms {id}/{buckets}");
+        assert!(w.min.iter().zip(&w.max).all(|(a, b)| *a <= *b));
+    }
+}

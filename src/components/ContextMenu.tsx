@@ -1,5 +1,6 @@
 // Menu contextuel (clic droit). Clavier : ↑↓, ⏎, Échap. Se ferme au clic extérieur.
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { Icon } from "./Icon";
 
 export interface ActionItem {
   type?: "item";
@@ -7,12 +8,21 @@ export interface ActionItem {
   shortcut?: string;
   danger?: boolean;
   disabled?: boolean;
+  /** Option cochable (menu des options de recherche) : coche à droite. */
+  checked?: boolean;
   action?: () => void;
 }
 
 export type MenuItem = ActionItem | { type: "separator" } | { type: "header"; label: string };
 
-export function ContextMenu(props: { x: number; y: number; items: MenuItem[]; onClose?: () => void }) {
+export function ContextMenu(props: {
+  x: number;
+  y: number;
+  items: MenuItem[];
+  onClose?: () => void;
+  /** Élément qui ouvre et ferme le menu lui-même (bouton) : un clic dessus ne compte pas comme « dehors ». */
+  anchor?: () => Element | undefined;
+}) {
   let el!: HTMLDivElement;
   const actionable = () => props.items.flatMap((it, i) => (it.type !== "separator" && it.type !== "header" && !it.disabled ? [i] : []));
   const [active, setActive] = createSignal<number | null>(null);
@@ -34,7 +44,10 @@ export function ContextMenu(props: { x: number; y: number; items: MenuItem[]; on
       setPos({ x: Math.max(4, Math.min(props.x, maxX)), y: Math.max(4, Math.min(props.y, maxY)) });
     }
     el.focus({ preventScroll: true });
-    const away = (e: MouseEvent) => !el.contains(e.target as Node) && props.onClose?.();
+    const away = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!el.contains(t) && !props.anchor?.()?.contains(t)) props.onClose?.();
+    };
     window.addEventListener("mousedown", away, true);
     onCleanup(() => window.removeEventListener("mousedown", away, true));
   });
@@ -76,7 +89,8 @@ export function ContextMenu(props: { x: number; y: number; items: MenuItem[]; on
                 return (
                   <div
                     class="cr-menu__item"
-                    role="menuitem"
+                    role={item.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+                    aria-checked={item.checked === undefined ? undefined : item.checked}
                     aria-disabled={item.disabled || undefined}
                     data-active={active() === i() || undefined}
                     data-danger={item.danger || undefined}
@@ -88,6 +102,9 @@ export function ContextMenu(props: { x: number; y: number; items: MenuItem[]; on
                     <span class="cr-menu__label">{item.label}</span>
                     <Show when={item.shortcut}>
                       <span class="cr-menu__shortcut">{item.shortcut}</span>
+                    </Show>
+                    <Show when={item.checked}>
+                      <Icon name="check" class="cr-menu__check" />
                     </Show>
                   </div>
                 );

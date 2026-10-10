@@ -28,9 +28,9 @@ export type SettingsTab = "sources" | "appearance" | "playback" | "search";
 const [lastTab, setLastTab] = createSignal<SettingsTab>("sources");
 
 const COLOR_ROLES: { role: ColorRole; label: string; hint: string }[] = [
-  { role: "accent", label: "Accent", hint: "Lecture, progression, focus" },
-  { role: "primary", label: "Sélection", hint: "Ligne sélectionnée, onglet actif" },
-  { role: "bg", label: "Fond", hint: "Les surfaces en découlent" },
+  { role: "accent", label: "Accent", hint: "Playback, progress, focus" },
+  { role: "primary", label: "Selection", hint: "Selected row, active tab" },
+  { role: "bg", label: "Background", hint: "Surfaces follow it" },
 ];
 
 /** Champ de capture : clic, puis le raccourci voulu (avec ⌘, ⌃, ⌥ ou ⇧). Échap annule. */
@@ -40,7 +40,7 @@ function ShortcutField(props: { value: string; onChange: (v: string) => void }) 
     <button
       class="cr-shortcut"
       data-capturing={capturing() || undefined}
-      aria-label={capturing() ? "Tapez le raccourci" : `Raccourci : ${formatShortcut(props.value)}`}
+      aria-label={capturing() ? "Type the shortcut" : `Shortcut: ${formatShortcut(props.value)}`}
       onClick={() => setCapturing(true)}
       onBlur={() => setCapturing(false)}
       onKeyDown={(e) => {
@@ -54,7 +54,7 @@ function ShortcutField(props: { value: string; onChange: (v: string) => void }) 
         setCapturing(false);
       }}
     >
-      {capturing() ? "Tapez le raccourci…" : formatShortcut(props.value)}
+      {capturing() ? "Type the shortcut…" : formatShortcut(props.value)}
     </button>
   );
 }
@@ -73,7 +73,7 @@ export function SettingsView(props: {
   onColor?: (role: ColorRole, value: string | null) => void;
   onResetColors?: () => void;
   sources: Source[];
-  /** Analyse de fond en cours : « Analyse du tempo et de la tonalité · n / total ». */
+  /** Analyse de fond en cours : « Analyzing tempo and key · n / total ». */
   analysis?: AnalysisStatus | null;
   theme: ThemePref;
   density: Density;
@@ -110,18 +110,18 @@ export function SettingsView(props: {
   return (
     <div class="cr-settings">
       <div class="cr-settings__head">
-        <IconButton icon="back" label="Retour (échap)" onClick={() => props.onBack?.()} />
-        <span class="cr-settings__title">Réglages</span>
+        <IconButton icon="back" label="Back (Esc)" onClick={() => props.onBack?.()} />
+        <span class="cr-settings__title">Settings</span>
       </div>
       <div class="cr-settings__tabs">
         <Segmented
-          label="Rubrique"
+          label="Section"
           value={tab()}
           options={[
             { value: "sources", label: "Sources" },
-            { value: "appearance", label: "Apparence" },
-            { value: "playback", label: "Lecture" },
-            { value: "search", label: "Recherche" },
+            { value: "appearance", label: "Appearance" },
+            { value: "playback", label: "Playback" },
+            { value: "search", label: "Search" },
           ]}
           onChange={setLastTab}
         />
@@ -136,10 +136,10 @@ export function SettingsView(props: {
                 <div class="cr-setting__text">
                   <span class="cr-setting__label">{s.name}</span>
                   <span class="cr-setting__hint" title={s.path}>
-                    {s.offline ? `hors ligne · ${s.path}` : s.path}
+                    {s.offline ? `offline · ${s.path}` : s.path}
                   </span>
                 </div>
-                <IconButton icon="close" label={`Retirer ${s.name}`} onClick={() => props.onRemoveSource?.(s.id)} />
+                <IconButton icon="close" label={`Remove ${s.name}`} onClick={() => props.onRemoveSource?.(s.id)} />
               </div>
             )}
           </For>
@@ -147,46 +147,46 @@ export function SettingsView(props: {
             {(a) => (
               <div class="cr-setting" role="status">
                 <span class="cr-setting__hint cr-num">
-                  Analyse du tempo et de la tonalité · {a().done.toLocaleString("fr-FR")} / {a().total.toLocaleString("fr-FR")}
+                  Analyzing tempo and key · {a().done.toLocaleString("en-US")} / {a().total.toLocaleString("en-US")}
                 </span>
               </div>
             )}
           </Show>
           <button class="cr-settings__add" onClick={() => props.onAddSource?.()}>
-            Ajouter un dossier…
+            Add a folder…
           </button>
         </section>
       </Show>
 
       <Show when={tab() === "appearance"}>
         <section class="cr-settings__section">
-          <h3 class="cr-settings__h">Apparence</h3>
-          <Row label="Thème">
+          <h3 class="cr-settings__h">Appearance</h3>
+          <Row label="Theme">
             <Segmented
-              label="Thème"
+              label="Theme"
               value={props.theme}
               options={[
-                { value: "dark", label: "Sombre" },
-                { value: "light", label: "Clair" },
-                { value: "system", label: "Système" },
+                { value: "dark", label: "Dark" },
+                { value: "light", label: "Light" },
+                { value: "system", label: "System" },
               ]}
               onChange={(v) => props.onTheme?.(v)}
             />
           </Row>
-          <Row label="Densité">
+          <Row label="Density">
             <Segmented
-              label="Densité"
+              label="Density"
               value={props.density}
               options={[
-                { value: "compact", label: "Compacte" },
+                { value: "compact", label: "Compact" },
                 { value: "wave", label: "Waveform" },
               ]}
               onChange={(v) => props.onDensity?.(v)}
             />
           </Row>
-          <Row label="Taille du texte">
+          <Row label="Text size">
             <Segmented
-              label="Taille du texte"
+              label="Text size"
               value={props.fontSize ?? "base"}
               options={[
                 { value: "sm", label: "S" },
@@ -199,19 +199,19 @@ export function SettingsView(props: {
         </section>
 
         <section class="cr-settings__section">
-          <h3 class="cr-settings__h">Couleurs du thème {props.theme === "light" ? "clair" : props.theme === "dark" ? "sombre" : "affiché"}</h3>
+          <h3 class="cr-settings__h">{props.theme === "light" ? "Light" : props.theme === "dark" ? "Dark" : "Current"} theme colors</h3>
           <For each={COLOR_ROLES}>
             {(c) => (
               <Row label={c.label} hint={c.hint}>
                 <div class="cr-color">
                   <Show when={props.customColors?.[c.role]}>
-                    <IconButton icon="close" label={`Rétablir la couleur ${c.label.toLowerCase()}`} onClick={() => props.onColor?.(c.role, null)} />
+                    <IconButton icon="close" label={`Reset ${c.label.toLowerCase()} color`} onClick={() => props.onColor?.(c.role, null)} />
                   </Show>
                   <input
                     class="cr-color__input"
                     type="color"
                     value={props.colors?.[c.role] ?? "#000000"}
-                    aria-label={`Couleur ${c.label.toLowerCase()}`}
+                    aria-label={`${c.label} color`}
                     onInput={(e) => props.onColor?.(c.role, e.currentTarget.value)}
                   />
                 </div>
@@ -220,7 +220,7 @@ export function SettingsView(props: {
           </For>
           <Show when={Object.keys(props.customColors ?? {}).length}>
             <button class="cr-settings__add" onClick={() => props.onResetColors?.()}>
-              Rétablir toutes les couleurs
+              Reset all colors
             </button>
           </Show>
         </section>
@@ -228,9 +228,9 @@ export function SettingsView(props: {
 
       <Show when={tab() === "search"}>
         <section class="cr-settings__section">
-          <h3 class="cr-settings__h">Synonymes</h3>
+          <h3 class="cr-settings__h">Synonyms</h3>
           <div class="cr-setting">
-            <span class="cr-setting__hint">Un mot d'une ligne trouve aussi les autres : « kick » trouve « bd ».</span>
+            <span class="cr-setting__hint">A word on a line also finds the others: “kick” finds “bd”.</span>
           </div>
           <For each={groups()}>
             {(line, i) => (
@@ -238,9 +238,9 @@ export function SettingsView(props: {
                 <input
                   class="cr-field cr-synonyms__field"
                   value={line}
-                  placeholder={line ? undefined : "Nouveau groupe : hat, hh, hihat"}
+                  placeholder={line ? undefined : "New group: hat, hh, hihat"}
                   spellcheck={false}
-                  aria-label={line ? `Synonymes : ${line}` : "Nouveau groupe de synonymes"}
+                  aria-label={line ? `Synonyms: ${line}` : "New synonym group"}
                   onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                   onChange={(e) => commit(i(), e.currentTarget.value)}
                 />
@@ -252,15 +252,15 @@ export function SettingsView(props: {
 
       <Show when={tab() === "playback"}>
         <section class="cr-settings__section">
-          <h3 class="cr-settings__h">Fenêtre et lecture</h3>
-          <Row label="Toujours au premier plan" hint="Reste visible au-dessus du DAW">
-            <Toggle label="Toujours au premier plan" checked={props.alwaysOnTop} onChange={(v) => props.onAlwaysOnTop?.(v)} />
+          <h3 class="cr-settings__h">Window and playback</h3>
+          <Row label="Always on top" hint="Stays visible above the DAW">
+            <Toggle label="Always on top" checked={props.alwaysOnTop} onChange={(v) => props.onAlwaysOnTop?.(v)} />
           </Row>
-          <Row label="Lecture auto" hint="Lit le sample dès qu'il est sélectionné">
-            <Toggle label="Lecture auto" checked={props.autoPlay} onChange={(v) => props.onAutoPlay?.(v)} />
+          <Row label="Autoplay" hint="Plays a sample as soon as it's selected">
+            <Toggle label="Autoplay" checked={props.autoPlay} onChange={(v) => props.onAutoPlay?.(v)} />
           </Row>
-          <Row label="Boucle" hint="⌘L">
-            <Toggle label="Boucle" checked={!!props.looping} onChange={(v) => props.onLooping?.(v)} />
+          <Row label="Loop" hint="⌘L">
+            <Toggle label="Loop" checked={!!props.looping} onChange={(v) => props.onLooping?.(v)} />
           </Row>
           <Row label="Volume">
             <input
@@ -274,11 +274,11 @@ export function SettingsView(props: {
               onInput={(e) => props.onVolume?.(+e.currentTarget.value)}
             />
           </Row>
-          <Row label="Arrêter au glisser" hint="Quand un sample part vers le DAW">
-            <Toggle label="Arrêter au glisser" checked={props.stopOnDrag ?? true} onChange={(v) => props.onStopOnDrag?.(v)} />
+          <Row label="Stop on drag" hint="When a sample is dragged to the DAW">
+            <Toggle label="Stop on drag" checked={props.stopOnDrag ?? true} onChange={(v) => props.onStopOnDrag?.(v)} />
           </Row>
-          <Row label="Arrêter en arrière-plan" hint="Quand une autre app passe devant">
-            <Toggle label="Arrêter en arrière-plan" checked={props.stopOnBlur ?? true} onChange={(v) => props.onStopOnBlur?.(v)} />
+          <Row label="Stop in background" hint="When another app comes to the front">
+            <Toggle label="Stop in background" checked={props.stopOnBlur ?? true} onChange={(v) => props.onStopOnBlur?.(v)} />
           </Row>
         </section>
 
@@ -287,11 +287,11 @@ export function SettingsView(props: {
             const set = (patch: Partial<DawShortcutConfig>) => props.onDawShortcut?.({ ...d(), ...patch });
             return (
               <section class="cr-settings__section">
-                <h3 class="cr-settings__h">Depuis le DAW</h3>
-                <Row label="Rechercher depuis le DAW" hint="Le raccourci, dans le DAW, ouvre la recherche de Crate ; Échap y revient">
-                  <Toggle label="Rechercher depuis le DAW" checked={d().enabled} onChange={(v) => set({ enabled: v })} />
+                <h3 class="cr-settings__h">From the DAW</h3>
+                <Row label="Search from the DAW" hint="In the DAW, the shortcut opens Crate's search; Esc goes back">
+                  <Toggle label="Search from the DAW" checked={d().enabled} onChange={(v) => set({ enabled: v })} />
                 </Row>
-                <Row label="Raccourci" hint="Pris seulement quand un de ces DAW est devant">
+                <Row label="Shortcut" hint="Only taken while one of these DAWs is in front">
                   <ShortcutField value={d().shortcut} onChange={(v) => set({ shortcut: v })} />
                 </Row>
                 <For each={KNOWN_DAWS}>

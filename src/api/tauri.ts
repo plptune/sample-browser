@@ -35,6 +35,10 @@ export const tauriBackend: Backend = {
   setHidden: (ids, hidden) => commands.setHidden(ids, hidden),
   setFolderHidden: (id, hidden) => commands.setFolderHidden(id, hidden),
   peaks: async (id) => (await commands.peaks(id)) as number[],
+  waveform: async (id, buckets) => {
+    const r = await commands.waveform(id, buckets);
+    return r.status === "ok" ? r.data : { min: [], max: [], rms: [] };
+  },
   synonyms: () => commands.synonyms(),
   analysisStatus: () => commands.analysisStatus(),
   setSynonyms: (groups) => commands.setSynonyms(groups),

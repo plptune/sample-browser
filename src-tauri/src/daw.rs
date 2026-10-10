@@ -63,9 +63,9 @@ pub struct DawShortcut(Mutex<Inner>);
 
 /// Lit un raccourci ; refuse un raccourci sans touche de modification (il volerait une lettre au DAW).
 pub fn parse_shortcut(s: &str) -> Result<Shortcut, String> {
-    let sc = Shortcut::from_str(s).map_err(|e| format!("raccourci « {s} » illisible : {e}"))?;
+    let sc = Shortcut::from_str(s).map_err(|e| format!("Unreadable shortcut “{s}”: {e}"))?;
     if sc.mods.is_empty() {
-        return Err(format!("raccourci « {s} » sans ⌘, ⌃, ⌥ ni ⇧"));
+        return Err(format!("Shortcut “{s}” needs ⌘, ⌃, ⌥ or ⇧"));
     }
     Ok(sc)
 }

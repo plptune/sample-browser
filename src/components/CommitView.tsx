@@ -6,12 +6,12 @@ import { Button } from "./Button";
 import { IconButton } from "./IconButton";
 import { Toggle } from "./Toggle";
 
-const fmt = new Intl.NumberFormat("fr-FR");
+const fmt = new Intl.NumberFormat("en-US");
 
 export function formatBytes(n: number): string {
-  if (n < 1e6) return `${fmt.format(Math.max(1, Math.round(n / 1e3)))} Ko`;
-  if (n < 1e9) return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(n / 1e6)} Mo`;
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(n / 1e9)} Go`;
+  if (n < 1e6) return `${fmt.format(Math.max(1, Math.round(n / 1e3)))} KB`;
+  if (n < 1e9) return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(n / 1e6)} MB`;
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n / 1e9)} GB`;
 }
 
 const plural = (n: number, one: string, many: string) => `${fmt.format(n)} ${n > 1 ? many : one}`;
@@ -37,23 +37,23 @@ export function CommitView(props: {
   return (
     <div class="cr-settings cr-commit">
       <div class="cr-settings__head">
-        <IconButton icon="back" label="Retour (échap)" disabled={props.status === "running"} onClick={() => props.onBack?.()} />
-        <span class="cr-settings__title">Créer un vrai dossier</span>
+        <IconButton icon="back" label="Back (Esc)" disabled={props.status === "running"} onClick={() => props.onBack?.()} />
+        <span class="cr-settings__title">Create a real folder</span>
       </div>
 
       <section class="cr-settings__section">
-        <h3 class="cr-settings__h">{props.flat ? "Collection" : "Dossier virtuel"}</h3>
+        <h3 class="cr-settings__h">{props.flat ? "Collection" : "Virtual folder"}</h3>
         <div class="cr-setting">
           <div class="cr-setting__text">
             <span class="cr-setting__label">{props.name}</span>
             <span class="cr-setting__hint cr-num">
-              <Show when={p()} fallback="Calcul…">
-                {plural(p()!.files, "fichier", "fichiers")}
-                <Show when={p()!.folders}> · {plural(p()!.folders, "sous-dossier", "sous-dossiers")}</Show> · {formatBytes(p()!.bytes)}
+              <Show when={p()} fallback="Calculating…">
+                {plural(p()!.files, "file", "files")}
+                <Show when={p()!.folders}> · {plural(p()!.folders, "subfolder", "subfolders")}</Show> · {formatBytes(p()!.bytes)}
               </Show>
             </span>
             <Show when={p()?.missing}>
-              <span class="cr-setting__hint cr-commit__warn">{plural(p()!.missing, "fichier introuvable sera ignoré", "fichiers introuvables seront ignorés")}</span>
+              <span class="cr-setting__hint cr-commit__warn">{plural(p()!.missing, "missing file will be skipped", "missing files will be skipped")}</span>
             </Show>
           </div>
         </div>
@@ -68,29 +68,29 @@ export function CommitView(props: {
                 class="cr-field"
                 value={props.destination}
                 spellcheck={false}
-                aria-label="Dossier à créer"
+                aria-label="Folder to create"
                 onInput={(e) => props.onDestination?.(e.currentTarget.value)}
               />
-              <Button onClick={() => props.onChoose?.()}>Choisir…</Button>
+              <Button onClick={() => props.onChoose?.()}>Choose…</Button>
             </div>
             <div class="cr-setting">
               <div class="cr-setting__text">
-                <span class="cr-setting__label">Garder l'arborescence</span>
-                <span class="cr-setting__hint">{props.flat ? "Une collection est toujours à plat" : "Recrée les sous-dossiers virtuels"}</span>
+                <span class="cr-setting__label">Keep folder structure</span>
+                <span class="cr-setting__hint">{props.flat ? "A collection is always flat" : "Recreates the virtual subfolders"}</span>
               </div>
               <Toggle
-                label="Garder l'arborescence"
+                label="Keep folder structure"
                 checked={props.options.keepHierarchy}
                 onChange={(v) => !props.flat && props.onOptions?.({ ...props.options, keepHierarchy: v })}
               />
             </div>
             <div class="cr-setting">
               <div class="cr-setting__text">
-                <span class="cr-setting__label">Ajouter aux sources</span>
-                <span class="cr-setting__hint">Le nouveau dossier apparaît dans Bibliothèque</span>
+                <span class="cr-setting__label">Add to sources</span>
+                <span class="cr-setting__hint">The new folder appears in Library</span>
               </div>
               <Toggle
-                label="Ajouter aux sources"
+                label="Add to sources"
                 checked={props.options.addAsSource}
                 onChange={(v) => props.onOptions?.({ ...props.options, addAsSource: v })}
               />
@@ -106,7 +106,7 @@ export function CommitView(props: {
           <div class="cr-commit__actions">
             <span class="cr-setting__hint">Copie : les fichiers d'origine ne bougent pas.</span>
             <Button variant="primary" disabled={!p() || !p()!.files || !props.destination.trim()} onClick={() => props.onCommit?.()}>
-              Créer le dossier
+              Create folder
             </Button>
           </div>
         </Match>
@@ -114,7 +114,7 @@ export function CommitView(props: {
           <section class="cr-settings__section">
             <div class="cr-setting">
               <div class="cr-setting__text">
-                <span class="cr-setting__label">Copie en cours…</span>
+                <span class="cr-setting__label">Copying…</span>
                 <span class="cr-setting__hint cr-num">
                   {fmt.format(Math.round((p()?.files ?? 0) * props.progress))} / {fmt.format(p()?.files ?? 0)} · {props.destination}
                 </span>
@@ -131,20 +131,20 @@ export function CommitView(props: {
               <section class="cr-settings__section">
                 <div class="cr-setting">
                   <div class="cr-setting__text">
-                    <span class="cr-setting__label">{plural(r().copied, "fichier copié", "fichiers copiés")}</span>
+                    <span class="cr-setting__label">{plural(r().copied, "file copied", "files copied")}</span>
                     <span class="cr-setting__hint" title={r().destination}>
                       {r().destination}
                     </span>
                     <Show when={r().skipped}>
-                      <span class="cr-setting__hint cr-commit__warn">{plural(r().skipped, "fichier introuvable ignoré", "fichiers introuvables ignorés")}</span>
+                      <span class="cr-setting__hint cr-commit__warn">{plural(r().skipped, "missing file skipped", "missing files skipped")}</span>
                     </Show>
                   </div>
                 </div>
               </section>
               <div class="cr-commit__actions">
-                <Button onClick={() => props.onReveal?.()}>Ouvrir dans le Finder</Button>
+                <Button onClick={() => props.onReveal?.()}>Open in Finder</Button>
                 <Button variant="primary" onClick={() => props.onBack?.()}>
-                  Terminé
+                  Done
                 </Button>
               </div>
             </>

@@ -21,11 +21,11 @@ const KIND_ICON: Record<Exclude<TreeRowKind, "sample">, IconName> = {
 };
 
 const MARKER_LABEL = {
-  shortcut: "Raccourci vers un dossier",
-  virtual: "Dossier virtuel",
+  shortcut: "Shortcut to a folder",
+  virtual: "Virtual folder",
   collection: "Collection",
-  favorites: "Favoris",
-  pin: "Affiché dans Bibliothèque",
+  favorites: "Favorites",
+  pin: "Shown in Library",
 } as const;
 
 export function TreeRow(props: {
@@ -144,7 +144,7 @@ export function TreeRow(props: {
         </Show>
       </div>
       <Show when={props.offline}>
-        <span class="cr-node__badge">hors ligne</span>
+        <span class="cr-node__badge">offline</span>
       </Show>
       <Show when={props.marker}>
         {(m) => (
@@ -160,7 +160,8 @@ export function TreeRow(props: {
           {props.tags?.join(" · ") ?? ""}
         </span>
       </Show>
-      <Show when={isSample()}>
+      {/* En colonne : juste l'icône et le nom ; les métadonnées n'apparaissent qu'en mode grand. */}
+      <Show when={isSample() && props.wide}>
         <span class="cr-col-bpm cr-node__meta">{props.bpm ?? ""}</span>
         <span class="cr-col-key cr-node__meta">{props.keyName ?? ""}</span>
       </Show>
@@ -187,7 +188,7 @@ function RenameInput(props: { value: string; onDone: (v: string) => void }) {
       class="cr-node__input"
       value={props.value}
       spellcheck={false}
-      aria-label="Nouveau nom"
+      aria-label="New name"
       onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();

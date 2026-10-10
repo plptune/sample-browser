@@ -120,9 +120,9 @@
   -webkit-app-region: no-drag;
 }
 
+/* Champ collé à l'explorer : pas de marge, juste la bordure basse entre les deux. */
 .cr-panel__search {
   flex: none;
-  padding: var(--cr-space-1) var(--cr-space-2) var(--cr-space-2);
   background: var(--cr-surface);
   border-bottom: var(--cr-border) solid var(--cr-line);
   position: relative;
@@ -170,15 +170,14 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-2);
-  padding: 0 var(--cr-space-1) 0 var(--cr-space-2);
-  background: var(--cr-surface-raised);
-  border: var(--cr-border) solid transparent;
-  border-radius: var(--cr-radius-lg);
+  padding: 0 var(--cr-space-1) 0 var(--cr-label-x);
+  background: var(--cr-surface);
   color: var(--cr-text-3);
 }
 
-.cr-search[data-focused] {
-  border-color: var(--cr-text-3);
+/* Pas de contour au focus : le curseur dans le champ suffit. */
+.cr-root .cr-search__input:focus-visible {
+  outline: none;
 }
 
 .cr-search__chips {
@@ -403,6 +402,7 @@
 
 .cr-node {
   --depth: 0;
+  position: relative;
   height: var(--cr-row-h);
   display: flex;
   align-items: center;
@@ -410,6 +410,24 @@
   padding: 0 var(--cr-space-2) 0 calc(var(--cr-gutter) + var(--depth) * var(--cr-indent));
   color: var(--cr-text);
   white-space: nowrap;
+}
+
+/* Lignes de parenté : un trait vertical très doux par niveau d'ancêtre, au centre de la case de son chevron.
+   Pur décor, sous le contenu ; la sélection et le survol restent visibles autour. */
+.cr-node::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--cr-gutter);
+  width: calc(var(--depth) * var(--cr-indent));
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(var(--cr-slot) / 2 - 0.5px),
+    var(--cr-guide) calc(var(--cr-slot) / 2 - 0.5px) calc(var(--cr-slot) / 2 + 0.5px),
+    transparent calc(var(--cr-slot) / 2 + 0.5px) var(--cr-indent)
+  );
+  pointer-events: none;
 }
 
 .cr-node[data-wave] {
@@ -575,6 +593,12 @@
   height: 100%;
 }
 
+/* Partie lue et tête de lecture, redessinées à chaque image par-dessus la forme. */
+.cr-wave canvas.cr-wave__overlay {
+  position: absolute;
+  inset: 0;
+}
+
 /* ---------- PreviewDrawer ---------- */
 
 .cr-drawer {
@@ -619,10 +643,15 @@
   color: var(--cr-text-strong);
 }
 
-.cr-drawer__time {
+/* Dossier du sample, relatif à sa source : une ligne, tronquée au besoin. Sous les tags, après un trait. */
+.cr-drawer__path {
+  padding-top: var(--cr-space-1);
+  border-top: var(--cr-border) solid var(--cr-line-soft);
   font-size: var(--cr-fs-xs);
   color: var(--cr-text-2);
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cr-drawer__wave {
@@ -667,8 +696,11 @@
   color: var(--cr-text-3);
 }
 
-.cr-drawer__input:focus {
-  background: var(--cr-surface-raised);
+/* Pas de fond ni de contour au focus : le curseur suffit. */
+.cr-root .cr-drawer__input:focus,
+.cr-root .cr-drawer__input:focus-visible {
+  outline: none;
+  background: none;
 }
 
 /* Suggestions au-dessus du champ (le tiroir est en bas de la fenêtre). */
@@ -832,6 +864,11 @@
 
 .cr-menu__item[data-disabled] {
   color: var(--cr-text-disabled);
+}
+
+.cr-menu__check {
+  flex: none;
+  color: var(--cr-text-strong);
 }
 
 .cr-menu__label {

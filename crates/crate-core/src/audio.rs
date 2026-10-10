@@ -151,6 +151,63 @@ fn bucket_peaks(blocks: &[f32]) -> Vec<u8> {
         .collect()
 }
 
+/// Colonnes au plus pour une forme d'onde détaillée (un écran 5K en largeur, densité 2).
+pub const WAVEFORM_MAX_BUCKETS: usize = 4096;
+
+/// Forme d'onde détaillée de tout le fichier, en `buckets` colonnes (min, max, RMS ; canaux mélangés).
+/// Le décodage passe par des blocs de 64 trames : la mémoire reste petite même pour un long fichier.
+pub fn waveform(path: &Path, buckets: usize) -> Option<crate::Waveform> {
+    const BLOCK: usize = 64;
+    let buckets = buckets.clamp(1, WAVEFORM_MAX_BUCKETS);
+    let mut d = Decoder::open(path)?;
+    // (min, max, somme des carrés, trames) par bloc.
+    let mut blocks: Vec<(f32, f32, f32, u32)> = Vec::new();
+    let mut cur = (f32::MAX, f32::MIN, 0f32, 0u32);
+    let mut tmp = Vec::new();
+    while let Some(ch) = d.next_chunk(&mut tmp) {
+        for frame in tmp.chunks(ch) {
+            let x = frame.iter().sum::<f32>() / ch as f32;
+            cur = (cur.0.min(x), cur.1.max(x), cur.2 + x * x, cur.3 + 1);
+            if cur.3 as usize == BLOCK {
+                blocks.push(cur);
+                cur = (f32::MAX, f32::MIN, 0.0, 0);
+            }
+        }
+        tmp.clear();
+    }
+    if cur.3 > 0 {
+        blocks.push(cur);
+    }
+    Some(bucket_waveform(&blocks, buckets))
+}
+
+fn bucket_waveform(blocks: &[(f32, f32, f32, u32)], buckets: usize) -> crate::Waveform {
+    let n = blocks.len();
+    let mut w = crate::Waveform::default();
+    if n == 0 {
+        return w;
+    }
+    for b in 0..buckets {
+        // Moins de blocs que de colonnes : une colonne reprend le bloc qui la couvre.
+        let lo = (b * n / buckets).min(n - 1);
+        let hi = ((b + 1) * n / buckets).max(lo + 1).min(n);
+        let (mut mn, mut mx, mut sq, mut k) = (f32::MAX, f32::MIN, 0f32, 0u32);
+        for &(a, z, s, c) in &blocks[lo..hi] {
+            (mn, mx, sq, k) = (mn.min(a), mx.max(z), sq + s, k + c);
+        }
+        w.min.push(mn);
+        w.max.push(mx);
+        w.rms.push((sq / k.max(1) as f32).sqrt());
+    }
+    let peak = w.min.iter().chain(&w.max).fold(0f32, |m, x| m.max(x.abs()));
+    if peak > 0.0 {
+        for x in w.min.iter_mut().chain(w.max.iter_mut()).chain(w.rms.iter_mut()) {
+            *x /= peak;
+        }
+    }
+    w
+}
+
 /// Pics stockés (octets) → valeurs 0..1 du contrat.
 pub fn peaks_to_f64(p: &[u8]) -> Vec<f64> {
     p.iter().map(|&x| x as f64 / 255.0).collect()
@@ -232,11 +289,55 @@ struct Voice {
     first_out: Option<Instant>,
     latency_sent: bool,
     ended: bool,
+    /// Gain du fondu (0..1) : chaque départ, arrêt ou déplacement passe par un fondu court, sans clic.
+    gain: f32,
+    /// Variation du gain par trame ; 0 = gain stable.
+    step: f32,
+    /// Durée d'un fondu, en trames de sortie.
+    fade: usize,
+    /// Déplacement en attente : appliqué quand le fondu de sortie touche zéro, puis fondu d'entrée.
+    pending_seek: Option<usize>,
+    /// Arrêt demandé : la voix finit quand le fondu de sortie touche zéro.
+    stopping: bool,
+}
+
+/// Durée des fondus : assez courte pour ne pas s'entendre, assez longue pour effacer le saut d'onde.
+const FADE_MS: u64 = 4;
+
+impl Voice {
+    fn new(id: SampleId, gen: u64, buf: Vec<f32>, complete: bool, pos: usize, duration_ms: u32, rate: u32) -> Voice {
+        let fade = ((rate as u64 * FADE_MS / 1000) as usize).max(1);
+        Voice {
+            id,
+            gen,
+            buf,
+            complete,
+            failed: false,
+            pos,
+            duration_ms,
+            requested: Instant::now(),
+            first_out: None,
+            latency_sent: false,
+            ended: false,
+            gain: 0.0,
+            step: 1.0 / fade as f32,
+            fade,
+            pending_seek: None,
+            stopping: false,
+        }
+    }
+
+    /// Lance un fondu de sortie (gain → 0).
+    fn fade_out(&mut self) {
+        self.step = -1.0 / self.fade as f32;
+    }
 }
 
 #[derive(Default)]
 struct Mix {
     voice: Option<Voice>,
+    /// Voix remplacée par un nouveau départ : elle s'éteint en fondu pendant que la nouvelle monte.
+    fading: Option<Voice>,
     volume: f32,
     looping: bool,
     gen: u64,
@@ -244,11 +345,24 @@ struct Mix {
     last: Option<(SampleId, u32)>,
 }
 
-/// Remplit `out` (entrelacé, `ch` canaux) depuis la voix courante. Pur : testable sans périphérique.
+/// Remplit `out` (entrelacé, `ch` canaux) depuis la voix courante et celle qui s'éteint. Pur : testable sans
+/// périphérique.
 fn render(mix: &mut Mix, out: &mut [f32], ch: usize) {
     out.fill(0.0);
     let (volume, looping) = (mix.volume, mix.looping);
-    let Some(v) = mix.voice.as_mut() else { return };
+    if let Some(v) = mix.voice.as_mut() {
+        render_voice(v, out, ch, volume, looping);
+    }
+    if let Some(v) = mix.fading.as_mut() {
+        render_voice(v, out, ch, volume, false);
+        if v.ended {
+            mix.fading = None;
+        }
+    }
+}
+
+/// Ajoute une voix dans `out`, avec son fondu. La boucle (fin → début) n'est pas fondue : elle doit rester juste.
+fn render_voice(v: &mut Voice, out: &mut [f32], ch: usize, volume: f32, looping: bool) {
     if v.ended {
         return;
     }
@@ -256,10 +370,9 @@ fn render(mix: &mut Mix, out: &mut [f32], ch: usize) {
     let mut written = 0;
     while written < frames {
         let have = v.buf.len() / ch;
-        let avail = have.saturating_sub(v.pos);
-        if avail == 0 {
+        if v.pos >= have {
             if v.complete || v.failed {
-                if looping && have > 0 && !v.failed {
+                if looping && have > 0 && !v.failed && !v.stopping {
                     v.pos = 0;
                     continue;
                 }
@@ -267,16 +380,31 @@ fn render(mix: &mut Mix, out: &mut [f32], ch: usize) {
             }
             break; // sinon : décodage en retard, silence pour ce bloc
         }
-        let n = avail.min(frames - written);
-        let src = &v.buf[v.pos * ch..(v.pos + n) * ch];
-        for (o, s) in out[written * ch..(written + n) * ch].iter_mut().zip(src) {
-            *o = s * volume;
+        let src = &v.buf[v.pos * ch..(v.pos + 1) * ch];
+        for (o, s) in out[written * ch..(written + 1) * ch].iter_mut().zip(src) {
+            *o += s * volume * v.gain;
         }
         if v.first_out.is_none() {
             v.first_out = Some(Instant::now());
         }
-        v.pos += n;
-        written += n;
+        v.pos += 1;
+        written += 1;
+        if v.step != 0.0 {
+            v.gain += v.step;
+            if v.gain >= 1.0 {
+                (v.gain, v.step) = (1.0, 0.0);
+            } else if v.gain <= 0.0 {
+                (v.gain, v.step) = (0.0, 0.0);
+                if let Some(p) = v.pending_seek.take() {
+                    // Fondu de sortie fini : on saute, puis on remonte.
+                    v.pos = p;
+                    v.step = 1.0 / v.fade as f32;
+                } else if v.stopping {
+                    v.ended = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -363,19 +491,9 @@ impl Player {
         let gen = {
             let mut m = self.shared.mix();
             m.gen += 1;
-            m.voice = Some(Voice {
-                id,
-                gen: m.gen,
-                buf: Vec::new(),
-                complete: false,
-                failed: false,
-                pos: (start_ms as u64 * rate as u64 / 1000) as usize,
-                duration_ms,
-                requested: Instant::now(),
-                first_out: None,
-                latency_sent: false,
-                ended: false,
-            });
+            let pos = (start_ms as u64 * rate as u64 / 1000) as usize;
+            let v = Voice::new(id, m.gen, Vec::new(), false, pos, duration_ms, rate);
+            replace_voice(&mut m, v);
             m.last = Some((id, duration_ms));
             m.gen
         };
@@ -392,36 +510,31 @@ impl Player {
         let ch = *self.shared.channels.lock().unwrap_or_else(|e| e.into_inner());
         let mut m = self.shared.mix();
         m.gen += 1;
-        m.voice = Some(Voice {
-            id,
-            gen: m.gen,
-            buf: vec![0.0; (duration_ms as u64 * rate as u64 / 1000) as usize * ch],
-            complete: true,
-            failed: false,
-            pos: (start_ms as u64 * rate as u64 / 1000) as usize,
-            duration_ms,
-            requested: Instant::now(),
-            first_out: None,
-            latency_sent: false,
-            ended: false,
-        });
+        let buf = vec![0.0; (duration_ms as u64 * rate as u64 / 1000) as usize * ch];
+        let pos = (start_ms as u64 * rate as u64 / 1000) as usize;
+        let v = Voice::new(id, m.gen, buf, true, pos, duration_ms, rate);
+        replace_voice(&mut m, v);
         m.last = Some((id, duration_ms));
     }
 
+    /// Arrêt en fondu de sortie (quelques millisecondes).
     pub fn stop(&self) {
         let mut m = self.shared.mix();
         m.gen += 1;
         if let Some(v) = m.voice.as_mut() {
-            v.ended = true;
+            v.stopping = true;
+            v.pending_seek = None;
+            v.fade_out();
         }
     }
 
-    /// Se place à `ms` dans le sample en cours (sans effet à l'arrêt).
+    /// Se place à `ms` dans le sample en cours (sans effet à l'arrêt) : fondu de sortie, saut, fondu d'entrée.
     pub fn seek(&self, ms: u32) {
         let rate = *self.shared.rate.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(v) = self.shared.mix().voice.as_mut() {
-            if !v.ended {
-                v.pos = (ms as u64 * rate as u64 / 1000) as usize;
+            if !v.ended && !v.stopping {
+                v.pending_seek = Some((ms as u64 * rate as u64 / 1000) as usize);
+                v.fade_out();
             }
         }
     }
@@ -433,6 +546,18 @@ impl Player {
     pub fn set_loop(&self, looping: bool) {
         self.shared.mix().looping = looping;
     }
+}
+
+/// Nouvelle voix : celle qui jouait s'éteint en fondu (fondu croisé), une seule à la fois.
+fn replace_voice(m: &mut Mix, mut v: Voice) {
+    if let Some(mut old) = m.voice.take().filter(|o| !o.ended) {
+        old.pending_seek = None;
+        old.stopping = true;
+        old.fade_out();
+        m.fading = Some(old);
+    }
+    v.gain = 0.0;
+    m.voice = Some(v);
 }
 
 /// Position du sample en cours ; un dernier statut `playing: false` quand il s'arrête.
@@ -453,7 +578,7 @@ fn status(sh: &Shared) -> Option<PlaybackStatus> {
     let duration_ms = if v.complete { decoded_ms as u32 } else { v.duration_ms };
     let s = PlaybackStatus {
         id: v.id,
-        position_ms: ((v.pos as u64 * 1000 / rate) as u32).min(duration_ms.max(1)),
+        position_ms: ((v.pending_seek.unwrap_or(v.pos) as u64 * 1000 / rate) as u32).min(duration_ms.max(1)),
         duration_ms,
         playing: !v.ended,
         looping,
@@ -544,20 +669,79 @@ fn open_output(sh: &Arc<Shared>) -> Option<cpal::Stream> {
 mod tests {
     use super::*;
 
+    /// Voix sans fondu d'entrée (gain plein), pour tester le rendu brut.
     fn voice(buf: Vec<f32>) -> Voice {
-        Voice {
-            id: 1,
-            gen: 1,
-            buf,
-            complete: true,
-            failed: false,
-            pos: 0,
-            duration_ms: 0,
-            requested: Instant::now(),
-            first_out: None,
-            latency_sent: false,
-            ended: false,
-        }
+        let mut v = Voice::new(1, 1, buf, true, 0, 0, 44_100);
+        (v.gain, v.step) = (1.0, 0.0);
+        v
+    }
+
+    /// Sinusoïde stéréo de `n` trames à 440 Hz / 44,1 kHz.
+    fn sine(n: usize) -> Vec<f32> {
+        (0..n)
+            .flat_map(|i| {
+                let x = (i as f32 * 440.0 * std::f32::consts::TAU / 44_100.0).sin() * 0.9;
+                [x, x]
+            })
+            .collect()
+    }
+
+    /// Plus grand écart entre deux trames consécutives (un clic = un saut d'onde).
+    fn max_jump(out: &[f32]) -> f32 {
+        out.chunks(2)
+            .collect::<Vec<_>>()
+            .windows(2)
+            .map(|w| (w[1][0] - w[0][0]).abs())
+            .fold(0.0, f32::max)
+    }
+
+    #[test]
+    fn fondus_sans_clic() {
+        // Une sinusoïde à 440 Hz varie d'au plus ~0,06 par trame : tout saut au-delà serait un clic.
+        let smooth = 0.07;
+        let mut m = Mix {
+            volume: 1.0,
+            ..Default::default()
+        };
+        let mut out = vec![0.0; 2 * 2048];
+        // Départ au milieu d'une crête : fondu d'entrée.
+        replace_voice(&mut m, Voice::new(1, 1, sine(44_100), true, 1000, 1000, 44_100));
+        render(&mut m, &mut out, 2);
+        assert!(out[0].abs() < 0.01, "départ à zéro : {}", out[0]);
+        assert!(max_jump(&out) < smooth, "départ : saut {}", max_jump(&out));
+        // Déplacement : fondu de sortie, saut, fondu d'entrée.
+        let last = out[out.len() - 2];
+        m.voice.as_mut().unwrap().pending_seek = Some(30_000);
+        m.voice.as_mut().unwrap().fade_out();
+        render(&mut m, &mut out, 2);
+        assert!(
+            (out[0] - last).abs() < smooth && max_jump(&out) < smooth,
+            "déplacement : saut {}",
+            max_jump(&out)
+        );
+        // Nouveau départ pendant la lecture : fondu croisé (l'ancienne voix s'éteint).
+        let last = out[out.len() - 2];
+        replace_voice(&mut m, Voice::new(2, 2, sine(44_100), true, 7_000, 1000, 44_100));
+        assert!(m.fading.is_some());
+        render(&mut m, &mut out, 2);
+        assert!(
+            (out[0] - last).abs() < smooth && max_jump(&out) < smooth,
+            "remplacement : saut {}",
+            max_jump(&out)
+        );
+        assert!(m.fading.is_none(), "ancienne voix libérée après son fondu");
+        // Arrêt : fondu de sortie, puis fin.
+        let last = out[out.len() - 2];
+        m.voice.as_mut().unwrap().stopping = true;
+        m.voice.as_mut().unwrap().fade_out();
+        render(&mut m, &mut out, 2);
+        assert!(
+            (out[0] - last).abs() < smooth && max_jump(&out) < smooth,
+            "arrêt : saut {}",
+            max_jump(&out)
+        );
+        assert!(m.voice.as_ref().unwrap().ended);
+        assert!(out[out.len() - 2].abs() < 1e-6, "silence après l'arrêt");
     }
 
     #[test]
@@ -606,6 +790,22 @@ mod tests {
         let mut out = vec![];
         r.process(&[0.25, -0.5], &mut out);
         assert_eq!(out, [0.25, 0.25, -0.5, -0.5]);
+    }
+
+    #[test]
+    fn forme_d_onde_detaillee() {
+        // 3 blocs : silence, crête positive, crête négative plus forte.
+        let blocks = [(0.0, 0.0, 0.0, 64), (-0.1, 0.5, 4.0, 64), (-0.8, 0.2, 16.0, 64)];
+        let w = bucket_waveform(&blocks, 3);
+        assert_eq!((w.min.len(), w.max.len(), w.rms.len()), (3, 3, 3));
+        assert_eq!(w.min[2], -1.0, "normalisée sur le maximum absolu");
+        assert!((w.max[1] - 0.625).abs() < 1e-6);
+        assert!(w.rms.iter().all(|&r| (0.0..=1.0).contains(&r)));
+        // Plus de colonnes que de blocs : chaque colonne reprend son bloc.
+        let w = bucket_waveform(&blocks, 6);
+        assert_eq!(w.max.len(), 6);
+        assert_eq!(w.max[0], w.max[1]);
+        assert!(bucket_waveform(&[], 10).max.is_empty());
     }
 
     #[test]

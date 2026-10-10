@@ -300,7 +300,7 @@ const byPrefix = (p: string, n: number, step = 1) =>
 export const COLLECTIONS: Collection[] = [
   { id: 1, name: "Go-to kicks", kind: "manual", pinned: true },
   { id: 2, name: "Vocal chops", kind: "manual", pinned: false },
-  { id: 3, name: "Loops en Am", kind: "smart", pinned: false, query: "type:loop key:Am" },
+  { id: 3, name: "Loops in Am", kind: "smart", pinned: false, query: "type:loop key:Am" },
   { id: 4, name: "Courts & sombres", kind: "smart", pinned: false, query: "#dark dur:<1s" },
 ];
 
@@ -309,9 +309,9 @@ export const COLLECTION_ITEMS: Record<number, number[]> = {
   2: byPrefix("Vox_Chop", 14, 1),
 };
 
-/** Dossiers virtuels : Projets › Night Drive ; Pack 2026 › Drums, Textures. */
+/** Dossiers virtuels : Projects › Night Drive ; Pack 2026 › Drums, Textures. */
 export const VIRTUAL_FOLDERS: VirtualFolder[] = [
-  { id: 1, name: "Projets", parentId: null, pinned: false },
+  { id: 1, name: "Projects", parentId: null, pinned: false },
   { id: 2, name: "Night Drive", parentId: 1, pinned: false },
   { id: 3, name: "Pack 2026", parentId: null, pinned: true },
   { id: 4, name: "Drums", parentId: 3, pinned: false },

@@ -15,24 +15,10 @@ export function isOwnDrag(paths?: string[]): boolean {
   return !paths || (paths.length === last.files.length && paths.every((p) => last!.files.includes(p)));
 }
 
-/** Petite pastille « n » dessinée à la volée (PNG base64, format attendu par le plugin). */
-function dragIcon(count: number): string {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const [w, h] = [count > 9 ? 34 : 26, 22];
+/** Image du glisser : transparente (1 × 1). Le DAW montre son propre retour ; pas de pastille par-dessus. */
+function dragIcon(): string {
   const c = document.createElement("canvas");
-  c.width = w * dpr;
-  c.height = h * dpr;
-  const ctx = c.getContext("2d")!;
-  ctx.scale(dpr, dpr);
-  ctx.fillStyle = "#2b2b2b";
-  ctx.beginPath();
-  ctx.roundRect(0, 0, w, h, 6);
-  ctx.fill();
-  ctx.fillStyle = "#e6e6e6";
-  ctx.font = "600 12px -apple-system, system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(String(count), w / 2, h / 2 + 0.5);
+  c.width = c.height = 1;
   return c.toDataURL("image/png");
 }
 
@@ -45,7 +31,7 @@ export async function startNativeDrag(rowKey: string) {
   app.setDraggingKey(rowKey);
   last = { key: rowKey, files, target: null, endedAt: null, dropped: false };
   const { startDrag } = await import("@crabnebula/tauri-plugin-drag");
-  await startDrag({ item: files, icon: dragIcon(files.length) }, (e) => {
+  await startDrag({ item: files, icon: dragIcon() }, (e) => {
     // Fin du glisser (dans le DAW, le Finder ou ici) : le dépôt dans la fenêtre, s'il y en a un, suit.
     clearTimeout(springTimer);
     const drag = last;

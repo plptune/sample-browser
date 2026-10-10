@@ -102,6 +102,15 @@ export interface TreeRequest {
   peaks?: boolean;
   /** Ligne dont on veut la position (`TreePage.focusIndex`), pour y faire défiler l'arbre. */
   focus?: string | null;
+  /** Résultats à plat : en recherche, seulement les samples trouvés (une fois chacun), profondeur 0, sans dossiers. */
+  flat?: boolean;
+}
+
+/** Forme d'onde détaillée (tiroir, inspecteur) : par colonne, min, max (−1..1) et RMS (0..1), normalisés. */
+export interface Waveform {
+  min: number[];
+  max: number[];
+  rms: number[];
 }
 
 export interface TreePage {
@@ -215,6 +224,8 @@ export interface Backend {
   setFolderHidden(id: number, hidden: boolean): Promise<void>;
   /** Pics de waveform d'un sample (256 valeurs 0..1 ; vide tant qu'ils ne sont pas calculés). */
   peaks(id: SampleId): Promise<number[]>;
+  /** Forme d'onde détaillée en `buckets` colonnes (la largeur affichée). */
+  waveform(id: SampleId, buckets: number): Promise<Waveform>;
   /** Groupes de synonymes : un mot libre d'un groupe trouve aussi les autres (« kick » trouve « bd »). */
   synonyms(): Promise<string[][]>;
   setSynonyms(groups: string[][]): Promise<void>;

@@ -68,7 +68,7 @@ for (const theme of ["dark", "light"] as const) {
       await page.locator("body").click({ position: { x: 5, y: 880 } });
       await page.keyboard.press("3"); // Navigation : kicks ouverts, un kick sélectionné
       await expect(page.locator(".cr-node[data-selected]")).toHaveCount(1);
-      if (theme === "light") await page.getByRole("button", { name: "Clair" }).first().click();
+      if (theme === "light") await page.getByRole("button", { name: "Light" }).first().click();
       if (layout === "full") await page.keyboard.press("Control+Shift+F");
       await expect(page.locator(`[data-theme=${theme}] .cr-panel[data-layout=${layout}]`)).toBeVisible();
 

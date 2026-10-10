@@ -7,7 +7,9 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { EmptyState } from "./EmptyState";
 import { IconButton } from "./IconButton";
 import { Inspector } from "./Inspector";
+import { api } from "../api";
 import { DEFAULT_COLORS } from "../lib/color";
+import { relativeFolder } from "../lib/format";
 import { PreviewDrawer } from "./PreviewDrawer";
 import { SaveSearch } from "./SaveSearch";
 import { ScanStatus } from "./ScanStatus";
@@ -16,20 +18,20 @@ import { SettingsView } from "./SettingsView";
 import { Tabs } from "./Tabs";
 import { TagPopover, type TagState } from "./TagPopover";
 
-const ms = (x: number) => `${x.toLocaleString("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ms`;
-const num = (x: number) => x.toLocaleString("fr-FR");
+const ms = (x: number) => `${x.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ms`;
+const num = (x: number) => x.toLocaleString("en-US");
 
 /** ⌥⌘D : mesures de la dernière requête d'arbre (budget : 16 ms de la frappe à l'image). */
 function DebugOverlay() {
   return (
-    <div class="cr-scan cr-debug cr-num" role="status" aria-label="Mesures">
-      <Show when={app.metrics()} fallback={<span class="cr-scan__label">Mesures : en attente d'une requête</span>}>
+    <div class="cr-scan cr-debug cr-num" role="status" aria-label="Metrics">
+      <Show when={app.metrics()} fallback={<span class="cr-scan__label">Metrics: waiting for a query</span>}>
         {(m) => (
           <span class="cr-scan__label">
-            arbre {ms(m().rust)} · échange {ms(m().ipc - m().rust)} · rendu {ms(m().dom)}
+            tree {ms(m().rust)} · ipc {ms(m().ipc - m().rust)} · render {ms(m().dom)}
             <br />
-            total {ms(m().ipc + m().dom)} (+ image {ms(m().frame)}) · {num(m().rows)} lignes
-            <Show when={app.latency() !== null}> · son {ms(app.latency()!)}</Show>
+            total {ms(m().ipc + m().dom)} (+ frame {ms(m().frame)}) · {num(m().rows)} rows
+            <Show when={app.latency() !== null}> · sound {ms(app.latency()!)}</Show>
           </span>
         )}
       </Show>
@@ -59,17 +61,17 @@ function vfPath(id: number): string {
 }
 
 const pinItem = (key: string, pinned: boolean | null | undefined): MenuItem => ({
-  label: pinned ? "Ne plus afficher dans Bibliothèque" : "Afficher dans Bibliothèque",
+  label: pinned ? "Hide from Library" : "Show in Library",
   action: () => app.togglePin(key),
 });
 
-const commitItem = (key: string): MenuItem => ({ label: "Créer un vrai dossier…", action: () => app.openCommit(key) });
+const commitItem = (key: string): MenuItem => ({ label: "Create a real folder…", action: () => app.openCommit(key) });
 
 /** Entrées du menu contextuel selon la ligne visée ("root" : fond de l'onglet Virtuels). */
 function menuFor(row: Row | undefined): MenuItem[] {
   if (!row) return [
-    { label: "Nouveau dossier virtuel", shortcut: "⌘N", action: () => app.newVirtualFolder() },
-    { label: "Nouvelle collection", action: () => app.newCollection() },
+    { label: "New virtual folder", shortcut: "⌘N", action: () => app.newVirtualFolder() },
+    { label: "New collection", action: () => app.newCollection() },
   ];
   if (row.type === "sample") {
     const n = Math.max(1, app.selection().length);
@@ -79,64 +81,64 @@ function menuFor(row: Row | undefined): MenuItem[] {
     const parent = row.parent;
     const removable = parent.startsWith("v:") || (parent.startsWith("c:") && (parent === "c:fav" || manual.some((c) => `c:${c.id}` === parent)));
     return [
-      { label: app.playingId() === row.sample.id ? "Stop" : "Lire", shortcut: "Espace", action: () => app.togglePlay(), disabled: row.sample.missing },
-      { label: n > 1 ? `Taguer ${n} samples…` : "Taguer…", shortcut: "T", action: () => app.openTagging() },
+      { label: app.playingId() === row.sample.id ? "Stop" : "Play", shortcut: "Space", action: () => app.togglePlay(), disabled: row.sample.missing },
+      { label: n > 1 ? `Tag ${n} samples…` : "Tag…", shortcut: "T", action: () => app.openTagging() },
       {
-        label: app.selectedSamples().every((s) => s.fav) ? "Retirer des favoris" : "Ajouter aux favoris",
+        label: app.selectedSamples().every((s) => s.fav) ? "Remove from favorites" : "Add to favorites",
         shortcut: "⌘D",
         action: () => app.toggleFavorite(),
       },
       ...(removable
-        ? [{ label: `Retirer de « ${app.nodeName(parent)} »`, shortcut: "⌘⌫", action: () => app.removeSelectionFrom(parent) } as MenuItem]
+        ? [{ label: `Remove from “${app.nodeName(parent)}”`, shortcut: "⌘⌫", action: () => app.removeSelectionFrom(parent) } as MenuItem]
         : []),
       // Masquer : jamais de suppression ; « is:hidden » les retrouve, « Afficher » annule.
       app.selectedSamples().every((s) => s.hidden)
-        ? { label: "Afficher", action: () => app.hideSelection(false) }
-        : { label: n > 1 ? `Masquer ${n} samples` : "Masquer", shortcut: removable ? undefined : "⌘⌫", action: () => app.hideSelection(true) },
+        ? { label: "Unhide", action: () => app.hideSelection(false) }
+        : { label: n > 1 ? `Hide ${n} samples` : "Hide", shortcut: removable ? undefined : "⌘⌫", action: () => app.hideSelection(true) },
       { type: "separator" },
-      { type: "header", label: "Ajouter à une collection" },
+      { type: "header", label: "Add to collection" },
       ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.addSelectionTo(`c:${c.id}`) })),
-      { type: "header", label: "Ajouter à un dossier virtuel" },
+      { type: "header", label: "Add to virtual folder" },
       ...vfs.map((f): MenuItem => ({ label: f.path, action: () => app.addSelectionTo(`v:${f.id}`) })),
       { type: "separator" },
-      { label: "Afficher dans le Finder", shortcut: "⌥⌘R", action: () => app.showInFinder(row.sample.path), disabled: row.sample.missing },
-      { label: "Copier le chemin", action: () => navigator.clipboard?.writeText(row.sample.path) },
+      { label: "Show in Finder", shortcut: "⌥⌘R", action: () => app.showInFinder(row.sample.path), disabled: row.sample.missing },
+      { label: "Copy path", action: () => navigator.clipboard?.writeText(row.sample.path) },
     ];
   }
-  const toggle: MenuItem = { label: row.open ? "Fermer" : "Ouvrir", shortcut: "⏎", action: () => app.toggleNode(row.key) };
+  const toggle: MenuItem = { label: row.open ? "Collapse" : "Expand", shortcut: "⏎", action: () => app.toggleNode(row.key) };
   switch (row.kind) {
     case "shortcut":
       return [
-        { label: "Aller au dossier", shortcut: "⏎", action: () => app.jumpTo(row.target!) },
-        { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
+        { label: "Go to folder", shortcut: "⏎", action: () => app.jumpTo(row.target!) },
+        { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
         { type: "separator" },
-        { label: "Retirer de Bibliothèque", action: () => app.togglePin(row.key) },
+        { label: "Remove from Library", action: () => app.togglePin(row.key) },
       ];
     case "folder": {
       if (row.parent === null && app.tab() === "library") {
         return [
           toggle,
-          { label: "Actualiser", action: () => app.refreshSource(+row.key.slice(2)) },
-          { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key), disabled: !!row.offline },
+          { label: "Refresh", action: () => app.refreshSource(+row.key.slice(2)) },
+          { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key), disabled: !!row.offline },
           { type: "separator" },
-          { label: "Retirer la source", danger: true, action: () => app.removeSource(+row.key.slice(2)) },
+          { label: "Remove source", danger: true, action: () => app.removeSource(+row.key.slice(2)) },
         ];
       }
       const pinned = app.library()?.pinnedFolders.includes(+row.key.slice(2));
       return [
         toggle,
-        { label: pinned ? "Retirer de Bibliothèque" : "Épingler dans Bibliothèque", action: () => app.togglePin(row.key) },
-        { label: "Ouvrir dans le Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
+        { label: pinned ? "Remove from Library" : "Pin to Library", action: () => app.togglePin(row.key) },
+        { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
         { type: "separator" },
         row.hidden
-          ? { label: "Afficher le dossier", action: () => app.hideFolder(row.key, false) }
-          : { label: "Masquer le dossier", shortcut: "⌘⌫", action: () => app.hideFolder(row.key, true) },
+          ? { label: "Unhide folder", action: () => app.hideFolder(row.key, false) }
+          : { label: "Hide folder", shortcut: "⌘⌫", action: () => app.hideFolder(row.key, true) },
       ];
     }
     case "favorites":
       return [toggle, pinItem(row.key, row.pinned), { type: "separator" }, commitItem(row.key)];
     case "group":
-      return [toggle, { type: "separator" }, { label: "Nouvelle collection", action: () => app.newCollection() }];
+      return [toggle, { type: "separator" }, { label: "New collection", action: () => app.newCollection() }];
     case "virtual": {
       // « Déplacer dans » : le pendant clavier du glisser (ni soi-même, ni un descendant, ni le parent actuel).
       const all = app.library()?.virtualFolders ?? [];
@@ -151,30 +153,30 @@ function menuFor(row: Row | undefined): MenuItem[] {
         .map((f) => ({ id: f.id, path: vfPath(f.id) }))
         .sort((a, b) => a.path.localeCompare(b.path));
       const moves: MenuItem[] = [
-        ...(self?.parentId != null ? [{ label: "Racine", action: () => app.moveVirtualFolderTo(row.key, null) } as MenuItem] : []),
+        ...(self?.parentId != null ? [{ label: "Top level", action: () => app.moveVirtualFolderTo(row.key, null) } as MenuItem] : []),
         ...dests.map((f): MenuItem => ({ label: f.path, action: () => app.moveVirtualFolderTo(row.key, `v:${f.id}`) })),
       ];
       return [
         toggle,
-        { label: "Nouveau dossier virtuel dedans", action: () => app.newVirtualFolder(row.key) },
-        { label: "Renommer", action: () => app.setRenamingKey(row.key) },
+        { label: "New virtual folder inside", action: () => app.newVirtualFolder(row.key) },
+        { label: "Rename", action: () => app.setRenamingKey(row.key) },
         pinItem(row.key, row.pinned),
-        ...(moves.length ? [{ type: "separator" } as MenuItem, { type: "header", label: "Déplacer dans" } as MenuItem, ...moves] : []),
+        ...(moves.length ? [{ type: "separator" } as MenuItem, { type: "header", label: "Move to" } as MenuItem, ...moves] : []),
         { type: "separator" },
         commitItem(row.key),
         { type: "separator" },
-        { label: "Supprimer le dossier virtuel", danger: true, action: () => app.deleteNode(row.key) },
+        { label: "Delete virtual folder", danger: true, action: () => app.deleteNode(row.key) },
       ];
     }
     default:
       return [
         toggle,
-        { label: "Renommer", action: () => app.setRenamingKey(row.key) },
+        { label: "Rename", action: () => app.setRenamingKey(row.key) },
         pinItem(row.key, row.pinned),
         { type: "separator" },
         commitItem(row.key),
         { type: "separator" },
-        { label: "Supprimer la collection", danger: true, action: () => app.deleteNode(row.key) },
+        { label: "Delete collection", danger: true, action: () => app.deleteNode(row.key) },
       ];
   }
 }
@@ -196,8 +198,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
         <Tabs
           value={app.tab()}
           items={[
-            { value: "library", label: "Bibliothèque", shortcut: "⌘1", icon: "folder" },
-            { value: "virtual", label: "Virtuels", shortcut: "⌘2", icon: "virtual" },
+            { value: "library", label: "Library", shortcut: "⌘1", icon: "library" },
+            { value: "virtual", label: "Virtual", shortcut: "⌘2", icon: "layers" },
           ]}
           iconOnly={app.layout() === "side"}
           springLoaded={app.draggingKey() !== null}
@@ -205,16 +207,16 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
         />
         <span class="cr-titlebar__fill" data-tauri-drag-region />
         <Show when={app.tab() === "virtual" && app.view() === "browser" && !app.empty()}>
-          <IconButton icon="plus" label="Nouveau dossier virtuel (⌘N)" onClick={() => app.newVirtualFolder()} />
+          <IconButton icon="plus" label="New virtual folder (⌘N)" onClick={() => app.newVirtualFolder()} />
         </Show>
         <IconButton
           icon={app.layout() === "full" ? "collapse" : "expand"}
-          label={app.layout() === "full" ? "Revenir en colonne (⌘⇧F)" : "Agrandir (⌘⇧F)"}
+          label={app.layout() === "full" ? "Back to column (⌘⇧F)" : "Expand (⌘⇧F)"}
           onClick={() => void app.toggleLayout()}
         />
         <IconButton
           icon="settings"
-          label="Réglages (⌘,)"
+          label="Settings (⌘,)"
           active={app.view() === "settings"}
           onClick={() => app.setView(app.view() === "settings" ? "browser" : "settings")}
         />
@@ -228,12 +230,12 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             variant="drop"
             over={app.fileOver()}
             onClick={() => !app.demo() && app.addFolder()}
-            title="Glissez un dossier ici"
+            title="Drop a folder here"
             body={
               <>
-                Crate indexe vos samples sans les déplacer.
+                Crate indexes your samples without moving them.
                 <br />
-                ou <kbd class="cr-kbd">⌘O</kbd> pour choisir un dossier
+                or <kbd class="cr-kbd">⌘O</kbd> to choose a folder
               </>
             }
           />
@@ -310,8 +312,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
                 fallback={
                   <EmptyState
                     variant="noresults"
-                    title="Aucun résultat"
-                    body={<>Rien ne correspond à « {app.queryLine()} ».</>}
+                    title="No results"
+                    body={<>Nothing matches “{app.queryLine()}”.</>}
                     hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
                   />
                 }
@@ -328,6 +330,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
                 peaks={app.currentPeaks()}
                 playing={app.playingId() !== null && app.playingId() === app.current()?.id}
                 progress={app.progress()}
+                looping={app.looping()}
+                loadDetail={(b) => (app.current() ? api.waveform(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
                 themeKey={app.theme()}
                 selectionCount={app.selectedSamples().length}
                 memberships={app.memberships()}
@@ -349,6 +353,9 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
               progress={app.progress()}
               themeKey={app.theme()}
               autoPlay={app.autoPlay()}
+              looping={app.looping()}
+              folder={app.current() ? relativeFolder(app.current()!.path, app.sources()) : ""}
+              loadDetail={(b) => (app.current() ? api.waveform(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
               knownTags={app.library()?.tags.map((t) => ({ label: t.name, count: t.count })) ?? []}
               onTogglePlay={() => app.togglePlay()}
               onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}

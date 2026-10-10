@@ -16,13 +16,13 @@ test("bibliothèque vide : ⌘, et le bouton Réglages ouvrent les Réglages", a
   await page.keyboard.press("Control+,");
   await expect(settings).toBeVisible();
   await expect(empty).toBeHidden();
-  await expect(page.getByRole("button", { name: "Ajouter un dossier…" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add a folder…" })).toBeVisible();
 
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();
   await expect(empty).toBeVisible();
 
-  await page.getByRole("button", { name: "Réglages (⌘,)" }).click();
+  await page.getByRole("button", { name: "Settings (⌘,)" }).click();
   await expect(settings).toBeVisible();
   expect(errors).toEqual([]);
 });

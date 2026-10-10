@@ -59,14 +59,14 @@ async function reset(expanded: string[] = [], tab: TreeRoot = "library") {
 
 export const SCENARIOS: Scenario[] = [
   {
-    id: 1, key: "1", label: "Premier lancement",
+    id: 1, key: "1", label: "First launch",
     run: async () => {
       await reset();
       app.setEmpty(true);
     },
   },
   {
-    id: 2, key: "2", label: "Indexation en cours",
+    id: 2, key: "2", label: "Indexing",
     run: async () => {
       await reset(["f:10", "f:11", "f:12"]);
       const total = 3100;
@@ -101,7 +101,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 4, key: "4", label: "Recherche active",
+    id: 4, key: "4", label: "Active search",
     run: async () => {
       await reset();
       app.setChips(["type:loop", "#lofi", "bpm:80-110"]);
@@ -112,7 +112,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 5, key: "5", label: "Aucun résultat",
+    id: 5, key: "5", label: "No results",
     run: async () => {
       await reset();
       app.setChips(["#airy", "bpm:>170"]);
@@ -120,7 +120,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 6, key: "6", label: "Lecture",
+    id: 6, key: "6", label: "Playback",
     run: async () => {
       // Dossier virtuel épinglé dans Bibliothèque (repère à droite), ouvert sur un sous-dossier.
       await reset(["v:3", "v:5"]);
@@ -156,7 +156,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 9, key: "9", label: "Drag en cours",
+    id: 9, key: "9", label: "Dragging",
     run: async () => {
       // État figé, onglet Virtuels : un sample de « Textures » glissé au-dessus du dossier virtuel « Drums ».
       await reset(["v:3", "v:5"], "virtual");
@@ -167,7 +167,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 10, key: "0", label: "Erreurs",
+    id: 10, key: "0", label: "Errors",
     run: async () => {
       const claps = SAMPLES.filter((s) => s.name.startsWith("Clap") && s.folderId === 13);
       await reset(["f:10", "f:11", "f:13", "f:20"]);
@@ -178,14 +178,14 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 11, key: "-", label: "Réglages",
+    id: 11, key: "-", label: "Settings",
     run: async () => {
       await reset();
       app.setView("settings");
     },
   },
   {
-    id: 12, key: "=", label: "Mode waveform",
+    id: 12, key: "=", label: "Waveform density",
     run: async () => {
       await reset(["f:1", "f:2", "f:3"]);
       app.setDensity("wave");
@@ -194,7 +194,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 13, key: "[", label: "Dossiers virtuels",
+    id: 13, key: "[", label: "Virtual folders",
     run: async () => {
       // Onglet Virtuels : favoris, collections à plat, dossiers virtuels en arborescence.
       await reset(["g:collections", "v:1", "v:3"], "virtual");
@@ -202,7 +202,7 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: 14, key: "]", label: "Créer un vrai dossier",
+    id: 14, key: "]", label: "Create a real folder",
     run: async () => {
       await reset(["v:3"], "virtual");
       app.select("v:3");

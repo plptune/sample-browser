@@ -1,7 +1,6 @@
-// Bas du panneau : le sample courant, sa waveform et ses tags.
+// Bas du panneau : tags du sample courant, son dossier (relatif à la source), son nom et sa waveform.
 import { For, Show, createMemo, createSignal } from "solid-js";
-import type { Sample } from "../api";
-import { formatDuration } from "../lib/format";
+import type { Sample, Waveform as WaveformData } from "../api";
 import { Autocomplete, type AcItem } from "./Autocomplete";
 import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
@@ -11,9 +10,14 @@ export function PreviewDrawer(props: {
   sample?: Sample | null;
   /** Pics du sample (demandés à part : les lignes de l'arbre ne les transportent pas). Défaut : `sample.peaks`. */
   peaks?: number[];
+  /** Forme d'onde détaillée à la largeur affichée (Rust) ; sinon les 256 pics. */
+  loadDetail?: (buckets: number) => Promise<WaveformData>;
   playing: boolean;
   progress: number;
+  looping?: boolean;
   themeKey?: string;
+  /** Dossier du sample, relatif à sa source (« Drums/Kicks/ »). */
+  folder?: string;
   /** Lecture auto : ↑/↓ et clic lisent le sample dès qu'il est sélectionné. */
   autoPlay?: boolean;
   /** Tags existants de la bibliothèque, proposés pendant la frappe. */
@@ -27,29 +31,38 @@ export function PreviewDrawer(props: {
   onSeek?: (fraction: number) => void;
 }) {
   const s = () => props.sample;
-  const time = () => {
-    const x = s();
-    if (!x) return "";
-    return `${formatDuration(props.playing ? x.durationMs * props.progress : 0)} / ${formatDuration(x.durationMs)}`;
-  };
   return (
-    <section class="cr-drawer" aria-label="Aperçu" data-empty={!s() || undefined}>
+    <section class="cr-drawer" aria-label="Preview" data-empty={!s() || undefined}>
+      <Show when={s()}>
+        {(x) => (
+          <>
+            <DrawerTags
+              tags={x().tags}
+              known={props.knownTags ?? []}
+              onAdd={(t) => props.onAddTag?.(t)}
+              onRemove={(t) => props.onRemoveTag?.(t)}
+            />
+            <div class="cr-drawer__path" title={x().path}>
+              {props.folder ?? ""}
+            </div>
+          </>
+        )}
+      </Show>
       <div class="cr-drawer__head">
         <IconButton
           icon={props.playing ? "stop" : "play"}
-          label={props.playing ? "Stop (espace)" : "Lire (espace)"}
+          label={props.playing ? "Stop (Space)" : "Play (Space)"}
           active={props.playing}
           accent
           disabled={!s() || s()!.missing}
           onClick={() => props.onTogglePlay?.()}
         />
         <span class="cr-drawer__title" title={s()?.path}>
-          {s() ? s()!.name : "Aucun sample"}
+          {s() ? `${s()!.name}.${s()!.ext}` : "No sample"}
         </span>
-        <span class="cr-drawer__time">{time()}</span>
         <IconButton
           icon="autoplay"
-          label={props.autoPlay ? "Lecture auto : activée" : "Lecture auto : désactivée"}
+          label={props.autoPlay ? "Autoplay: on" : "Autoplay: off"}
           active={props.autoPlay}
           onClick={() => props.onAutoPlay?.(!props.autoPlay)}
         />
@@ -57,7 +70,7 @@ export function PreviewDrawer(props: {
         <Show when={s()}>
           <IconButton
             icon={s()!.fav ? "star-fill" : "star"}
-            label={s()!.fav ? "Retirer des favoris (⌘D)" : "Ajouter aux favoris (⌘D)"}
+            label={s()!.fav ? "Remove from favorites (⌘D)" : "Add to favorites (⌘D)"}
             active={s()!.fav}
             onClick={() => props.onToggleFav?.()}
           />
@@ -70,27 +83,21 @@ export function PreviewDrawer(props: {
             progress={props.playing ? props.progress : undefined}
             themeKey={props.themeKey}
             onSeek={props.onSeek}
+            loadDetail={props.loadDetail}
+            detailKey={s()!.id}
+            durationMs={s()!.durationMs}
+            looping={props.looping}
           />
         </Show>
         <Show when={s()?.missing}>
-          <div class="cr-drawer__error">Fichier introuvable</div>
+          <div class="cr-drawer__error">File not found</div>
         </Show>
       </div>
-      <Show when={s()}>
-        {(x) => (
-          <DrawerTags
-            tags={x().tags}
-            known={props.knownTags ?? []}
-            onAdd={(t) => props.onAddTag?.(t)}
-            onRemove={(t) => props.onRemoveTag?.(t)}
-          />
-        )}
-      </Show>
     </section>
   );
 }
 
-/** « Tags : » puis les tags du sample (× pour retirer) et un champ « Ajouter… » (⏎ ajoute, suggestions des tags existants). */
+/** « Tags: » puis les tags du sample (× pour retirer) et un champ « Add… » (⏎ ajoute, suggestions des tags existants). */
 function DrawerTags(props: { tags: string[]; known: AcItem[]; onAdd: (t: string) => void; onRemove: (t: string) => void }) {
   let input!: HTMLInputElement;
   const [draft, setDraft] = createSignal("");
@@ -128,12 +135,12 @@ function DrawerTags(props: { tags: string[]; known: AcItem[]; onAdd: (t: string)
   }
   return (
     <div class="cr-drawer__tags">
-      <span class="cr-drawer__label">Tags :</span>
+      <span class="cr-drawer__label">Tags:</span>
       <For each={props.tags}>
         {(t) => (
           <span class="cr-tag cr-tag--removable">
             {t}
-            <button class="cr-tag__remove" aria-label={`Retirer le tag ${t}`} onClick={() => props.onRemove(t)}>
+            <button class="cr-tag__remove" aria-label={`Remove tag ${t}`} onClick={() => props.onRemove(t)}>
               <Icon name="close" />
             </button>
           </span>
@@ -144,9 +151,9 @@ function DrawerTags(props: { tags: string[]; known: AcItem[]; onAdd: (t: string)
           ref={input}
           class="cr-drawer__input"
           value={draft()}
-          placeholder="Ajouter…"
+          placeholder="Add…"
           spellcheck={false}
-          aria-label="Ajouter un tag"
+          aria-label="Add a tag"
           onInput={(e) => {
             setDraft(e.currentTarget.value);
             setAcIndex(-1);

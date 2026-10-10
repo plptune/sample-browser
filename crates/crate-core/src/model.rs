@@ -204,6 +204,11 @@ pub struct TreeRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub focus: Option<String>,
+    /// Résultats à plat (option de la recherche) : en recherche, seulement les samples trouvés, sans dossiers, à
+    /// la profondeur 0, chacun une seule fois, dans l'ordre de l'arbre. Sans effet hors recherche.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub flat: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -299,6 +304,20 @@ pub struct AnalysisStatus {
     pub total: u32,
 }
 
+/// Forme d'onde détaillée (tiroir, inspecteur) : par colonne, minimum, maximum et RMS, normalisés sur le maximum
+/// absolu du fichier (−1..1, RMS 0..1). Calculée à la largeur affichée, à la demande.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct Waveform {
+    // Toujours finis : déclarés `number[]` côté TypeScript (specta y verrait `number | null`, à cause de NaN).
+    #[cfg_attr(feature = "specta", specta(type = Vec<u32>))]
+    pub min: Vec<f32>,
+    #[cfg_attr(feature = "specta", specta(type = Vec<u32>))]
+    pub max: Vec<f32>,
+    #[cfg_attr(feature = "specta", specta(type = Vec<u32>))]
+    pub rms: Vec<f32>,
+}
+
 /// État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -366,6 +385,11 @@ pub trait Backend {
     fn set_folder_hidden(&mut self, id: u32, hidden: bool);
     /// Pics de waveform d'un sample (256 valeurs 0..1, vide tant qu'ils ne sont pas calculés).
     fn peaks(&self, id: SampleId) -> Vec<f64>;
+    /// Forme d'onde détaillée. Par défaut (prototype, fichiers absents), dérivée des 256 pics ; la vraie
+    /// bibliothèque décode le fichier (`audio::waveform`), hors du verrou de la bibliothèque.
+    fn waveform(&self, id: SampleId, buckets: u32) -> Waveform {
+        waveform_from_peaks(&self.peaks(id), buckets as usize)
+    }
     /// Avancement de l'analyse de fond (rien en attente par défaut : données factices).
     fn analysis_status(&self) -> AnalysisStatus {
         AnalysisStatus::default()
@@ -386,4 +410,26 @@ pub trait Backend {
     /// Relance l'indexation d'une source (rescan incrémental).
     fn refresh_source(&mut self, id: u32);
     fn remove_source(&mut self, id: u32);
+}
+
+/// Forme d'onde dérivée des 256 pics (prototype) : interpolation linéaire, symétrique, RMS à 55 % du pic.
+/// Même calcul en TypeScript (`src/api/mock.ts`), vérifié par la parité.
+pub fn waveform_from_peaks(peaks: &[f64], buckets: usize) -> Waveform {
+    let buckets = buckets.clamp(1, 4096);
+    let mut w = Waveform::default();
+    if peaks.is_empty() {
+        return w;
+    }
+    let n = peaks.len();
+    for b in 0..buckets {
+        let t = (b as f64 + 0.5) / buckets as f64 * n as f64 - 0.5;
+        let i = t.floor().clamp(0.0, (n - 1) as f64) as usize;
+        let j = (i + 1).min(n - 1);
+        let f = (t - i as f64).clamp(0.0, 1.0);
+        let v = (peaks[i] + (peaks[j] - peaks[i]) * f) as f32;
+        w.max.push(v);
+        w.min.push(-v);
+        w.rms.push(v * 0.55);
+    }
+    w
 }

@@ -13,7 +13,7 @@ const meta = {
     playing: false,
     progress: 0,
     memberships: [
-      { key: "c:3", name: "Loops en Am" },
+      { key: "c:3", name: "Loops in Am" },
       { key: "v:4", name: "Pack 2026 › Drums" },
     ],
   },

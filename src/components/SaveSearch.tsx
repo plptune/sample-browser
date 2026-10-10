@@ -10,20 +10,20 @@ export function SaveSearch(props: { value: string; onSubmit?: (name: string) => 
   });
   return (
     <div class="cr-save">
-      <span class="cr-save__label">Nouvelle collection smart</span>
+      <span class="cr-save__label">New smart collection</span>
       <input
         ref={input}
         class="cr-save__input"
         value={props.value}
         spellcheck={false}
-        aria-label="Nom de la collection"
+        aria-label="Collection name"
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.key === "Enter") props.onSubmit?.(input.value);
           if (e.key === "Escape") props.onCancel?.();
         }}
       />
-      <span class="cr-save__hint">⏎ enregistrer · échap annuler</span>
+      <span class="cr-save__hint">⏎ save · esc cancel</span>
     </div>
   );
 }

@@ -81,12 +81,12 @@ export function Browser() {
       {/* Mode grand : en-têtes des colonnes (non triables), alignés sur celles des samples. */}
       <Show when={app.layout() === "full"}>
         <div class="cr-colhead" aria-hidden="true">
-          <span class="cr-colhead__name">Nom</span>
-          <span class="cr-col-dur">Durée</span>
+          <span class="cr-colhead__name">Name</span>
+          <span class="cr-col-dur">Length</span>
           <span class="cr-col-fmt">Format</span>
           <span class="cr-col-tags">Tags</span>
           <span class="cr-col-bpm">BPM</span>
-          <span class="cr-col-key">Clé</span>
+          <span class="cr-col-key">Key</span>
         </div>
       </Show>
     <div
@@ -99,7 +99,7 @@ export function Browser() {
       role="tree"
       aria-multiselectable="true"
       aria-rowcount={app.shownTotal()}
-      aria-label={app.tab() === "virtual" ? "Favoris, collections et dossiers virtuels" : "Bibliothèque"}
+      aria-label={app.tab() === "virtual" ? "Favorites, collections and virtual folders" : "Library"}
       onFocus={() => app.setListFocused(true)}
       onBlur={() => app.setListFocused(false)}
       onDragOver={dropRoot}
@@ -156,7 +156,7 @@ function NodeRowView(props: { row: FolderRow }) {
         label={props.row.name}
         depth={props.row.depth}
         open={props.row.open}
-        title={props.row.target ? "Aller au dossier" : undefined}
+        title={props.row.target ? "Go to folder" : undefined}
         offline={props.row.offline ?? undefined}
         hidden={props.row.hidden ?? undefined}
         marker={markerFor(props.row)}
@@ -206,7 +206,7 @@ function SampleRowView(props: { row: SampleRow }) {
   return (
     <TreeRow
       kind="sample"
-      label={s().name}
+      label={`${s().name}.${s().ext}`}
       depth={props.row.depth}
       selected={app.selection().includes(props.row.key)}
       playing={app.playingId() === s().id}
@@ -224,7 +224,7 @@ function SampleRowView(props: { row: SampleRow }) {
       peaks={s().peaks}
       wave={app.density() === "wave"}
       themeKey={app.theme()}
-      title={s().missing ? `Introuvable : ${s().path}` : s().path}
+      title={s().missing ? `Missing: ${s().path}` : s().path}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
         app.select(props.row.key, e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace");

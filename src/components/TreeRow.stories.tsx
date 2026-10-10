@@ -61,7 +61,7 @@ export const Arbre: Story = {
       <TreeRow kind="sample" label={kick.name} depth={2} />
       <TreeRow kind="folder" label="Field Recordings" depth={0} offline />
       <TreeRow kind="shortcut" label="Dusty Tapes Vol.2" depth={0} marker="shortcut" />
-      <TreeRow kind="favorites" label="Favoris" depth={0} marker="favorites" />
+      <TreeRow kind="favorites" label="Favorites" depth={0} marker="favorites" />
       <TreeRow kind="collection" label="Go-to kicks" depth={0} marker="collection" />
       <TreeRow kind="virtual" label="Pack 2026" depth={0} marker="virtual" />
     </div>
@@ -72,15 +72,15 @@ export const Arbre: Story = {
 export const ArbreVirtuels: Story = {
   render: () => (
     <div class="cr-tree" data-focused style={{ flex: "none" }}>
-      <TreeRow kind="favorites" label="Favoris" depth={0} marker="pin" />
+      <TreeRow kind="favorites" label="Favorites" depth={0} marker="pin" />
       <TreeRow kind="group" label="Collections" depth={0} open />
       <TreeRow kind="collection" label="Go-to kicks" depth={1} marker="pin" />
-      <TreeRow kind="smart" label="Loops en Am" depth={1} />
+      <TreeRow kind="smart" label="Loops in Am" depth={1} />
       <TreeRow kind="virtual" label="Pack 2026" depth={0} open marker="pin" />
       <TreeRow kind="virtual" label="Drums" depth={1} />
       <TreeRow kind="virtual" label="Textures" depth={1} />
       <TreeRow kind="sample" label="Riser_Punchy_01" depth={1} />
-      <TreeRow kind="virtual" label="Projets" depth={0} />
+      <TreeRow kind="virtual" label="Projects" depth={0} />
     </div>
   ),
 };

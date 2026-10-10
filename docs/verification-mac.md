@@ -159,6 +159,19 @@ Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crat
 - [ ] Identifiants à confirmer si un DAW ne réagit pas : `osascript -e 'id of app "Bitwig Studio"'` (attendu
       `com.bitwig.BitwigStudio`), idem Live (`com.ableton.live`).
 
+## 6 sexies. Retours n° 2
+
+- [ ] Toute l'interface est en anglais (menus, Réglages, notices, sélecteur de dossier ⌘O).
+- [ ] Cliquer très vite plusieurs fois dans la waveform pendant la lecture : plus aucun clic ; pareil en passant d'un
+      sample à l'autre avec ↓ (lecture auto).
+- [ ] Waveform du tiroir et de l'inspecteur : forme pleine et nette (plus de barres) ; la tête de lecture avance
+      sans à-coups ; redimensionner la fenêtre redessine à la bonne finesse.
+- [ ] Glisser un sample vers Bitwig ou Live : plus de « 1 » transparent sous le curseur.
+- [ ] Tiroir : tags, puis dossier relatif (« Drums/Kicks/ »), puis nom.ext ; pas de durée.
+- [ ] Explorer en colonne : icône + nom.ext ; lignes de parenté discrètes ; ← ferme, → ouvre.
+- [ ] Recherche : ↓ ne s'arrête que sur des samples ; menu à droite du champ → « Flat results » : liste à plat,
+      retrouvée après relance.
+
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).

@@ -538,7 +538,7 @@ pub fn collections() -> Vec<Collection> {
     vec![
         manual(1, "Go-to kicks", true),
         manual(2, "Vocal chops", false),
-        smart(3, "Loops en Am", "type:loop key:Am"),
+        smart(3, "Loops in Am", "type:loop key:Am"),
         smart(4, "Courts & sombres", "#dark dur:<1s"),
     ]
 }
@@ -556,7 +556,7 @@ pub fn virtual_folders() -> Vec<VirtualFolder> {
         pinned,
     };
     vec![
-        vf(1, "Projets", None, false),
+        vf(1, "Projects", None, false),
         vf(2, "Night Drive", Some(1), false),
         vf(3, "Pack 2026", None, true),
         vf(4, "Drums", Some(3), false),

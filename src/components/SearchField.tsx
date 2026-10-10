@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { app } from "../state/app";
 import { Autocomplete, type AcItem } from "./Autocomplete";
-import { Icon } from "./Icon";
+import { ContextMenu } from "./ContextMenu";
 import { IconButton } from "./IconButton";
 import { QueryChip } from "./QueryChip";
 
@@ -39,6 +39,10 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
   const [focused, setFocused] = createSignal(false);
   const [acIndex, setAcIndex] = createSignal(0);
   const [acDismissed, setAcDismissed] = createSignal(false);
+  // Menu des options de recherche (à droite du champ) ; le bouton l'ouvre et le ferme.
+  const [optsOpen, setOptsOpen] = createSignal(false);
+  let opts: HTMLDivElement | undefined;
+  let optsButton: HTMLElement | undefined;
 
   const current = () => app.draft().split(/\s+/).pop() ?? "";
   const ac = createMemo(() => {
@@ -100,9 +104,8 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
   }
 
   return (
-    <div class="cr-panel__search">
+    <div class="cr-panel__search" ref={opts}>
       <div class="cr-search" data-focused={focused() || undefined} onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); input.focus(); } }}>
-        <Icon name="search" />
         <div class="cr-search__chips">
           <For each={app.chips()}>{(raw, i) => <QueryChip raw={raw} onClick={() => { app.editChip(i()); input.focus(); }} />}</For>
           <input
@@ -114,7 +117,7 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
             type="text"
             spellcheck={false}
             autocomplete="off"
-            placeholder={app.chips().length ? "" : "Rechercher"}
+            placeholder={app.chips().length ? "" : "Search"}
             value={app.draft()}
             onInput={(e) => {
               setAcDismissed(false);
@@ -127,9 +130,28 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
           />
         </div>
         <Show when={app.queryLine()}>
-          <IconButton icon="close" label="Effacer la recherche" onClick={() => app.clearQuery()} />
+          <IconButton icon="close" label="Clear search" onClick={() => app.clearQuery()} />
         </Show>
+        <IconButton
+          icon="options"
+          label="Search options"
+          active={optsOpen() || app.flatResults()}
+          ref={(el) => (optsButton = el)}
+          onClick={() => setOptsOpen(!optsOpen())}
+        />
       </div>
+      <Show when={optsOpen()}>
+        <ContextMenu
+          x={10_000}
+          y={opts?.offsetHeight ?? 0}
+          items={[
+            { type: "header", label: "Search options" },
+            { label: "Flat results", checked: app.flatResults(), action: () => app.setFlatResults(!app.flatResults()) },
+          ]}
+          anchor={() => optsButton}
+          onClose={() => setOptsOpen(false)}
+        />
+      </Show>
       <Show when={ac()}>{(s) => <Autocomplete items={s().items} active={acIndex()} onPick={pick} />}</Show>
     </div>
   );

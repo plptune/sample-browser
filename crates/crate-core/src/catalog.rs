@@ -152,6 +152,7 @@ pub(crate) struct TreeCache {
     root: TreeRoot,
     query: String,
     expanded: Vec<NodeKey>,
+    flat: bool,
     /// Clés des nœuds ouverts ; les lignes y renvoient par index (parent).
     keys: Vec<NodeKey>,
     rows: Vec<RowRef>,
@@ -460,7 +461,7 @@ impl Catalog {
     fn fav_info(&self) -> NodeInfo {
         NodeInfo {
             key: "c:fav".into(),
-            name: "Favoris".into(),
+            name: "Favorites".into(),
             kind: NodeKind::Favorites,
             offline: false,
             pinned: self.favorites_pinned,
@@ -599,7 +600,7 @@ impl Catalog {
 
     /// Marche complète de l'arbre (lignes légères) : sans recherche, les nœuds ouverts ; avec, les nœuds qui
     /// contiennent au moins un résultat, tous ouverts.
-    fn build_tree(&self, root: TreeRoot, q: &str, expanded: &[NodeKey]) -> TreeCache {
+    fn build_tree(&self, root: TreeRoot, q: &str, expanded: &[NodeKey], flat: bool) -> TreeCache {
         let searching = !q.is_empty();
         let m = self.compile(q);
         // Masqués : invisibles partout, sauf si la recherche demande `is:hidden`.
@@ -705,10 +706,23 @@ impl Catalog {
             rows: Vec::with_capacity(if searching { matches + 64 } else { 256 }),
         };
         w.walk(None, None, 0);
+        let flat = flat && searching;
+        if flat {
+            // À plat : les samples seulement, une fois chacun, à la profondeur 0 (le parent reste leur dossier).
+            let mut seen = HashSet::new();
+            w.rows.retain_mut(|r| match r {
+                RowRef::Sample { idx, depth, .. } => {
+                    *depth = 0;
+                    seen.insert(*idx)
+                }
+                RowRef::Node { .. } => false,
+            });
+        }
         TreeCache {
             root,
             query: q.to_string(),
             expanded: expanded.to_vec(),
+            flat,
             keys: w.keys,
             rows: w.rows,
             matches: matches as u32,
@@ -895,9 +909,11 @@ impl Backend for Catalog {
     fn tree(&self, req: &TreeRequest) -> TreePage {
         let t0 = Instant::now();
         let q = req.query.trim();
-        let fresh = matches!(&*self.cache.borrow(), Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded);
+        let flat = req.flat && !q.is_empty();
+        let fresh =
+            matches!(&*self.cache.borrow(), Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat);
         if !fresh {
-            let built = self.build_tree(req.root, q, &req.expanded);
+            let built = self.build_tree(req.root, q, &req.expanded, flat);
             *self.cache.borrow_mut() = Some(built);
         }
         let cache = self.cache.borrow();

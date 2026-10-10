@@ -28,6 +28,7 @@
   --cr-selected-focus: color-mix(in srgb, var(--cr-bg), #fff 17%);
   --cr-line: color-mix(in srgb, var(--cr-bg), #000 45%);           /* séparateurs de zones */
   --cr-line-soft: color-mix(in srgb, var(--cr-bg), #fff 6%);       /* séparateurs internes */
+  --cr-guide: color-mix(in srgb, var(--cr-bg), #fff 6%);           /* lignes de parenté de l'arbre (décor, très doux) */
 
   /* Sélection de l'arbre : teinte du primaire */
   --cr-row-selected: color-mix(in srgb, var(--cr-primary) 30%, var(--cr-bg));       /* liste non focus */
@@ -68,6 +69,7 @@
   --cr-selected-focus: color-mix(in srgb, var(--cr-bg), #000 21%);
   --cr-line: color-mix(in srgb, var(--cr-bg), #000 23%);
   --cr-line-soft: color-mix(in srgb, var(--cr-bg), #000 10%);
+  --cr-guide: color-mix(in srgb, var(--cr-bg), #000 7%);
 
   --cr-row-selected: color-mix(in srgb, var(--cr-primary) 25%, var(--cr-bg));
   --cr-row-selected-focus: color-mix(in srgb, var(--cr-primary) 50%, var(--cr-bg));

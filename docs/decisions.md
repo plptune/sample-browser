@@ -188,6 +188,20 @@ sont le même signal (lu 160).
 | **Réglages en onglets** : Sources, Apparence, Lecture, Recherche. | Demandé : la liste devenait longue. |
 | **Test de contraste** automatique (`tests/e2e/contraste.spec.ts`, WCAG ≥ 4,5:1) sur le texte des lignes (sélectionnées ou non), du tiroir et de l'inspecteur, dans les deux thèmes et les deux modes. Les tags des lignes passent de `text-3` à `text-2` (2,9:1 → 5,6:1). | Signalé à l'essai : tags illisibles sur la ligne sélectionnée en mode grand. Le test empêche que ça revienne. |
 
+## Retours n° 2 (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Interface en anglais** (textes, menus, Réglages, messages d'erreur Rust affichés, noms fixes « Favorites », nombres en `en-US`). Le code, les commentaires et la doc restent en français. Pas de couche i18n : une seule langue. | Demandé. Un test e2e balaie les vues principales à la recherche de texte français. |
+| **Tiroir** : tags en premier, puis le dossier relatif à la source (dossiers coupés à 10 caractères, une ligne), puis nom.ext / lecture auto / favori, puis la waveform. Plus de temps ni de durée. | Demandé : les tags d'abord, la position dans la bibliothèque visible, moins de bruit. |
+| **Waveform HD** : forme pleine (min / max + RMS) calculée par le Rust à la largeur affichée, sur tout le fichier (blocs de 64 trames, 8 formes gardées en mémoire, décodage hors du verrou de la bibliothèque) ; tête de lecture extrapolée à 60 images / s sur un canvas superposé. L'arbre garde ses 256 pics. | Demandé : « on voit trop les traits », rendu plus réaliste, avancée fluide. Le prototype dérive la forme des 256 pics (même calcul TS / Rust, vérifié par la parité). |
+| **Fondus de 4 ms** à chaque départ, arrêt, déplacement, et fondu croisé quand un sample en remplace un autre ; la boucle n'est pas fondue. | Signalé : un clic audible en cliquant vite dans la waveform (saut d'onde). Testé sur une sinusoïde : aucun saut au-delà de la pente normale. |
+| **Explorer en colonne** : icône + nom avec extension, plus de BPM / clé / badge ; le mode grand garde ses colonnes. **Lignes de parenté** très douces (à l'essai, réversibles : un `::before` en CSS). | Demandé ; choix de l'utilisateur pour le mode grand. |
+| **← ferme, → ouvre** : ← sur un sample ferme son dossier et le sélectionne ; → ouvre sans entrer, ne lit plus un sample (Espace lit). En recherche, ↑ / ↓ sautent les dossiers. | Demandé. |
+| **Recherche** : sans loupe ni contour, collée à l'explorer ; menu d'options à droite, première option « Flat results » (`TreeRequest.flat` : samples trouvés seulement, une fois chacun, profondeur 0 ; même calcul TS / Rust, vérifié par la parité), mémorisée. | Demandé. |
+| **Glisser vers le DAW** : image transparente (le DAW montre son propre retour). | Signalé : un « 1 » (pastille du nombre de fichiers) traînait par-dessus Bitwig ; choix de l'utilisateur : rien. |
+| Onglets : icônes distinctes (étagère pour Library, calques pour Virtual). | Les deux icônes de dossier se confondaient. |
+
 ## Recherche depuis le DAW (10 oct. 2026)
 
 | Décision | Raison |

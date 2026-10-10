@@ -7,9 +7,11 @@ export function IconButton(props: {
   accent?: boolean;
   disabled?: boolean;
   onClick?: (e: MouseEvent) => void;
+  ref?: (el: HTMLButtonElement) => void;
 }) {
   return (
     <button
+      ref={props.ref}
       class="cr-icon-btn"
       title={props.label}
       aria-label={props.label}

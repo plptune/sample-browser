@@ -11,8 +11,8 @@ import {
 } from "../mock/generate";
 import type {
   Backend, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
-  TreeRow,
-  VirtualFolder,
+  SampleRow, TreeRow,
+  VirtualFolder, Waveform,
 } from "./types";
 
 function parseRange(v: string, unit = ""): (n: number) => boolean {
@@ -151,7 +151,7 @@ const folderInfo = (f: FolderNode): NodeInfo => ({
   hidden: HIDDEN_FOLDERS.has(f.id),
 });
 const shortcutInfo = (f: FolderNode): NodeInfo => ({ key: `p:${f.id}`, name: f.name, kind: "shortcut", target: `f:${f.id}` });
-const favInfo = (): NodeInfo => ({ key: "c:fav", name: "Favoris", kind: "favorites", pinned: FAVORITES.pinned });
+const favInfo = (): NodeInfo => ({ key: "c:fav", name: "Favorites", kind: "favorites", pinned: FAVORITES.pinned });
 const collInfo = (c: Collection): NodeInfo => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection", pinned: c.pinned });
 const vfInfo = (f: VirtualFolder): NodeInfo => ({ key: `v:${f.id}`, name: f.name, kind: "virtual", pinned: f.pinned });
 
@@ -312,6 +312,12 @@ export const mockBackend: Backend = {
       }
     };
     walk(null, 0);
+    // À plat : les samples seulement, une fois chacun, à la profondeur 0 (le parent reste leur dossier).
+    if (req.flat && searching) {
+      const seen = new Set<number>();
+      const flat = rows.filter((r): r is SampleRow => r.type === "sample" && !seen.has(r.sample.id) && !!seen.add(r.sample.id));
+      rows.splice(0, rows.length, ...flat.map((r) => ({ ...r, depth: 0 })));
+    }
 
     const focus = req.focus ? rows.findIndex((r) => r.key === req.focus) : -1;
     return {
@@ -462,6 +468,10 @@ export const mockBackend: Backend = {
   async setFolderHidden(id, hidden) {
     if (hidden) HIDDEN_FOLDERS.add(id);
     else HIDDEN_FOLDERS.delete(id);
+  },
+
+  async waveform(id, buckets) {
+    return waveformFromPeaks(byId.get(id)?.peaks ?? [], buckets);
   },
 
   async peaks(id) {
@@ -637,4 +647,23 @@ export const mockBackend: Backend = {
 /** Réservé aux scénarios de démo : marque des fichiers comme introuvables. */
 export function mockSetMissing(ids: number[]) {
   for (const s of SAMPLES) s.missing = ids.includes(s.id);
+}
+
+/** Forme d'onde dérivée des 256 pics (prototype) : même calcul qu'en Rust (`model::waveform_from_peaks`). */
+export function waveformFromPeaks(peaks: number[], buckets: number): Waveform {
+  const n = peaks.length;
+  const b = Math.max(1, Math.min(4096, Math.floor(buckets)));
+  const w: Waveform = { min: [], max: [], rms: [] };
+  if (!n) return w;
+  for (let k = 0; k < b; k++) {
+    const t = ((k + 0.5) / b) * n - 0.5;
+    const i = Math.max(0, Math.min(n - 1, Math.floor(t)));
+    const j = Math.min(i + 1, n - 1);
+    const f = Math.max(0, Math.min(1, t - i));
+    const v = Math.fround(peaks[i] + (peaks[j] - peaks[i]) * f);
+    w.max.push(v);
+    w.min.push(-v);
+    w.rms.push(Math.fround(v * 0.55));
+  }
+  return w;
 }

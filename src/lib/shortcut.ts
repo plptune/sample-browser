@@ -39,7 +39,7 @@ export function formatShortcut(s: string): string {
   const pretty = key
     .replace(/^Key([A-Z])$/, "$1")
     .replace(/^Digit(\d)$/, "$1")
-    .replace(/^Space$/, "Espace")
+    .replace(/^Space$/, "Space")
     .replace(/^Arrow(Left|Right|Up|Down)$/, (_, d: string) => ({ Left: "←", Right: "→", Up: "↑", Down: "↓" })[d] ?? d);
   return mods.join("") + pretty;
 }

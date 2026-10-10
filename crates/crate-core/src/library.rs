@@ -223,7 +223,7 @@ impl CommitJob {
 
     /// Copie ; `progress(fait, total)` après chaque fichier. Jamais d'écrasement : « nom 2 », « nom 3 »…
     pub fn run(&self, progress: &mut dyn FnMut(u32, u32)) -> Result<CommitResult, String> {
-        std::fs::create_dir_all(&self.dest).map_err(|e| format!("Impossible de créer « {} » : {e}", self.dest.display()))?;
+        std::fs::create_dir_all(&self.dest).map_err(|e| format!("Can't create “{}”: {e}", self.dest.display()))?;
         for d in &self.dirs {
             let _ = std::fs::create_dir_all(d);
         }
@@ -257,7 +257,7 @@ impl SqliteLibrary {
         if dest.exists() {
             let empty = dest.is_dir() && std::fs::read_dir(&dest).map(|mut d| d.next().is_none()).unwrap_or(false);
             if !empty {
-                return Err(format!("« {} » existe déjà et n'est pas vide.", dest.display()));
+                return Err(format!("“{}” already exists and isn't empty.", dest.display()));
             }
         }
         let join = |rel: &[String]| rel.iter().fold(dest.clone(), |p, part| p.join(part));
@@ -544,17 +544,17 @@ impl Backend for SqliteLibrary {
 
     fn add_source(&mut self, path: &str) -> Result<Source, String> {
         let p = expand_home(path.trim());
-        let p = p.canonicalize().map_err(|_| format!("« {path} » est introuvable."))?;
+        let p = p.canonicalize().map_err(|_| format!("“{path}” can't be found."))?;
         if !p.is_dir() {
-            return Err(format!("« {} » n'est pas un dossier.", p.display()));
+            return Err(format!("“{}” isn't a folder.", p.display()));
         }
         for s in self.cat.sources() {
             let r = Path::new(&s.path);
             if p.starts_with(r) {
-                return Err(format!("Ce dossier est déjà dans la source « {} ».", s.name));
+                return Err(format!("This folder is already inside the source “{}”.", s.name));
             }
             if r.starts_with(&p) {
-                return Err(format!("Ce dossier contient déjà la source « {} » : retirez-la d'abord.", s.name));
+                return Err(format!("This folder already contains the source “{}”: remove it first.", s.name));
             }
         }
         let name = p

@@ -23,27 +23,28 @@ test("lecture auto active par défaut, et coupée depuis le tiroir", async ({ pa
   await page.keyboard.press("ArrowDown");
   await expect(page.locator(".cr-node[data-selected][data-playing]")).toHaveCount(1);
 
-  await page.getByRole("button", { name: "Lecture auto : activée" }).click();
+  await page.getByRole("button", { name: "Autoplay: on" }).click();
   await page.locator("body").click({ position: { x: 5, y: 880 } });
   await page.keyboard.press("Escape"); // stop
   await page.keyboard.press("ArrowDown");
   await expect(page.locator(".cr-node[data-selected]")).toHaveCount(1);
   await expect(page.locator(".cr-node[data-playing]")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Lecture auto : désactivée" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Autoplay: off" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
 test("en colonne : pas de tonalité, onglets en icônes ; en grand : les deux reviennent", async ({ page }) => {
   await scenario(page, "3");
-  const lib = page.getByRole("tab", { name: "Bibliothèque" });
+  const lib = page.getByRole("tab", { name: "Library" });
   await expect(lib).toHaveText("");
-  await expect(lib).toHaveAttribute("title", "Bibliothèque (⌘1)");
-  await expect(page.locator(".cr-node .cr-col-key").first()).toHaveCSS("display", "none");
-  await expect(page.locator(".cr-node .cr-col-bpm").first()).toHaveCSS("width", "32px"); // le BPM reste
+  await expect(lib).toHaveAttribute("title", "Library (⌘1)");
+  // En colonne : ni tonalité ni BPM (retours n° 2 : juste l'icône et le nom).
+  await expect(page.locator(".cr-node .cr-col-key")).toHaveCount(0);
+  await expect(page.locator(".cr-node .cr-col-bpm")).toHaveCount(0);
 
   await page.keyboard.press("Control+Shift+F");
   await expect(page.locator(".cr-panel[data-layout=full]")).toBeVisible();
-  await expect(lib).toHaveText("Bibliothèque");
+  await expect(lib).toHaveText("Library");
   await expect(page.locator(".cr-node .cr-col-key").first()).toHaveCSS("width", "28px");
 });
 
@@ -73,8 +74,8 @@ test("une icône de type devant chaque nom : dossier, sample, MIDI", async ({ pa
 test("tiroir : ajouter un tag au sample courant, puis le retirer", async ({ page }) => {
   const errors = await scenario(page, "3");
   const tags = page.locator(".cr-drawer__tags");
-  await expect(tags).toContainText("Tags :");
-  const field = page.getByRole("textbox", { name: "Ajouter un tag" });
+  await expect(tags).toContainText("Tags:");
+  const field = page.getByRole("textbox", { name: "Add a tag" });
   await field.fill("zz-essai");
   await field.press("Enter");
   await expect(tags.locator(".cr-tag", { hasText: "zz-essai" })).toBeVisible();
@@ -89,7 +90,7 @@ test("tiroir : ajouter un tag au sample courant, puis le retirer", async ({ page
 
   await page.locator("body").click({ position: { x: 5, y: 880 } });
   await page.keyboard.press("ArrowUp");
-  await page.getByRole("button", { name: "Retirer le tag zz-essai" }).click();
+  await page.getByRole("button", { name: "Remove tag zz-essai" }).click();
   await expect(tags.locator(".cr-tag", { hasText: "zz-essai" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -97,26 +98,26 @@ test("tiroir : ajouter un tag au sample courant, puis le retirer", async ({ page
 test("Réglages en onglets : taille du texte et couleurs", async ({ page }) => {
   const errors = await scenario(page, "3");
   await page.keyboard.press("Control+,");
-  for (const name of ["Sources", "Apparence", "Lecture", "Recherche"]) {
+  for (const name of ["Sources", "Appearance", "Playback", "Search"]) {
     await expect(page.getByRole("radio", { name, exact: true })).toBeVisible();
   }
-  await expect(page.getByRole("button", { name: "Ajouter un dossier…" })).toBeVisible();
-  await page.getByRole("radio", { name: "Lecture", exact: true }).click();
-  await expect(page.getByRole("switch", { name: "Lecture auto" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ajouter un dossier…" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Add a folder…" })).toBeVisible();
+  await page.getByRole("radio", { name: "Playback", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Autoplay" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add a folder…" })).toBeHidden();
 
-  await page.getByRole("radio", { name: "Apparence", exact: true }).click();
+  await page.getByRole("radio", { name: "Appearance", exact: true }).click();
   await page.getByRole("radio", { name: "L", exact: true }).click();
   await expect(page.locator(".cr-panel[data-font-size=lg]")).toBeVisible();
   expect(await cssVar(page, "--cr-fs-sm")).toBe("12px");
 
-  await page.getByLabel("Couleur fond").fill("#ff0000");
+  await page.getByLabel("Background color").fill("#ff0000");
   expect(await cssVar(page, "--cr-bg")).toBe("#ff0000");
-  await page.getByRole("button", { name: "Rétablir la couleur fond" }).click();
+  await page.getByRole("button", { name: "Reset background color" }).click();
   expect(await cssVar(page, "--cr-bg")).toBe("#232323");
 
-  await page.getByLabel("Couleur sélection").fill("#00aa00");
-  await page.getByRole("button", { name: "Rétablir toutes les couleurs" }).click();
+  await page.getByLabel("Selection color").fill("#00aa00");
+  await page.getByRole("button", { name: "Reset all colors" }).click();
   expect(await cssVar(page, "--cr-primary")).toBe("#3d74d9");
 
   // Les lignes suivent la taille du texte (virtualisation comprise).
@@ -129,21 +130,21 @@ test("Réglages en onglets : taille du texte et couleurs", async ({ page }) => {
 test("Réglages › Lecture : recherche depuis le DAW (raccourci capturé, DAW cochés)", async ({ page }) => {
   const errors = await scenario(page, "3");
   await page.keyboard.press("Control+,");
-  await page.getByRole("radio", { name: "Lecture", exact: true }).click();
-  await expect(page.getByRole("switch", { name: "Rechercher depuis le DAW" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Playback", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Search from the DAW" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Ableton Live" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Bitwig Studio" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Logic Pro" })).toHaveAttribute("aria-checked", "false");
 
-  const field = page.getByRole("button", { name: "Raccourci : ⌘F" });
+  const field = page.getByRole("button", { name: "Shortcut: ⌘F" });
   await expect(field).toBeVisible();
   await field.click();
-  await expect(page.getByRole("button", { name: "Tapez le raccourci" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Type the shortcut" })).toBeVisible();
   await page.keyboard.press("Shift"); // un modificateur seul ne suffit pas
   await page.keyboard.press("KeyG"); // une touche seule non plus
-  await expect(page.getByRole("button", { name: "Tapez le raccourci" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Type the shortcut" })).toBeVisible();
   await page.keyboard.press("Control+Alt+Space");
-  await expect(page.getByRole("button", { name: "Raccourci : ⌃⌥Espace" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Shortcut: ⌃⌥Space" })).toBeVisible();
   // Le raccourci capturé n'a pas déclenché ceux de l'app (Réglages toujours ouverts).
   await expect(page.locator(".cr-settings")).toBeVisible();
 

@@ -57,7 +57,7 @@ export function TagPopover(props: {
       <input
         ref={input}
         class="cr-popover__input"
-        placeholder="Filtrer ou créer un tag"
+        placeholder="Filter or create a tag"
         spellcheck={false}
         value={query()}
         onInput={(e) => {
@@ -88,7 +88,7 @@ export function TagPopover(props: {
                   <Icon name="minus" />
                 </Show>
               </span>
-              <span class="cr-popover__label">{t.create ? `Créer « ${t.name} »` : t.name}</span>
+              <span class="cr-popover__label">{t.create ? `Create “${t.name}”` : t.name}</span>
             </div>
           )}
         </For>

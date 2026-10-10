@@ -126,6 +126,8 @@ et ce qu'il doit observer. Mets en tête, dans cet ordre :
    taille du texte et couleurs (`docs/verification-mac.md`, section 6 quater).
 9. **Recherche depuis le DAW** : ⌘F dans Live ou Bitwig amène Crate sur la recherche, Échap ou un glisser y revient,
    Safari garde son ⌘F (`docs/verification-mac.md`, section 6 quinquies). Demande à l'utilisateur d'ouvrir Live.
+10. **Retours n° 2** : anglais, waveform HD sans clic au spam-clic, glisser sans « 1 », tiroir et explorer
+   (`docs/verification-mac.md`, section 6 sexies). Demande à l'utilisateur d'écouter et de glisser vers son DAW.
 
 ## 8. Rapport
 

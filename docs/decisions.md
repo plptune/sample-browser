@@ -228,6 +228,14 @@ sont le même signal (lu 160).
 | La fenêtre rejoint l'espace actif quand Crate passe devant et peut s'afficher par-dessus une app en plein écran (`MoveToActiveSpace`, `FullScreenAuxiliary`). | Sinon, ⌘F depuis un DAW en plein écran ferait changer d'espace. |
 | Un raccourci sans modificateur est refusé. Les réglages sont mémorisés avec les autres (`crate.prefs`) et transmis au Rust à chaque changement. | Une lettre seule serait volée au DAW. |
 
+## Retours n° 3 (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Plus de ▶ sur la ligne en lecture** : la case reste vide (la mini-waveform du mode « waveform » montre toujours la progression). | Demandé. |
+| **Dossiers repliables en recherche** (case du chevron, double clic, ⏎, ← / →) : tout est ouvert, sauf ce qu'on referme. `TreeRequest.collapsed`, même calcul en Rust et en TS (parité). Une autre recherche rouvre tout. | Demandé. |
+| **⌘→ replie tout**, comme ⌘← (gardé) ; en recherche aussi : les nœuds de premier niveau se referment. | Demandé. |
+
 ## Fichiers MIDI (10 oct. 2026)
 
 | Décision | Raison |

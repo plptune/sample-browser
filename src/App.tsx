@@ -66,8 +66,8 @@ export function App() {
       e.key === "[" ? app.back() : app.forward();
       return;
     }
-    // ⌘← : referme tous les dossiers (hors des champs, où il va en début de ligne).
-    if (mod && !e.altKey && !e.shiftKey && e.key === "ArrowLeft" && !isField(e.target) && app.view() === "browser") {
+    // ⌘← / ⌘→ : referme tous les dossiers (hors des champs, où ils vont en début ou fin de ligne).
+    if (mod && !e.altKey && !e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isField(e.target) && app.view() === "browser") {
       e.preventDefault();
       document.querySelector<HTMLElement>(".cr-tree")?.focus();
       void app.collapseAll();

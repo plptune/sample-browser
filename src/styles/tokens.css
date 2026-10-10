@@ -121,7 +121,7 @@
   --cr-item-h: 22px;      /* item de sidebar */
   --cr-header-h: 20px;    /* en-tête de colonne / section */
   /* Grille horizontale : deux colonnes, partout dans le panneau.
-     icônes (chevron, repère, ▶) à --cr-gutter, libellés à --cr-gutter + --cr-slot + --cr-space-1
+     icônes (chevron, repère) à --cr-gutter, libellés à --cr-gutter + --cr-slot + --cr-space-1
      (dans l'arbre, une icône de type s'intercale : libellés à --cr-label-x). */
   --cr-gutter: var(--cr-space-2);                       /* 8 px */
   --cr-slot: var(--cr-icon);                            /* 12 px : emplacement d'icône */

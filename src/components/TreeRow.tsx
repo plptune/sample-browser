@@ -1,4 +1,4 @@
-// Une ligne de l'arbre : dossier (chevron) ou sample (▶ quand lu), puis l'icône de type. Même hauteur, même grille.
+// Une ligne de l'arbre : dossier (chevron) ou sample, puis l'icône de type. Même hauteur, même grille.
 import { Show, onMount } from "solid-js";
 import { Chevron, Icon, type IconName } from "./Icon";
 import { Waveform } from "./Waveform";
@@ -111,7 +111,7 @@ export function TreeRow(props: {
       onDragLeave={() => props.onDragLeave?.()}
       onDrop={(e) => props.onDrop?.(e)}
     >
-      {/* Emplacement fixe : chevron (dossier), ▶ (lecture), ! (introuvable) ou vide. */}
+      {/* Emplacement fixe : chevron (dossier), ! (introuvable) ou vide. */}
       <span
         class="cr-node__slot"
         onMouseDown={(e) => {
@@ -122,9 +122,6 @@ export function TreeRow(props: {
       >
         <Show when={folds()}>
           <Chevron open={props.open} />
-        </Show>
-        <Show when={props.playing}>
-          <Icon name="play" class="cr-node__playing" />
         </Show>
         <Show when={props.missing}>
           <span class="cr-node__warn">!</span>

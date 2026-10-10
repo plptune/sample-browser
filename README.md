@@ -28,11 +28,11 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | Touche | Action |
 | --- | --- |
 | clic droit › Flatten | Aplatir un dossier (tous ses samples, sans sous-dossiers) ; l'entonnoir de la recherche liste les filtres actifs |
-| ⌘F ou `/` | Recherche ; dans Live ou Bitwig, ⌘F amène Crate devant, sur la recherche (Échap y revient). En recherche, ↑ / ↓ ne s'arrêtent que sur les samples ; menu ⏷ à droite du champ : « Flat results » |
+| ⌘F ou `/` | Recherche ; dans Live ou Bitwig, ⌘F amène Crate devant, sur la recherche (Échap y revient). En recherche, ↑ / ↓ ne s'arrêtent que sur les samples, les dossiers se referment comme ailleurs ; menu ⏷ à droite du champ : « Flat results » |
 | ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre (avec la lecture auto, active par défaut, le sample joue aussitôt) |
 | → | Ouvrir le dossier sélectionné (le curseur reste dessus) ; suivre un raccourci |
 | ← | Fermer le dossier sélectionné ; sur un sample, fermer son dossier et le sélectionner |
-| ⌘← | Tout replier (le curseur remonte au premier niveau) |
+| ⌘← ou ⌘→ | Tout replier, en recherche aussi (le curseur remonte au premier niveau) |
 | Espace | Lecture / stop du sample courant |
 | ⇧← / ⇧→ | Reculer / avancer d'un dixième dans le sample |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |

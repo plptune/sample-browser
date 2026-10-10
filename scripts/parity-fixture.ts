@@ -118,6 +118,19 @@ await mockBackend.setFolderHidden(12, true);
   flattenedTrees.push({ ...c, query: "hidden:f:12", rows: rowsOf(page) });
 }
 await mockBackend.setFolderHidden(12, false);
+// Nœuds refermés en recherche : premier niveau, sous-dossier, onglet Virtuels, et ignorés hors recherche.
+const COLLAPSED: { root: "library" | "virtual"; query: string; expanded: string[]; collapsed: string[] }[] = [
+  { root: "library", query: "kick", expanded: [], collapsed: ["f:10"] },
+  { root: "library", query: "kick", expanded: [], collapsed: ["f:11", "f:12"] },
+  { root: "library", query: "#warm", expanded: [], collapsed: ["f:1", "f:20"] },
+  { root: "virtual", query: "kick", expanded: [], collapsed: ["c:fav", "v:1"] },
+  { root: "library", query: "", expanded: ["f:10", "f:11"], collapsed: ["f:10"] },
+];
+const collapsedTrees: { root: string; query: string; expanded: string[]; collapsed: string[]; rows: string[] }[] = [];
+for (const c of COLLAPSED) {
+  const page = await mockBackend.tree({ root: c.root, query: c.query, expanded: c.expanded, offset: 0, limit: 100000, collapsed: c.collapsed });
+  collapsedTrees.push({ ...c, rows: rowsOf(page) });
+}
 // Forme d'onde détaillée du prototype (dérivée des pics) : somme arrondie, pour 3 samples et 2 largeurs.
 const waveforms: { id: number; buckets: number; len: number; maxSum: number; rmsSum: number }[] = [];
 for (const id of [SAMPLES[0].id, SAMPLES[57].id, SAMPLES[SAMPLES.length - 1].id]) {
@@ -153,6 +166,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, waveforms, flattenedTrees };
+const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, waveforms, flattenedTrees, collapsedTrees };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

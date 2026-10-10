@@ -311,8 +311,8 @@ export const mockBackend: Backend = {
         if (searching && !hasMatch(n.key)) continue;
         // Aplati (hors recherche) : ouvert, avec toute sa sous-arborescence à plat.
         const flat = !searching && /^[fv]:/.test(n.key) && (req.flattened ?? []).includes(n.key);
-        // Un raccourci ne se déplie jamais : il saute au dossier visé.
-        const open = flat || (n.kind !== "shortcut" && (searching || req.expanded.includes(n.key)));
+        // Un raccourci ne se déplie jamais : il saute au dossier visé. En recherche, tout est ouvert sauf ce qu'on a refermé.
+        const open = flat || (n.kind !== "shortcut" && (searching ? !(req.collapsed ?? []).includes(n.key) : req.expanded.includes(n.key)));
         const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
         if (flat) row.flattened = true;
         if (n.offline) row.offline = true;

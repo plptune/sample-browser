@@ -95,7 +95,7 @@ export type TreeRow = FolderRow | SampleRow;
 export interface TreeRequest {
   root: TreeRoot;
   /** Ligne de recherche brute. Non vide : l'arbre est élagué aux dossiers qui contiennent
-   *  des résultats, tous ouverts, et `expanded` est ignoré. */
+   *  des résultats, ouverts sauf ceux de `collapsed`, et `expanded` est ignoré. */
   query: string;
   expanded: NodeKey[];
   offset: number;
@@ -108,6 +108,8 @@ export interface TreeRequest {
   flat?: boolean;
   /** Dossiers aplatis (filtre temporaire) : ouverts, toute leur sous-arborescence à plat. Ignoré en recherche. */
   flattened?: NodeKey[];
+  /** En recherche : nœuds refermés à la main (les autres restent ouverts). Ignoré hors recherche. */
+  collapsed?: NodeKey[];
 }
 
 /** Forme d'onde détaillée (tiroir, inspecteur) : par colonne, min, max (−1..1) et RMS (0..1), normalisés. */

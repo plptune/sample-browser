@@ -432,3 +432,29 @@ fn memes_dossiers_aplatis() {
         }
     }
 }
+
+#[test]
+fn memes_noeuds_refermes_en_recherche() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    let cases = fx["collapsedTrees"].as_array().unwrap();
+    assert!(cases.len() >= 5);
+    for c in cases {
+        let root = if c["root"] == "virtual" {
+            TreeRoot::Virtual
+        } else {
+            TreeRoot::Library
+        };
+        let page = lib.tree(&TreeRequest {
+            collapsed: strings(&c["collapsed"]),
+            ..req(root, c["query"].as_str().unwrap(), strings(&c["expanded"]))
+        });
+        assert_eq!(
+            rows_of(&page),
+            strings(&c["rows"]),
+            "refermés {:?} {:?}",
+            c["collapsed"],
+            c["query"]
+        );
+    }
+}

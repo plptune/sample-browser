@@ -379,7 +379,10 @@ export type TreeRequest = TreeRequest_Serialize | TreeRequest_Deserialize;
 
 export type TreeRequest_Deserialize = {
 	root: TreeRoot,
-	/**  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts. */
+	/**
+	 *  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, ouverts sauf
+	 *  ceux de `collapsed`.
+	 */
 	query: string,
 	expanded: string[],
 	offset: number,
@@ -399,11 +402,19 @@ export type TreeRequest_Deserialize = {
 	 *  sous-dossiers. Ignoré pendant une recherche.
 	 */
 	flattened?: string[],
+	/**
+	 *  En recherche : nœuds refermés à la main (les autres restent ouverts). `expanded` ne sert pas en recherche ;
+	 *  `collapsed` ne sert pas hors recherche.
+	 */
+	collapsed?: string[],
 };
 
 export type TreeRequest_Serialize = {
 	root: TreeRoot,
-	/**  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts. */
+	/**
+	 *  Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, ouverts sauf
+	 *  ceux de `collapsed`.
+	 */
 	query: string,
 	expanded: string[],
 	offset: number,
@@ -423,6 +434,11 @@ export type TreeRequest_Serialize = {
 	 *  sous-dossiers. Ignoré pendant une recherche.
 	 */
 	flattened?: string[],
+	/**
+	 *  En recherche : nœuds refermés à la main (les autres restent ouverts). `expanded` ne sert pas en recherche ;
+	 *  `collapsed` ne sert pas hors recherche.
+	 */
+	collapsed?: string[],
 };
 
 /**  Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels. */

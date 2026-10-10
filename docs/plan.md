@@ -30,7 +30,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | --- | --- | --- |
 | Ajout de dossiers sources (drag & drop dans l'app, ⌘O) | Oui | Scan en arrière-plan, l'app reste utilisable |
 | Arbre unique sources → dossiers → samples | Oui | Dossiers puis samples à chaque niveau, même retrait |
-| Recherche unifiée (texte + `#tag` + filtres) | Oui | Élague l'arbre aux dossiers qui ont des résultats, tous ouverts |
+| Recherche unifiée (texte + `#tag` + filtres) | Oui | Élague l'arbre aux dossiers qui ont des résultats, ouverts (repliables) |
 | Tags (popover T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
 | Collections (à plat) manuelles et smart | Oui | Regroupements de samples, sans sous-dossier. Smart = recherche sauvegardée (⌘S). Ajout par drag & drop ou menu contextuel |
 | Dossiers virtuels (arborescence) | Oui | Samples + sous-dossiers virtuels, sans limite de profondeur. Glisser un dossier sur un autre le déplace. Un dossier n'affiche que son contenu propre (`in:` couvre ses descendants) |
@@ -357,7 +357,7 @@ l'UI y saute avec ancestors()), "c:fav" favoris, "g:collections" groupe, "c:<id>
 et "virtual" (favoris, groupe Collections, dossiers virtuels).
 Lignes renvoyées dans l'ordre d'affichage : à chaque niveau, sous-dossiers triés par nom puis samples triés par
 nom. Sans recherche : un nœud est ouvert s'il est dans `expanded`. Avec recherche : seuls les nœuds qui contiennent
-au moins un résultat restent, tous ouverts, et le groupe Collections est masqué. Pagination offset / limit, total
+au moins un résultat restent, ouverts sauf ceux de `collapsed`, et le groupe Collections est masqué. Pagination offset / limit, total
 séparé. Les pics de waveform ne voyagent que si la densité « waveform » est active (`TreeRequest.peaks`) ;
 le tiroir les demande avec `peaks(id)`. `focus` renvoie la position d'une ligne (`focusIndex`).
 « Créer un vrai dossier » : plan (fichiers, sous-dossiers, octets, introuvables) puis copie ; progression par événement

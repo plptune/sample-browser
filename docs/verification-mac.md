@@ -137,7 +137,9 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
       lecture auto, et ↓ ne joue plus.
 - [ ] En colonne : pas de colonne de tonalité ; onglets en icônes (infobulle « Bibliothèque (⌘1) ») ; icône de type
       devant chaque nom (dossier, onde, note pour un `.mid`).
-- [ ] ⌘← replie tout et le curseur reste sur le dossier de premier niveau ; dans la recherche, ⌘← va en début de ligne.
+- [ ] ⌘← et ⌘→ replient tout et le curseur reste sur le dossier de premier niveau ; dans le champ de recherche, ils vont en début / fin de ligne.
+- [ ] Pendant une recherche : un dossier se referme et se rouvre (chevron, double clic, ← / →) ; ⌘→ depuis l'arbre replie tout.
+- [ ] La ligne en lecture n'a plus de ▶.
 - [ ] Tiroir : « Tags : » montre les tags ; taper un nom + ⏎ l'ajoute (suggestions des tags existants), × le retire.
 - [ ] Ligne sélectionnée bien visible (bleu), lisible en sombre et en clair, en colonne et en grand (tags compris).
 - [ ] Réglages : 4 onglets ; Apparence › Taille du texte S / M / L change tout le panneau ; les couleurs accent,

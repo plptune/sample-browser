@@ -485,7 +485,7 @@
   text-decoration: line-through;
 }
 
-/* Emplacement fixe avant le libellé : chevron, ▶, ! ou vide. */
+/* Emplacement fixe avant le libellé : chevron, ! ou vide. */
 .cr-node__slot {
   width: var(--cr-slot);
   height: 100%;
@@ -563,10 +563,6 @@
 
 .cr-node[data-selected] .cr-node__meta {
   color: var(--cr-on-row-selected);
-}
-
-.cr-node__playing {
-  color: var(--cr-accent);
 }
 
 .cr-node__warn {

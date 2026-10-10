@@ -141,6 +141,9 @@ function createAppState() {
   // Les tokens spéciaux encore en cours de frappe (#ta, bpm:1…) ne filtrent pas : seul le texte libre filtre en direct.
   const searchLine = () => [...chips(), ...draft().split(/\s+/).filter((t) => t && !isChip(t))].join(" ");
   const searching = () => searchLine() !== "";
+  // En recherche, l'arbre est ouvert sauf les nœuds refermés à la main ; une autre recherche les rouvre tous.
+  const [collapsedFor, setCollapsedFor] = createSignal<{ line: string; keys: NodeKey[] }>({ line: "", keys: [] });
+  const collapsed = () => (collapsedFor().line === searchLine() ? collapsedFor().keys : []);
 
   // Une recherche remet les filtres (dossiers aplatis) à zéro.
   createEffect(
@@ -187,6 +190,7 @@ function createAppState() {
     peaks: density() === "wave",
     flat: flatResults(),
     flattened: flattened(),
+    collapsed: collapsed(),
   });
 
   function place(arr: (TreeRow | undefined)[], offset: number, page: TreeRow[]) {
@@ -473,24 +477,41 @@ function createAppState() {
   }
 
   // --- dossiers
+  /** Ouvert : hors recherche, dans `expanded` ; en recherche, tout sauf ce qu'on a refermé. */
+  const isOpen = (key: NodeKey) => (searching() ? !collapsed().includes(key) : expanded().includes(key));
+
   async function setOpen(key: NodeKey, open: boolean) {
-    if (searching()) return; // en recherche, l'arbre est entièrement ouvert
-    const cur = expanded();
-    if (open === cur.includes(key)) return;
-    setExpanded(open ? [...cur, key] : cur.filter((k) => k !== key));
+    if (open === isOpen(key)) return;
+    if (searching()) {
+      const cur = collapsed();
+      setCollapsedFor({ line: searchLine(), keys: open ? cur.filter((k) => k !== key) : [...cur, key] });
+    } else {
+      const cur = expanded();
+      setExpanded(open ? [...cur, key] : cur.filter((k) => k !== key));
+    }
     await refresh();
   }
 
-  const toggleNode = (key: NodeKey) => setOpen(key, !expanded().includes(key));
+  const toggleNode = (key: NodeKey) => setOpen(key, !isOpen(key));
 
-  /** ⌘← : referme tous les dossiers de l'onglet ; le curseur remonte sur l'élément de premier niveau qui le contenait. */
+  /** ⌘← / ⌘→ : referme tous les dossiers de l'onglet ; le curseur remonte sur l'élément de premier niveau qui le contenait. */
   async function collapseAll() {
-    if (searching()) return; // en recherche, l'arbre est entièrement ouvert
     // Remonte par les lignes chargées (les parents sont au-dessus, en général déjà chargés).
     let top: string | null = cursor();
     for (let r = rowByKey(top); r?.parent; r = rowByKey(r.parent)) top = r.parent;
-    setExpanded([]);
-    await refresh();
+    if (searching()) {
+      // En recherche, on referme les nœuds de premier niveau, page par page : une fois refermés, ils tiennent en haut.
+      for (;;) {
+        await ensureRange(0, Math.min(shownTotal(), PAGE));
+        const open = rows().flatMap((r) => (r?.type === "node" && r.depth === 0 && r.open ? [r.key] : []));
+        if (!open.length) break;
+        setCollapsedFor({ line: searchLine(), keys: [...new Set([...collapsed(), ...open])] });
+        await refresh();
+      }
+    } else {
+      setExpanded([]);
+      await refresh();
+    }
     if (top && indexOf(top) < 0) top = (await api.ancestors(top))[0] ?? null;
     if (top && indexOf(top) >= 0) return select(top);
     if (shownTotal()) {
@@ -551,7 +572,7 @@ function createAppState() {
     if (!n) return;
     const i = indexOf(cursor());
     let next = Math.max(0, Math.min(n - 1, i < 0 ? 0 : i + delta));
-    // En recherche, ↑ / ↓ ne s'arrêtent que sur les samples : les dossiers (tous ouverts) sont sautés.
+    // En recherche, ↑ / ↓ ne s'arrêtent que sur les samples : les dossiers sont sautés.
     if (searching()) {
       const dir = delta < 0 ? -1 : 1;
       let j = next;
@@ -590,7 +611,7 @@ function createAppState() {
   /** ← : ferme le dossier sélectionné ; sur un sample ou un dossier fermé, ferme son parent et le sélectionne. */
   async function left() {
     const row = rowByKey(cursor());
-    if (!row || searching()) return; // en recherche, l'arbre reste entièrement ouvert
+    if (!row) return;
     if (row.type === "node" && row.open) return setOpen(row.key, false);
     if (!row.parent) return;
     const parent = row.parent;

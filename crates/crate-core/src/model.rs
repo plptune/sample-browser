@@ -195,7 +195,8 @@ impl TreeRow {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TreeRequest {
     pub root: TreeRoot,
-    /// Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, tous ouverts.
+    /// Ligne de recherche brute. Non vide : arbre élagué aux nœuds qui contiennent des résultats, ouverts sauf
+    /// ceux de `collapsed`.
     pub query: String,
     pub expanded: Vec<NodeKey>,
     pub offset: u32,
@@ -219,6 +220,11 @@ pub struct TreeRequest {
     #[serde(default)]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub flattened: Vec<NodeKey>,
+    /// En recherche : nœuds refermés à la main (les autres restent ouverts). `expanded` ne sert pas en recherche ;
+    /// `collapsed` ne sert pas hors recherche.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub collapsed: Vec<NodeKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

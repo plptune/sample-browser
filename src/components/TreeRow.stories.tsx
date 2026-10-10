@@ -41,6 +41,11 @@ export const Introuvable: Story = { args: { ...sample(missing), missing: true } 
 export const Renommage: Story = { args: { kind: "virtual", label: "Nouveau dossier", depth: 1, renaming: true } };
 export const EnDrag: Story = { args: { ...sample(kick), dragging: true } };
 export const Waveform: Story = { args: { ...sample(loop), wave: true, playing: true, progress: 0.4 } };
+/** Mode grand : colonnes durée, format et tags avant BPM / clé. */
+export const Large: Story = {
+  parameters: { panelWidth: "860px" },
+  args: { ...sample(loop), wide: true, duration: "7.38", format: "wav · 44,1 kHz · 24 bits", tags: loop.tags },
+};
 /** Fichier MIDI : repère « MIDI » avant le BPM (joué au piano dans l'app). */
 export const Midi: Story = { args: { kind: "sample", label: "Lofi_Chords_90_Am", depth: 1, midi: true, bpm: 90, keyName: "Am" } };
 

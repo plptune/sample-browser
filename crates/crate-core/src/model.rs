@@ -375,6 +375,9 @@ pub trait Backend {
     fn set_synonyms(&mut self, groups: &[Vec<String>]);
     /// Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; `None` sinon.
     fn node_path(&self, key: &str) -> Option<String>;
+    /// Collections manuelles ("c:<id>") puis dossiers virtuels ("v:<id>") qui contiennent ce sample, dans l'ordre
+    /// de la bibliothèque (l'inspecteur du mode grand). Les favoris n'y sont pas : l'étoile les montre.
+    fn memberships(&self, id: SampleId) -> Vec<NodeKey>;
     fn plan_commit(&self, key: &str, options: CommitOptions) -> CommitPlan;
     /// Copie vers un nouveau dossier réel ; ne modifie ni ne déplace jamais les sources.
     fn commit_to_folder(&mut self, key: &str, destination: &str, options: CommitOptions) -> Result<CommitResult, String>;

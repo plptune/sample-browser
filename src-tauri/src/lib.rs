@@ -286,6 +286,13 @@ fn node_path(lib: State<'_, Lib>, key: String) -> Option<String> {
     lib.lock().node_path(&key)
 }
 
+/// Collections manuelles et dossiers virtuels qui contiennent un sample (inspecteur du mode grand).
+#[tauri::command]
+#[specta::specta]
+fn memberships(lib: State<'_, Lib>, id: SampleId) -> Vec<String> {
+    lib.lock().memberships(id)
+}
+
 #[tauri::command]
 #[specta::specta]
 fn plan_commit(lib: State<'_, Lib>, key: String, options: CommitOptions) -> CommitPlan {
@@ -432,6 +439,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_pinned,
             ancestors,
             node_path,
+            memberships,
             set_hidden,
             set_folder_hidden,
             peaks,

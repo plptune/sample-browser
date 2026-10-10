@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "expand" | "collapse";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -28,6 +28,9 @@ const PATHS: Record<IconName, () => JSX.Element> = {
   close: () => <path d="M3.2 3.2l5.6 5.6M8.8 3.2 3.2 8.8" />,
   plus: () => <path d="M6 2.5v7M2.5 6h7" />,
   settings: () => <path d="M2 3.5h8M2 8.5h8M4.5 2v3M7.5 7v3" />,
+  // Agrandir / revenir en colonne : flèches vers les coins, ou vers le centre.
+  expand: () => <path d="M7 2h3v3M10 2 6.9 5.1M5 10H2V7M2 10l3.1-3.1" />,
+  collapse: () => <path d="M10 2 7.1 4.9M7.1 2.6v2.3h2.3M2 10l2.9-2.9M4.9 9.4V7.1H2.6" />,
   loop: () => <path d="M2.5 6.5V5.5a2 2 0 0 1 2-2h4.5M7.5 2l1.5 1.5L7.5 5M9.5 5.5v1a2 2 0 0 1-2 2H3M4.5 10 3 8.5 4.5 7" />,
 };
 

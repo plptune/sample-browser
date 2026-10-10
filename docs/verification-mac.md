@@ -119,6 +119,15 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] Glisser un `.mid` dans Ableton Live 12 (piste MIDI : clip créé, notes correctes) et dans Logic (région MIDI).
 - [ ] Tonalités lues sur des clips aux noms muets : crédibles ? (noter les erreurs.)
 
+## 6 ter. Deux modes d'affichage
+
+- [ ] Bouton ⤢ (ou ⌘⇧F) : la fenêtre s'agrandit à l'écran (sans nouveau Space), l'arbre gagne Durée / Format / Tags et
+      l'inspecteur apparaît à droite ; re-cliquer (ou ⌘⇧F) la remet en colonne, à sa taille et sa place d'avant.
+- [ ] Le bouton vert de la fenêtre et un double-clic sur la barre titre font la même chose (la disposition suit).
+- [ ] Quitter en grand, relancer : la fenêtre se rouvre agrandie, en mode grand.
+- [ ] Inspecteur : waveform cliquable, lecture, × sur un tag, « + tag », clic sur une collection, « Afficher dans le
+      Finder ». Rien ne saute ni ne clignote en passant d'un mode à l'autre ; ⌥⌘D reste sous 16 ms en mode grand.
+
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).

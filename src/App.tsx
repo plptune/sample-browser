@@ -26,6 +26,12 @@ export function App() {
   function onKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
     const key = e.key.toLowerCase();
+    // ⌘⇧F : grande fenêtre (arbre large + inspecteur) ou retour en colonne.
+    if (mod && e.shiftKey && key === "f") {
+      e.preventDefault();
+      void app.toggleLayout();
+      return;
+    }
     if (mod && key === "f") {
       e.preventDefault();
       app.setView("browser");

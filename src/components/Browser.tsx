@@ -3,6 +3,7 @@ import { createVirtualizer } from "@tanstack/solid-virtual";
 import { For, Show, createEffect, on } from "solid-js";
 import type { FolderRow, SampleRow } from "../api";
 import { inTauri } from "../lib/env";
+import { formatDuration, formatFormat, isMidi } from "../lib/format";
 import { startNativeDrag } from "../lib/nativeDrag";
 import { app } from "../state/app";
 
@@ -76,6 +77,18 @@ export function Browser() {
     app.setDropTarget("root");
   };
   return (
+    <>
+      {/* Mode grand : en-têtes des colonnes (non triables), alignés sur celles des samples. */}
+      <Show when={app.layout() === "full"}>
+        <div class="cr-colhead" aria-hidden="true">
+          <span class="cr-colhead__name">Nom</span>
+          <span class="cr-col-dur">Durée</span>
+          <span class="cr-col-fmt">Format</span>
+          <span class="cr-col-tags">Tags</span>
+          <span class="cr-col-bpm">BPM</span>
+          <span class="cr-col-key">Clé</span>
+        </div>
+      </Show>
     <div
       ref={scroller}
       class="cr-tree"
@@ -117,6 +130,7 @@ export function Browser() {
         </For>
       </div>
     </div>
+    </>
   );
 }
 
@@ -200,7 +214,11 @@ function SampleRowView(props: { row: SampleRow }) {
       missing={s().missing}
       hidden={s().hidden}
       dragging={app.draggingKey() === props.row.key}
-      midi={s().ext === "mid" || s().ext === "midi"}
+      midi={isMidi(s())}
+      wide={app.layout() === "full"}
+      duration={formatDuration(s().durationMs)}
+      format={formatFormat(s())}
+      tags={s().tags}
       bpm={s().bpm}
       keyName={s().key}
       peaks={s().peaks}

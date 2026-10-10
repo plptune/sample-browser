@@ -48,6 +48,7 @@ pnpm build        # typecheck + build
 | ⌘L | Boucle |
 | ⌘⇧Espace | Lire un sample au hasard parmi les lignes de l'arbre |
 | ⌘, | Réglages (Échap pour revenir) |
+| ⌘⇧F | Grande fenêtre (arbre large + inspecteur) / retour en colonne ; aussi le bouton ⤢ |
 | Échap | Fermer la surcouche ouverte, sinon stop |
 | `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
 | ⌫ en début de champ | Supprimer la dernière chip |

@@ -12,6 +12,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 
+# Binaire livré sans symboles : Crate.app passe de 15,9 à ~11,5 Mo (budget 15 Mo).
+[profile.release]
+strip = true
+
 # Décodage et analyse audio : trop lents sans optimisation, même en développement et dans les tests.
 # (Seulement ces paquets : le reste de l'app compile vite en développement.)
 [profile.dev.package.symphonia]

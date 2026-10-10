@@ -44,7 +44,11 @@ export const SOURCES: FolderNode[] = [
         id: 2, name: "packs", count: 0, children: [
           { id: 3, name: "Dusty Tapes Vol.2", count: 0, children: [] },
           { id: 4, name: "Night Textures", count: 0, children: [] },
-          { id: 5, name: "Lofi Keys", count: 0, children: [] },
+          {
+            id: 5, name: "Lofi Keys", count: 0, children: [
+              { id: 6, name: "MIDI", count: 0, children: [] },
+            ],
+          },
         ],
       },
     ],
@@ -227,7 +231,54 @@ function makeSamples(): Sample[] {
   return samples;
 }
 
-export const SAMPLES: Sample[] = makeSamples();
+/** Clips MIDI (préécoute au piano dans l'app) : valeurs fixes, sans tirage, pour ne pas décaler la graine. */
+const MIDI_CLIPS: [string, number | null, string, number, "loop" | "oneshot", string[]][] = [
+  ["Lofi_Chords_90_Am", 90, "Am", 4, "loop", ["lofi", "warm"]],
+  ["Lofi_Chords_84_Dm", 84, "Dm", 4, "loop", ["lofi"]],
+  ["Keys_Progression_100_C", 100, "C", 4, "loop", ["clean"]],
+  ["Rhodes_Chords_76_F", 76, "F", 2, "loop", ["warm"]],
+  ["Bass_Line_90_Am", 90, "Am", 2, "loop", []],
+  ["Melody_Loop_120_Em", 120, "Em", 2, "loop", ["bright"]],
+  ["Chord_Stab_Gm", null, "Gm", 1, "oneshot", []],
+];
+
+function midiPeaks(beats: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < 256; i++) {
+    const t = i / 256;
+    const pos = (t * beats) % 1; // une attaque par temps
+    out.push(Math.max(0.02, Math.min(1, Math.exp(-pos * 3) * 0.7 + 0.15)));
+  }
+  return out;
+}
+
+function makeMidi(first: number): Sample[] {
+  return MIDI_CLIPS.map(([name, bpm, key, bars, kind, tags], i) => {
+    const beats = bars * 4;
+    return {
+      id: first + i,
+      name,
+      ext: "mid",
+      path: `${pathOf.get(6)}/${name}.mid`,
+      folderId: 6,
+      durationMs: Math.round((beats * 60000) / (bpm ?? 120)),
+      sampleRate: 0,
+      bitDepth: 0,
+      channels: 0,
+      bpm,
+      key,
+      kind,
+      tags,
+      missing: false,
+      fav: false,
+      hidden: false,
+      peaks: midiPeaks(beats),
+    };
+  });
+}
+
+const AUDIO: Sample[] = makeSamples();
+export const SAMPLES: Sample[] = [...AUDIO, ...makeMidi(AUDIO.length + 1)];
 
 // Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
 for (const s of SAMPLES) s.fav = s.id % 11 === 0;

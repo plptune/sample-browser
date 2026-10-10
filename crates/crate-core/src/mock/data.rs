@@ -1,5 +1,5 @@
 //! Données factices déterministes. Port exact de `src/mock/generate.ts` : même graine, mêmes tirages
-//! dans le même ordre, donc les mêmes 400 samples (ids, noms, chemins, tags…) que le prototype.
+//! dans le même ordre, donc les mêmes 407 samples (400 audio, 7 MIDI) (ids, noms, chemins, tags…) que le prototype.
 //! Vérifié par `tests/parity.rs` contre une empreinte produite par le code TypeScript.
 
 use crate::catalog::FolderNode;
@@ -72,7 +72,7 @@ pub fn sources() -> Vec<FolderNode> {
                 vec![
                     node(3, "Dusty Tapes Vol.2", vec![]),
                     node(4, "Night Textures", vec![]),
-                    node(5, "Lofi Keys", vec![]),
+                    node(5, "Lofi Keys", vec![node(6, "MIDI", vec![])]),
                 ],
             )],
         ),
@@ -367,8 +367,65 @@ fn peaks_for(rng: &mut Rng, shape: Shape, beats: f64) -> Vec<f64> {
     out
 }
 
-/// Les 400 samples, dans l'ordre de génération (ids 1..=400).
+/// Clips MIDI : (nom, BPM, tonalité, mesures, type, tags) ; valeurs fixes, sans tirage.
+#[allow(clippy::type_complexity)]
+const MIDI_CLIPS: [(&str, Option<f64>, &str, u32, SampleKind, &[&str]); 7] = [
+    ("Lofi_Chords_90_Am", Some(90.0), "Am", 4, SampleKind::Loop, &["lofi", "warm"]),
+    ("Lofi_Chords_84_Dm", Some(84.0), "Dm", 4, SampleKind::Loop, &["lofi"]),
+    ("Keys_Progression_100_C", Some(100.0), "C", 4, SampleKind::Loop, &["clean"]),
+    ("Rhodes_Chords_76_F", Some(76.0), "F", 2, SampleKind::Loop, &["warm"]),
+    ("Bass_Line_90_Am", Some(90.0), "Am", 2, SampleKind::Loop, &[]),
+    ("Melody_Loop_120_Em", Some(120.0), "Em", 2, SampleKind::Loop, &["bright"]),
+    ("Chord_Stab_Gm", None, "Gm", 1, SampleKind::Oneshot, &[]),
+];
+
+fn midi_peaks(beats: f64) -> Vec<f64> {
+    (0..256)
+        .map(|i| {
+            let t = i as f64 / 256.0;
+            let pos = (t * beats) % 1.0; // une attaque par temps
+            ((-pos * 3.0).exp() * 0.7 + 0.15).clamp(0.02, 1.0)
+        })
+        .collect()
+}
+
+/// Les samples du prototype : 400 fichiers audio (ids 1..=400), puis 7 clips MIDI.
 pub fn samples() -> Vec<Sample> {
+    let mut out = audio_samples();
+    let first = out.len() as u32 + 1;
+    let mut paths = Vec::new();
+    folder_paths(&sources(), None, &mut paths);
+    let midi_dir = paths.iter().find(|(f, _)| *f == 6).map(|(_, p)| p.clone()).unwrap_or_default();
+    for (i, &(name, bpm, key, bars, kind, tags)) in MIDI_CLIPS.iter().enumerate() {
+        let beats = (bars * 4) as f64;
+        out.push(Sample {
+            id: first + i as u32,
+            path: format!("{midi_dir}/{name}.mid"),
+            name: name.into(),
+            ext: "mid".into(),
+            folder_id: 6,
+            duration_ms: crate::query::js_round(beats * 60000.0 / bpm.unwrap_or(120.0)) as u32,
+            sample_rate: 0,
+            bit_depth: 0,
+            channels: 0,
+            bpm,
+            key: Some(key.into()),
+            kind,
+            tags: tags.iter().map(|t| t.to_string()).collect(),
+            missing: false,
+            fav: false,
+            hidden: false,
+            peaks: midi_peaks(beats),
+        });
+        // Favoris : même règle que pour l'audio (id multiple de 11).
+        let last = out.last_mut().unwrap();
+        last.fav = last.id.is_multiple_of(11);
+    }
+    out
+}
+
+/// Les 400 samples audio, dans l'ordre de génération (ids 1..=400).
+fn audio_samples() -> Vec<Sample> {
     let mut rng = Rng::new(SEED);
     let mut paths = Vec::new();
     folder_paths(&sources(), None, &mut paths);

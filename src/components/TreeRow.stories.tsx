@@ -41,6 +41,8 @@ export const Introuvable: Story = { args: { ...sample(missing), missing: true } 
 export const Renommage: Story = { args: { kind: "virtual", label: "Nouveau dossier", depth: 1, renaming: true } };
 export const EnDrag: Story = { args: { ...sample(kick), dragging: true } };
 export const Waveform: Story = { args: { ...sample(loop), wave: true, playing: true, progress: 0.4 } };
+/** Fichier MIDI : repère « MIDI » avant le BPM (joué au piano dans l'app). */
+export const Midi: Story = { args: { kind: "sample", label: "Lofi_Chords_90_Am", depth: 1, midi: true, bpm: 90, keyName: "Am" } };
 
 /** Onglet Bibliothèque : sources, puis éléments épinglés marqués à droite. */
 export const Arbre: Story = {

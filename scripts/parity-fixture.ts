@@ -11,6 +11,7 @@ const QUERIES = [
   "dur:1-4s", "type:one-shot", "bd", "hh", "vocal -kick", "-sd", '"bd"',
   // Enharmonies et modes écrits.
   "key:A#", "key:a#m", "key:Gb", "key:F#maj", "key:bbm", "key:Hm",
+  "type:midi", "-type:midi lofi", "type:midi type:loop",
 ];
 const EXPANDED = {
   library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5", "p:3"]],

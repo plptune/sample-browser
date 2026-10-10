@@ -40,6 +40,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Preview audio instantanée + waveform | Oui | Espace / →, auto-play optionnel (réglage) |
 | Drag & drop vers le DAW / Finder | Oui | Simple file URL, multi-fichiers |
 | Analyse BPM / tonalité / durée | Oui | En tâche de fond, priorité basse |
+| Fichiers MIDI (`.mid`) | Oui (ajout v1.3) | Indexés comme des samples, joués par un piano synthétique (batterie GM sur le canal 10), tempo et tonalité lus dans les notes, glissés tels quels vers le DAW ; `type:midi` |
 | Menu contextuel | Oui | Lire, taguer, favori, ajouter à une collection / un dossier virtuel, retirer de, renommer, supprimer, épingler, créer un vrai dossier, nouveau dossier virtuel, retirer une source, révéler dans le Finder |
 | Réglages dans la colonne | Oui | Sources, thème (sombre / clair / système), densité, toujours au premier plan, lecture auto |
 | Similarity search (ML) | Non, v2 | Vecteur de features par fichier |
@@ -134,7 +135,7 @@ Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Ru
 | `key:` | `key:Am`, `key:C`, `key:A#` | Tonalité (note seule = majeur + mineur ; enharmonies équivalentes : `A#` = `Bb`) |
 | `dur:` | `dur:<2s`, `dur:1-4s` | Durée |
 | `in:` | `in:Drums` | Collection, sinon dossier virtuel (et ses sous-dossiers), sinon chemin |
-| `type:` | `type:loop`, `type:oneshot` | Loop / one-shot |
+| `type:` | `type:loop`, `type:oneshot`, `type:midi` | Loop / one-shot ; fichiers MIDI |
 | `is:` | `is:fav`, `is:untagged`, `is:hidden` | Raccourcis ; `is:hidden` montre les éléments masqués (sinon jamais affichés) |
 
 Autocomplétion après `#`, `key:` et `in:`. ⌘S enregistre la ligne brute comme collection smart.
@@ -248,6 +249,18 @@ Tout est dans le dépôt `plptune/sample-browser` :
 - **À valider sur un vrai dossier** : `CRATE_ANALYSIS_DIR=… cargo test --release -p crate-core --test analysis --
   --ignored --nocapture` compare l'audio aux tempos et tonalités écrits dans les noms (voir
   `docs/verification-mac.md`).
+
+### Ajout — Fichiers MIDI ✅ (à écouter sur Mac)
+
+- Les `.mid` / `.midi` sont indexés comme des samples (durée lue dans le fichier) et marqués « MIDI » dans l'arbre ;
+  `type:midi` les isole. Glissés vers le DAW, ils partent tels quels (clip MIDI dans Ableton ou Logic).
+- Préécoute : un piano synthétique en Rust (partiels harmoniques, déclin selon la hauteur et la vélocité, pédale de
+  sustain), la batterie General MIDI (canal 10) en percussions synthétiques. Rendu par blocs : même lecteur, même
+  latence, boucle et déplacement ; la waveform est celle du rendu.
+- Analyse : tempo écrit dans le fichier ; tonalité tirée des notes (le premier accord si toutes les notes tiennent
+  dans sa gamme, sinon les profils) ; boucle si au moins deux attaques et une mesure. Jeu test : 96/96 progressions
+  courantes (12 tonalités × 8 progressions, dont les modales et celles qui ne commencent pas sur la tonique).
+- Prototype : 7 clips MIDI dans Splice › packs › Lofi Keys › MIDI.
 
 ### Phases 2 à 6 — Le moteur
 
@@ -383,3 +396,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v1.0 | Phase 4 : son réel, waveforms réelles, glisser natif vers le DAW, boucle / volume / aléatoire |
 | v1.1 | Phase 5 : masquer (`is:hidden`), tout au clavier (⇧F10, ⌘⌫, ⌘⇧N, ⇧← / ⇧→), réglages mémorisés, vraie progression de copie |
 | v1.2 | Phase 6 : analyse de fond (nom, chunk acid, audio) ; `key:` avec enharmonies ; avancement dans les Réglages |
+| v1.3 | Fichiers MIDI : index, préécoute au piano synthétique, tempo et tonalité lus dans les notes, `type:midi`, repère « MIDI » |

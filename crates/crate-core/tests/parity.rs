@@ -325,7 +325,7 @@ fn dossiers_virtuels() {
     lib.delete_virtual_folder(a.id);
     let ids: Vec<u32> = lib.library().virtual_folders.iter().map(|f| f.id).collect();
     assert_eq!(ids, vec![3, 4, 5]);
-    assert_eq!(lib.library().total, 400);
+    assert_eq!(lib.library().total, 407);
 
     lib.remove_source(20);
     assert_eq!(lib.sources().len(), 2);

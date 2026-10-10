@@ -1,6 +1,7 @@
 //! Lecture des samples et pics de waveform.
 //!
-//! - `Decoder` : décodage progressif (symphonia), en f32 entrelacé.
+//! - `Decoder` : décodage progressif (symphonia), en f32 entrelacé ; un fichier MIDI passe par le synthé
+//!   (`midi.rs`) et se lit comme un fichier audio.
 //! - `compute_peaks` : 256 pics 0..255 (maximum absolu par tranche, normalisé sur le maximum du fichier).
 //! - `Player` : une sortie audio ouverte une fois pour toutes (cpal), un fichier lu à la fois, décodé
 //!   progressivement sur son propre thread et converti à la fréquence et aux canaux de la sortie ; volume,
@@ -25,15 +26,30 @@ use crate::model::{PlaybackStatus, SampleId};
 // ---------- décodage ----------
 
 pub struct Decoder {
-    reader: Box<dyn FormatReader>,
-    decoder: Box<dyn AudioDecoder>,
-    track: u32,
-    /// Fréquence d'échantillonnage du fichier.
+    inner: Inner,
+    /// Fréquence d'échantillonnage du fichier (du synthé pour un MIDI).
     pub rate: u32,
+}
+
+enum Inner {
+    Audio {
+        reader: Box<dyn FormatReader>,
+        decoder: Box<dyn AudioDecoder>,
+        track: u32,
+    },
+    /// Fichier MIDI : rendu au piano par le synthé, comme un fichier audio mono.
+    Midi(Box<crate::midi::Synth>),
 }
 
 impl Decoder {
     pub fn open(path: &Path) -> Option<Decoder> {
+        if crate::midi::is_midi(path) {
+            let m = crate::midi::Midi::open(path)?;
+            return Some(Decoder {
+                inner: Inner::Midi(Box::new(crate::midi::Synth::new(&m))),
+                rate: crate::midi::RATE,
+            });
+        }
         let file = File::open(path).ok()?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
         let mut hint = Hint::new();
@@ -52,22 +68,28 @@ impl Decoder {
             .ok()?;
         let (id, rate) = (track.id, params.sample_rate.unwrap_or(44_100));
         Some(Decoder {
-            reader,
-            decoder,
-            track: id,
+            inner: Inner::Audio {
+                reader,
+                decoder,
+                track: id,
+            },
             rate,
         })
     }
 
     /// Ajoute le prochain bloc décodé à `out` (entrelacé) et renvoie son nombre de canaux ; `None` à la fin.
     pub fn next_chunk(&mut self, out: &mut Vec<f32>) -> Option<usize> {
+        let (reader, decoder, track) = match &mut self.inner {
+            Inner::Midi(synth) => return synth.next_block(out).then_some(1),
+            Inner::Audio { reader, decoder, track } => (reader, decoder, *track),
+        };
         let mut tmp: Vec<f32> = Vec::new();
         loop {
-            let packet = self.reader.next_packet().ok()??;
-            if packet.track_id != self.track {
+            let packet = reader.next_packet().ok()??;
+            if packet.track_id != track {
                 continue;
             }
-            match self.decoder.decode(&packet) {
+            match decoder.decode(&packet) {
                 Ok(buf) => {
                     let ch = buf.spec().channels().count().max(1);
                     buf.copy_to_vec_interleaved(&mut tmp);

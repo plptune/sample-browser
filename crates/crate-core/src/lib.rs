@@ -9,6 +9,7 @@ pub mod catalog;
 pub mod db;
 pub mod indexer;
 pub mod library;
+pub mod midi;
 pub mod mock;
 pub mod model;
 pub mod natural;

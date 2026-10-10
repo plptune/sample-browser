@@ -52,6 +52,7 @@ function matchToken(s: Sample, t: QueryToken): boolean {
         case "key":
           return !!s.key && keyMatches(s.key, t.value);
         case "type":
+          if (t.value === "midi") return s.ext === "mid" || s.ext === "midi";
           return s.kind === (t.value === "one-shot" ? "oneshot" : t.value);
         case "is":
           if (t.value === "fav") return s.fav;

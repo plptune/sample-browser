@@ -160,6 +160,17 @@ i–VI–III–VII, qui est aussi vi–IV–I–V de la relative majeure, lue en
 tonalité ; boucle / one-shot 90/90. Ambiguïtés réelles : un breakbeat à 80 BPM en doubles-croches et une dnb à 160
 sont le même signal (lu 160).
 
+## Fichiers MIDI (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Les `.mid` / `.midi` sont des samples comme les autres (même table, même arbre, mêmes tags et collections), repérés par leur extension ; `type:midi` les filtre ; repère « MIDI » (texte, `text-3`) avant le BPM. | Un clip MIDI se range et se cherche comme un son ; rien à apprendre de plus. |
+| Lecture SMF maison (`midi.rs`, formats 0 et 1, statut courant, carte des tempos, pédale de sustain) ; fichiers > 16 Mo ignorés. | Le format est simple ; pas de dépendance pour 200 lignes. |
+| Préécoute par un **piano synthétique** en Rust : 8 partiels légèrement inharmoniques, déclin plus rapide dans l'aigu et pour les harmoniques hautes, plus brillant quand on joue fort, étouffoir de 60 ms ; oscillateurs par rotation complexe (pas de `sin` par échantillon) ; batterie GM (canal 10) en percussions synthétiques ; compression douce (`tanh`). Pas de banque de sons. | Demandé : « un son de piano basique ». Aucun fichier à embarquer (taille de l'app) ; rendu mesuré à 38 fois le temps réel sur un clip chargé (accords de 5 notes en doubles-croches). |
+| Le synthé est une source du `Decoder` : lecture, boucle, déplacement, latence et waveform passent par le même chemin que l'audio. Rendu par blocs de 1 024 échantillons, durée exacte du fichier (fondu de 10 ms à la fin) pour qu'une boucle boucle juste ; départ au milieu par calcul direct des phases et amplitudes. | Rien à dupliquer dans le lecteur ; le premier bloc (23 ms de son) se calcule en moins d'une milliseconde. |
+| Analyse MIDI : tempo écrit dans le fichier (pas de 120 par défaut s'il n'y en a pas) ; tonalité = **premier accord** (fondamentale et tierce) si au moins 97 % du poids des notes tient dans sa gamme, sinon les profils de Temperley sans bonus de début ; batterie exclue. Boucle : ≥ 2 attaques et ≥ 0,9 mesure. Le nom garde la priorité. | Les profils seuls lisent Am – G – F – G en sol majeur et Am – F – C – G en do majeur ; les packs nomment ces boucles d'après leur premier accord. La règle de gamme rattrape les boucles qui ne commencent pas sur la tonique (IV – V – I). |
+| Prototype : 7 clips MIDI à valeurs fixes (sans tirage) dans un nouveau dossier, ajoutés après les 400 samples audio, dans les deux ports (TS et Rust). | La graine du générateur n'est pas décalée : les 400 samples d'origine sont inchangés. |
+
 ### Risques ouverts
 
 - tauri-specta est en RC : surveiller la sortie de la 2.0 stable et lever l'épinglage.
@@ -174,6 +185,8 @@ sont le même signal (lu 160).
 - Analyse : réglée sur un jeu synthétisé ; à confronter à de vrais packs (test ignoré `vrai_dossier_compare_aux_noms`).
   Erreurs d'octave possibles sur les tempos lents ou très rapides quand le nom ne dit rien (80 ↔ 160, 87 ↔ 174) ;
   tempo libre à ±2 % pour une boucle suivie de silence.
+- MIDI : le son du piano est volontairement basique ; à écouter sur Mac (graves, attaques, polyphonie chargée). Les
+  fichiers SMPTE (rares) et le format 2 sont lus de façon simplifiée.
 - Pas de réglage pour suspendre l'analyse (deux threads, priorité normale) : à ajouter si elle gêne pendant une
   session sur batterie.
 - En développement, recharger la page (F5) laisse d'anciens écouteurs d'événements Tauri actifs (dépôts reçus en

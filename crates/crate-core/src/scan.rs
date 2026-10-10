@@ -18,8 +18,8 @@ use symphonia::core::meta::MetadataOptions;
 use crate::analysis;
 use crate::model::{SampleKind, ScanStatus};
 
-/// Extensions indexées (en minuscules).
-pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg"];
+/// Extensions indexées (en minuscules) : l'audio, et le MIDI (joué par le synthé de préécoute).
+pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "mid", "midi"];
 
 /// Fichiers lus par lot : un lot = une transaction et un palier visible dans l'arbre.
 const BATCH: usize = 1000;
@@ -42,6 +42,16 @@ pub struct Meta {
 
 /// Lit l'en-tête d'un fichier audio. `None` si le fichier est illisible ou n'est pas de l'audio.
 pub fn probe(path: &Path) -> Option<Meta> {
+    if crate::midi::is_midi(path) {
+        // MIDI : la durée vient des notes et du tempo ; ni fréquence, ni bits, ni canaux.
+        let m = crate::midi::Midi::open(path)?;
+        return Some(Meta {
+            duration_ms: (m.seconds * 1000.0).round() as u32,
+            sample_rate: 0,
+            bit_depth: 0,
+            channels: 0,
+        });
+    }
     let file = File::open(path).ok()?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
     let mut hint = Hint::new();

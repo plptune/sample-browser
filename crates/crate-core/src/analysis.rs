@@ -10,6 +10,8 @@
 //!      seulement si le son est assez tonal (sinon : pas de tonalité, comme pour une batterie) ;
 //!    - boucle : assez longue, plusieurs attaques, régulière et soutenue jusqu'au bout.
 //!
+//! Un fichier MIDI se lit directement : tempo du fichier, tonalité des notes jouées (`decide_midi`).
+//!
 //! Le nom l'emporte sur le chunk, qui l'emporte sur l'audio. Le BPM n'est gardé que pour les boucles
 //! (ou s'il est écrit dans le nom) : le tempo d'un one-shot n'a pas de sens.
 
@@ -698,6 +700,8 @@ const KEY_MIN_R: f32 = 0.6;
 /// Sons de moins d'une demi-seconde : chromagramme sur peu de trames, on exige plus.
 const KEY_MIN_R_SHORT: f32 = 0.75;
 const KEY_MIN_CLASSES: usize = 3;
+/// MIDI : les notes sont exactes, un seuil plus bas suffit.
+const KEY_MIN_R_MIDI: f32 = 0.5;
 const KEY_MIN_PEAKINESS: f32 = 0.6;
 const BASS_WEIGHT: f32 = 0.1;
 const FIRST_BASS_WEIGHT: f32 = 0.1;
@@ -706,9 +710,97 @@ const FIRST_BASS_WEIGHT: f32 = 0.1;
 pub fn analyze(path: &Path) -> Option<Analysis> {
     let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let names = parse_name(&stem);
+    if crate::midi::is_midi(path) {
+        return Some(decide_midi(&names, &crate::midi::Midi::open(path)?));
+    }
     let acid = read_acid(path);
     let sig = decode_mono(path)?;
     Some(decide(&names, acid, &sig, &stem))
+}
+
+/// Premier accord d'un MIDI : sa fondamentale (note la plus grave des premières attaques) et son mode (tierce
+/// mineure ou majeure au-dessus). `None` si le mode ne se lit pas (note seule, quinte à vide).
+fn first_chord(notes: &[&crate::midi::Note]) -> Option<(u8, bool)> {
+    let t0 = notes.iter().map(|n| n.start).fold(f64::INFINITY, f64::min);
+    let first: Vec<u8> = notes.iter().filter(|n| n.start < t0 + 0.05).map(|n| n.key).collect();
+    let root = *first.iter().min()?;
+    let has = |iv: u8| first.iter().any(|&k| k % 12 == (root + iv) % 12);
+    match (has(3), has(4)) {
+        (true, false) => Some((root % 12, true)),
+        (false, true) => Some((root % 12, false)),
+        _ => None,
+    }
+}
+
+/// Part du poids des notes qui tient dans la gamme de `key` (majeure, ou mineure naturelle + sensible).
+fn scale_fit(c: &[f32; 12], key: (u8, bool)) -> f32 {
+    let steps: &[u8] = if key.1 {
+        &[0, 2, 3, 5, 7, 8, 10, 11]
+    } else {
+        &[0, 2, 4, 5, 7, 9, 11]
+    };
+    let total: f32 = c.iter().sum();
+    if total <= 0.0 {
+        return 0.0;
+    }
+    steps.iter().map(|s| c[((key.0 + s) % 12) as usize]).sum::<f32>() / total
+}
+
+/// MIDI : tout est écrit dans le fichier. Tempo : celui du fichier ; tonalité : le premier accord si toutes les
+/// notes tiennent dans sa gamme, sinon les profils (notes pondérées par leur durée, la basse départage), hors
+/// batterie ; boucle : au moins deux attaques et une mesure.
+fn decide_midi(names: &NameHints, m: &crate::midi::Midi) -> Analysis {
+    let tonal: Vec<&crate::midi::Note> = m.notes.iter().filter(|n| n.channel != 9).collect();
+    let mut onsets: Vec<i64> = m.notes.iter().map(|n| (n.start * 100.0).round() as i64).collect();
+    onsets.dedup();
+    let audio_loop = onsets.len() >= 2 && m.seconds >= 0.9 * m.bar_seconds();
+    let kind = names
+        .kind
+        .unwrap_or(if audio_loop { SampleKind::Loop } else { SampleKind::Oneshot });
+    let bpm = names.bpm.or(if kind == SampleKind::Loop { names.bare_bpm.or(m.bpm) } else { None });
+
+    let mut c = Chroma {
+        all: [0.0; 12],
+        bass: [0.0; 12],
+        bass_first: [0.0; 12],
+        peakiness: 1.0,
+    };
+    let lowest = tonal.iter().map(|n| n.key).min().unwrap_or(0);
+    let first = m.seconds / 4.0;
+    for n in &tonal {
+        let pc = (n.key % 12) as usize;
+        let d = (n.end - n.start).clamp(0.05, 4.0) as f32;
+        c.all[pc] += d;
+        // Basse : l'octave la plus grave jouée.
+        if n.key < lowest + 12 {
+            c.bass[pc] += d;
+            if n.start < first {
+                c.bass_first[pc] += d;
+            }
+        }
+    }
+    let key = names.key.or_else(|| {
+        let classes = c.all.iter().filter(|&&v| v > 0.0).count();
+        if classes < KEY_MIN_CLASSES {
+            return None;
+        }
+        if let Some(k) = names.bare_key {
+            return Some(k);
+        }
+        // Les boucles MIDI commencent presque toujours sur l'accord de tonique : si toutes les notes tiennent dans
+        // sa gamme, c'est lui (Am – G – F – G est en la mineur, même si sol majeur colle aussi aux profils).
+        if let Some(k) = first_chord(&tonal).filter(|&k| scale_fit(&c.all, k) >= 0.97) {
+            return Some(k);
+        }
+        // Sinon le premier accord n'est pas la tonique : profils, avec les poids habituels.
+        let (k, r) = best_key(&c)?;
+        (r >= KEY_MIN_R_MIDI).then_some(k)
+    });
+    Analysis {
+        bpm,
+        key: key.map(|(pc, minor)| key_name(pc, minor)),
+        kind,
+    }
 }
 
 fn decide(names: &NameHints, acid: Option<Acid>, sig: &Signal, label: &str) -> Analysis {

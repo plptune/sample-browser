@@ -200,6 +200,7 @@ function SampleRowView(props: { row: SampleRow }) {
       missing={s().missing}
       hidden={s().hidden}
       dragging={app.draggingKey() === props.row.key}
+      midi={s().ext === "mid" || s().ext === "midi"}
       bpm={s().bpm}
       keyName={s().key}
       peaks={s().peaks}

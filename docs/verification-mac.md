@@ -109,6 +109,16 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] Quitter pendant l'analyse, relancer : elle reprend où elle en était (le compteur repart du reste).
 - [ ] Un fichier modifié dans le Finder (remplacé par un autre son) est réanalysé.
 
+## 6 bis. Fichiers MIDI
+
+- [ ] Un dossier de packs avec des `.mid` (accords, basses, mélodies, batterie) : ils apparaissent avec « MIDI » à
+      droite ; `type:midi` les isole ; BPM et tonalité affichés.
+- [ ] Espace : le piano part tout de suite (⌥⌘D « son … ms » sous 30 ms) ; le son est propre (pas de saturation sur
+      un accord chargé, pas de clic en fin de boucle) ; ⌘L boucle juste ; clic dans la waveform et ⇧← / ⇧→.
+- [ ] Un `.mid` de batterie (canal 10) sonne comme une batterie, pas comme un piano.
+- [ ] Glisser un `.mid` dans Ableton Live 12 (piste MIDI : clip créé, notes correctes) et dans Logic (région MIDI).
+- [ ] Tonalités lues sur des clips aux noms muets : crédibles ? (noter les erreurs.)
+
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).

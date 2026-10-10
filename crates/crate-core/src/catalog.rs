@@ -105,6 +105,8 @@ enum Cond {
     /// Classe de hauteur, et le mode s'il est écrit (`key:A` couvre la et la mineur).
     Key(u8, Option<bool>),
     Kind(SampleKind),
+    /// `type:midi` : fichiers MIDI.
+    Midi,
     Fav,
     Untagged,
     Hidden,
@@ -169,6 +171,7 @@ fn cond(c: &Cond, s: &Sample, hay: &str, i: usize, hidden: bool) -> bool {
             .and_then(crate::analysis::parse_key)
             .is_some_and(|(p, minor)| p == *pc && mode.is_none_or(|m| m == minor)),
         Cond::Kind(k) => s.kind == *k,
+        Cond::Midi => crate::midi::EXTENSIONS.contains(&s.ext.as_str()),
         Cond::Fav => s.fav,
         Cond::Untagged => s.tags.is_empty(),
         Cond::Hidden => hidden,
@@ -390,6 +393,7 @@ impl Catalog {
                         FilterKey::Type => match if t.value == "one-shot" { "oneshot" } else { t.value.as_str() } {
                             "oneshot" => Cond::Kind(SampleKind::Oneshot),
                             "loop" => Cond::Kind(SampleKind::Loop),
+                            "midi" => Cond::Midi,
                             _ => Cond::Never,
                         },
                         FilterKey::Is => match t.value.as_str() {

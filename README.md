@@ -88,6 +88,8 @@ Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une c
 Lecture : Espace, ⏎ ou → ; clic dans la waveform du tiroir pour lire depuis ce point ; boucle, volume et arrêt
 automatique (au glisser, en arrière-plan) dans les Réglages. Glisser un sample (ou la sélection) hors de la fenêtre :
 le fichier part vers Ableton, Logic ou le Finder.
+Fichiers MIDI (`.mid`) : indexés comme des samples (repère « MIDI », `type:midi`), joués par un piano synthétique,
+glissés tels quels vers le DAW.
 Tempo, tonalité et boucle / one-shot : pris dans le nom dès le scan (`Bass_Loop_115_Bm`), puis analysés dans l'audio
 en fond (deux threads, repris au lancement suivant ; avancement dans Réglages › Sources). `key:A#` trouve aussi `Bb`.
 Masquer (⌘⌫ ou clic droit) retire un sample ou un sous-dossier de partout sans toucher au disque ; `is:hidden` les

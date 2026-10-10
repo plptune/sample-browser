@@ -9,7 +9,7 @@ use crate::catalog::Catalog;
 pub type MockLibrary = Catalog;
 
 impl Catalog {
-    /// Les 400 samples, 3 sources, collections et dossiers virtuels du prototype.
+    /// Les 407 samples (dont 7 clips MIDI), 3 sources, collections et dossiers virtuels du prototype.
     pub fn demo() -> Self {
         let samples = data::samples();
         let sources = data::sources();

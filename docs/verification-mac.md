@@ -143,6 +143,22 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] Réglages : 4 onglets ; Apparence › Taille du texte S / M / L change tout le panneau ; les couleurs accent,
       sélection et fond se règlent (et se rétablissent) ; tout est retrouvé après relance.
 
+## 6 quinquies. Recherche depuis le DAW
+
+Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crate-app`).
+
+- [ ] Crate lancé, Live devant : ⌘F met Crate devant, curseur dans la recherche, texte précédent sélectionné.
+      Pareil avec Bitwig.
+- [ ] ⌘Tab vers Live puis ⌘F tout de suite : ça marche aussi (le raccourci est pris à temps).
+- [ ] Safari, Finder, Notes : ⌘F inchangé (leur propre recherche).
+- [ ] Échap sur la recherche vide : retour à Live. Glisser un sample dans Live : retour à Live.
+      Si l'on a cliqué une autre app entre-temps : pas de retour.
+- [ ] Live en plein écran : ⌘F affiche Crate par-dessus, sans changer d'espace.
+- [ ] Réglages › Lecture › Depuis le DAW : couper l'interrupteur rend ⌘F à Live ; changer le raccourci (ex. ⌃⌥Espace)
+      prend effet tout de suite ; cocher Logic Pro fait marcher Logic.
+- [ ] Identifiants à confirmer si un DAW ne réagit pas : `osascript -e 'id of app "Bitwig Studio"'` (attendu
+      `com.bitwig.BitwigStudio`), idem Live (`com.ableton.live`).
+
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).

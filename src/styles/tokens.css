@@ -135,6 +135,7 @@
   --cr-menu-w: 200px;     /* menu contextuel */
   --cr-popover-list-max: 216px; /* liste du popover de tags (9 lignes) */
   --cr-switch-w: 24px;
+  --cr-shortcut-w: 120px; /* capture d'un raccourci (Réglages › Lecture) */
   --cr-switch-h: 14px;
   --cr-wave-h: 44px;      /* waveform du tiroir */
   --cr-wave-mini-h: 12px;

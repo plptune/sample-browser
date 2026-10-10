@@ -84,7 +84,11 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
     if (e.key === "Escape") {
       e.preventDefault();
       if (app.queryLine()) app.clearQuery();
-      else input.blur();
+      else {
+        input.blur();
+        // Venu du DAW par son raccourci : Échap sur la recherche vide lui rend la main (sans effet sinon).
+        void app.returnToDaw();
+      }
       return;
     }
     if (e.key === "ArrowDown" || e.key === "Enter") {

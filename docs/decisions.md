@@ -188,6 +188,16 @@ sont le même signal (lu 160).
 | **Réglages en onglets** : Sources, Apparence, Lecture, Recherche. | Demandé : la liste devenait longue. |
 | **Test de contraste** automatique (`tests/e2e/contraste.spec.ts`, WCAG ≥ 4,5:1) sur le texte des lignes (sélectionnées ou non), du tiroir et de l'inspecteur, dans les deux thèmes et les deux modes. Les tags des lignes passent de `text-3` à `text-2` (2,9:1 → 5,6:1). | Signalé à l'essai : tags illisibles sur la ligne sélectionnée en mode grand. Le test empêche que ça revienne. |
 
+## Recherche depuis le DAW (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Dans Live ou Bitwig, **⌘F met Crate devant, curseur dans la recherche** (texte sélectionné). Raccourci et liste des DAW réglables (Réglages › Lecture › Depuis le DAW) ; Logic, Reaper, FL Studio proposés. | Demandé : chercher un sample sans lâcher le clavier ni quitter le DAW des yeux. |
+| Le raccourci est un **raccourci global enregistré seulement quand un DAW de la liste est l'app active** : Crate écoute `NSWorkspaceDidActivateApplicationNotification` et (dés)enregistre (plugin `tauri-plugin-global-shortcut`). | Ailleurs (Safari, Finder…), ⌘F garde son sens. Pas d'interception du clavier (`CGEventTap`) : aucune autorisation d'accessibilité à demander. Contrepartie acceptée : le ⌘F propre au DAW ne marche plus tant que la fonction est active. |
+| **Retour au DAW** par Échap dans la recherche vide, ou à la fin d'un glisser déposé hors de Crate, seulement si l'on est venu par le raccourci ; si une autre app est passée devant entre-temps, on n'y retourne pas. | Choix de l'utilisateur : chercher, glisser, revenir, sans souris ni ⌘Tab. |
+| La fenêtre rejoint l'espace actif quand Crate passe devant et peut s'afficher par-dessus une app en plein écran (`MoveToActiveSpace`, `FullScreenAuxiliary`). | Sinon, ⌘F depuis un DAW en plein écran ferait changer d'espace. |
+| Un raccourci sans modificateur est refusé. Les réglages sont mémorisés avec les autres (`crate.prefs`) et transmis au Rust à chaque changement. | Une lettre seule serait volée au DAW. |
+
 ## Fichiers MIDI (10 oct. 2026)
 
 | Décision | Raison |

@@ -124,6 +124,8 @@ et ce qu'il doit observer. Mets en tête, dans cet ordre :
    taille d'avant ; bouton vert cohérent ; relance en grand (`docs/verification-mac.md`, section 6 ter).
 8. **Retours du premier essai** : lecture auto par défaut, ⌘← tout replier, tags dans le tiroir, Réglages en onglets,
    taille du texte et couleurs (`docs/verification-mac.md`, section 6 quater).
+9. **Recherche depuis le DAW** : ⌘F dans Live ou Bitwig amène Crate sur la recherche, Échap ou un glisser y revient,
+   Safari garde son ⌘F (`docs/verification-mac.md`, section 6 quinquies). Demande à l'utilisateur d'ouvrir Live.
 
 ## 8. Rapport
 

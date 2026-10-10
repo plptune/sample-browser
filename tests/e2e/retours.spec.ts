@@ -125,3 +125,38 @@ test("Réglages en onglets : taille du texte et couleurs", async ({ page }) => {
   expect(box?.height).toBe(26);
   expect(errors).toEqual([]);
 });
+
+test("Réglages › Lecture : recherche depuis le DAW (raccourci capturé, DAW cochés)", async ({ page }) => {
+  const errors = await scenario(page, "3");
+  await page.keyboard.press("Control+,");
+  await page.getByRole("radio", { name: "Lecture", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Rechercher depuis le DAW" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("switch", { name: "Ableton Live" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("switch", { name: "Bitwig Studio" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("switch", { name: "Logic Pro" })).toHaveAttribute("aria-checked", "false");
+
+  const field = page.getByRole("button", { name: "Raccourci : ⌘F" });
+  await expect(field).toBeVisible();
+  await field.click();
+  await expect(page.getByRole("button", { name: "Tapez le raccourci" })).toBeVisible();
+  await page.keyboard.press("Shift"); // un modificateur seul ne suffit pas
+  await page.keyboard.press("KeyG"); // une touche seule non plus
+  await expect(page.getByRole("button", { name: "Tapez le raccourci" })).toBeVisible();
+  await page.keyboard.press("Control+Alt+Space");
+  await expect(page.getByRole("button", { name: "Raccourci : ⌃⌥Espace" })).toBeVisible();
+  // Le raccourci capturé n'a pas déclenché ceux de l'app (Réglages toujours ouverts).
+  await expect(page.locator(".cr-settings")).toBeVisible();
+
+  await page.getByRole("switch", { name: "Logic Pro" }).click();
+  await expect(page.getByRole("switch", { name: "Logic Pro" })).toHaveAttribute("aria-checked", "true");
+  expect(errors).toEqual([]);
+});
+
+test("Échap sur la recherche vide : sans effet hors de la fenêtre Tauri (pas d'erreur)", async ({ page }) => {
+  const errors = await scenario(page, "3");
+  await page.keyboard.press("Control+f");
+  await expect(page.locator(".cr-search__input")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".cr-search__input")).not.toBeFocused();
+  expect(errors).toEqual([]);
+});

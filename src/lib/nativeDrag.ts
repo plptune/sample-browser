@@ -45,12 +45,16 @@ export async function startNativeDrag(rowKey: string) {
   app.setDraggingKey(rowKey);
   last = { key: rowKey, files, target: null, endedAt: null, dropped: false };
   const { startDrag } = await import("@crabnebula/tauri-plugin-drag");
-  await startDrag({ item: files, icon: dragIcon(files.length) }, () => {
+  await startDrag({ item: files, icon: dragIcon(files.length) }, (e) => {
     // Fin du glisser (dans le DAW, le Finder ou ici) : le dépôt dans la fenêtre, s'il y en a un, suit.
     clearTimeout(springTimer);
-    if (last) last.endedAt = performance.now();
+    const drag = last;
+    if (drag) drag.endedAt = performance.now();
     app.setDraggingKey(null);
     app.setDropTarget(null);
+    // Déposé ailleurs que dans Crate (le DAW) : si l'on était venu du DAW par son raccourci, on lui rend la main.
+    // L'événement de dépôt de Tauri arrive après coup : on lui laisse un instant pour marquer un dépôt ici.
+    if (e.result === "Dropped") setTimeout(() => drag && !drag.dropped && void app.returnToDaw(), 300);
   });
 }
 

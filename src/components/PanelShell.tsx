@@ -269,6 +269,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             customColors={app.colors()}
             onColor={app.setColor}
             onResetColors={app.resetColors}
+            dawShortcut={app.dawShortcut()}
+            onDawShortcut={app.setDawShortcut}
           />
         </Match>
         <Match when={app.view() === "commit" && app.commit()}>

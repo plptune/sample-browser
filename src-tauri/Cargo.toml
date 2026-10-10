@@ -20,3 +20,11 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = "0.0.12"
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-drag = "2.1.1"
+tauri-plugin-global-shortcut = "2"
+
+# Recherche depuis le DAW : app active (NSWorkspace), retour au DAW, fenêtre sur l'espace actif.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSNotification", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication", "NSWindow", "NSResponder", "objc2-core-foundation"] }

@@ -43,7 +43,13 @@ export const CouleurModifiee: StoryObj<typeof meta> = {
   args: { initialTab: "appearance", fontSize: "lg", colors: { accent: "#e8a33d", primary: "#2fae6a", bg: "#232323" }, customColors: { primary: "#2fae6a" } },
 };
 
-export const Lecture: StoryObj<typeof meta> = { args: { initialTab: "playback" } };
+/** Lecture, avec « Depuis le DAW » : ⌘F pris seulement dans Live et Bitwig. */
+export const Lecture: StoryObj<typeof meta> = {
+  args: {
+    initialTab: "playback",
+    dawShortcut: { enabled: true, shortcut: "Cmd+KeyF", apps: ["com.ableton.live", "com.bitwig.BitwigStudio"] },
+  },
+};
 export const Recherche: StoryObj<typeof meta> = { args: { initialTab: "search" } };
 
 /** Analyse de fond en cours (tempo, tonalité) : une ligne discrète sous les sources. */

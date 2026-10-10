@@ -1,6 +1,8 @@
 // Réglages : remplacent l'arbre dans la même colonne (pas de fenêtre secondaire), rangés en onglets. Échap ou ‹ pour revenir.
 import { For, Show, createSignal, type JSX } from "solid-js";
 import type { AnalysisStatus, Source } from "../api";
+import type { DawShortcutConfig } from "../api/bindings";
+import { KNOWN_DAWS, formatShortcut, shortcutFromEvent } from "../lib/shortcut";
 import type { ColorRole, Density, FontSize, ThemePref } from "../state/app";
 import { IconButton } from "./IconButton";
 import { Segmented } from "./Segmented";
@@ -31,7 +33,36 @@ const COLOR_ROLES: { role: ColorRole; label: string; hint: string }[] = [
   { role: "bg", label: "Fond", hint: "Les surfaces en découlent" },
 ];
 
+/** Champ de capture : clic, puis le raccourci voulu (avec ⌘, ⌃, ⌥ ou ⇧). Échap annule. */
+function ShortcutField(props: { value: string; onChange: (v: string) => void }) {
+  const [capturing, setCapturing] = createSignal(false);
+  return (
+    <button
+      class="cr-shortcut"
+      data-capturing={capturing() || undefined}
+      aria-label={capturing() ? "Tapez le raccourci" : `Raccourci : ${formatShortcut(props.value)}`}
+      onClick={() => setCapturing(true)}
+      onBlur={() => setCapturing(false)}
+      onKeyDown={(e) => {
+        if (!capturing()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === "Escape") return setCapturing(false);
+        const s = shortcutFromEvent(e);
+        if (!s) return;
+        props.onChange(s);
+        setCapturing(false);
+      }}
+    >
+      {capturing() ? "Tapez le raccourci…" : formatShortcut(props.value)}
+    </button>
+  );
+}
+
 export function SettingsView(props: {
+  /** Recherche depuis le DAW : raccourci pris seulement quand un DAW de la liste est devant (macOS). */
+  dawShortcut?: DawShortcutConfig;
+  onDawShortcut?: (c: DawShortcutConfig) => void;
   /** Onglet affiché à l'ouverture (stories, tests) ; sinon le dernier ouvert. */
   initialTab?: SettingsTab;
   fontSize?: FontSize;
@@ -250,6 +281,34 @@ export function SettingsView(props: {
             <Toggle label="Arrêter en arrière-plan" checked={props.stopOnBlur ?? true} onChange={(v) => props.onStopOnBlur?.(v)} />
           </Row>
         </section>
+
+        <Show when={props.dawShortcut}>
+          {(d) => {
+            const set = (patch: Partial<DawShortcutConfig>) => props.onDawShortcut?.({ ...d(), ...patch });
+            return (
+              <section class="cr-settings__section">
+                <h3 class="cr-settings__h">Depuis le DAW</h3>
+                <Row label="Rechercher depuis le DAW" hint="Le raccourci, dans le DAW, ouvre la recherche de Crate ; Échap y revient">
+                  <Toggle label="Rechercher depuis le DAW" checked={d().enabled} onChange={(v) => set({ enabled: v })} />
+                </Row>
+                <Row label="Raccourci" hint="Pris seulement quand un de ces DAW est devant">
+                  <ShortcutField value={d().shortcut} onChange={(v) => set({ shortcut: v })} />
+                </Row>
+                <For each={KNOWN_DAWS}>
+                  {(daw) => (
+                    <Row label={daw.name}>
+                      <Toggle
+                        label={daw.name}
+                        checked={d().apps.includes(daw.id)}
+                        onChange={(v) => set({ apps: v ? [...d().apps, daw.id] : d().apps.filter((a) => a !== daw.id) })}
+                      />
+                    </Row>
+                  )}
+                </For>
+              </section>
+            );
+          }}
+        </Show>
       </Show>
     </div>
   );

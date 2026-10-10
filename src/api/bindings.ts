@@ -68,11 +68,16 @@ export const commands = {
 	revealInFinder: (path: string) => __TAURI_INVOKE<void>("reveal_in_finder", { path }),
 	/**  Démo uniquement (scénario « Erreurs ») : marque des fichiers comme introuvables. */
 	demoSetMissing: (ids: number[]) => __TAURI_INVOKE<void>("demo_set_missing", { ids }),
+	/**  Réglages venus de l'interface. Erreur (en clair) si le raccourci est illisible ; rien n'est changé alors. */
+	setDawShortcut: (config: DawShortcutConfig) => typedError<null, string>(__TAURI_INVOKE("set_daw_shortcut", { config })),
+	/**  Rend la main à l'app d'où l'on a sauté dans Crate (Échap, glisser terminé). Faux s'il n'y en a pas. */
+	returnToDaw: () => __TAURI_INVOKE<boolean>("return_to_daw"),
 };
 
 /** Events */
 export const events = {
 	commitProgressEvent: makeEvent<CommitProgressEvent>("commit-progress-event"),
+	focusSearchEvent: makeEvent<FocusSearchEvent>("focus-search-event"),
 	playbackEvent: makeEvent<PlaybackEvent_Deserialize>("playback-event"),
 	scanEvent: makeEvent<ScanEvent>("scan-event"),
 };
@@ -147,6 +152,18 @@ export type CommitResult = {
 	copied: number,
 	skipped: number,
 };
+
+/**  Réglages (Réglages › Lecture), mémorisés côté interface et transmis au démarrage puis à chaque changement. */
+export type DawShortcutConfig = {
+	enabled: boolean,
+	/**  Raccourci au format du plugin : « Cmd+KeyF », « Ctrl+Alt+Space »… */
+	shortcut: string,
+	/**  Identifiants des apps (bundle id) où le raccourci est pris. */
+	apps: string[],
+};
+
+/**  Le raccourci a été pressé dans le DAW : l'interface focalise le champ de recherche. */
+export type FocusSearchEvent = null;
 
 export type FolderRow = FolderRow_Serialize | FolderRow_Deserialize;
 

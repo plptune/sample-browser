@@ -196,6 +196,20 @@ export function App() {
 
   // Dossiers glissés depuis le Finder sur la fenêtre : chacun devient une source.
   let lastDrop = { sig: "", at: 0 };
+  /** ⌘F dans le DAW (raccourci pris côté Rust) : Crate est passé devant, la recherche prend le focus, texte sélectionné. */
+  async function listenFocusSearch() {
+    const { events } = await import("./api/bindings");
+    const off = await events.focusSearchEvent.listen(() => {
+      app.closeOverlays();
+      app.setView("browser");
+      queueMicrotask(() => {
+        search?.focus();
+        search?.select();
+      });
+    });
+    onCleanup(off);
+  }
+
   async function listenFileDrops() {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
     const off = await getCurrentWebview().onDragDropEvent((e) => {
@@ -252,7 +266,10 @@ export function App() {
       window.removeEventListener("mouseup", onMouseNav);
     });
     void app.start().then((isDemo) => isDemo && runScenario(scenario()));
-    if (inTauri) listenFileDrops();
+    if (inTauri) {
+      listenFileDrops();
+      void listenFocusSearch();
+    }
   });
 
   const panel = () => <PanelShell searchRef={(el) => (search = el)} forceAc={acOpen()} />;

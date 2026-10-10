@@ -16,6 +16,8 @@ use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
+mod daw;
+
 enum Inner {
     /// Données du prototype (CRATE_DEMO=1) : scénarios de démo.
     Demo(Catalog),
@@ -417,7 +419,12 @@ fn demo_set_missing(lib: State<'_, Lib>, ids: Vec<SampleId>) {
 
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![ScanEvent, PlaybackEvent, CommitProgressEvent])
+        .events(tauri_specta::collect_events![
+            ScanEvent,
+            PlaybackEvent,
+            CommitProgressEvent,
+            daw::FocusSearchEvent
+        ])
         .commands(tauri_specta::collect_commands![
             library,
             sources,
@@ -460,6 +467,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_playback,
             reveal_in_finder,
             demo_set_missing,
+            daw::set_daw_shortcut,
+            daw::return_to_daw,
         ])
 }
 
@@ -469,9 +478,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drag::init())
+        .plugin(daw::plugin())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            daw::setup(app);
             let inner = if std::env::var_os("CRATE_DEMO").is_some() {
                 Inner::Demo(Catalog::demo())
             } else {

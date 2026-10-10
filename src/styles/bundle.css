@@ -1082,6 +1082,23 @@
   flex: 1;
 }
 
+/* Capture d'un raccourci : bouton qui montre ⌘F, ou « Tapez le raccourci… » en attente. */
+.cr-shortcut {
+  min-width: var(--cr-shortcut-w);
+  height: var(--cr-input-min);
+  padding: 0 var(--cr-space-2);
+  border-radius: var(--cr-radius);
+  background: var(--cr-surface-raised);
+  font-size: var(--cr-fs-sm);
+  color: var(--cr-text-strong);
+  text-align: center;
+}
+
+.cr-shortcut[data-capturing] {
+  color: var(--cr-text-2);
+  box-shadow: inset 0 0 0 var(--cr-border) var(--cr-accent);
+}
+
 .cr-color {
   display: flex;
   align-items: center;

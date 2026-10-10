@@ -27,7 +27,7 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 
 | Touche | Action |
 | --- | --- |
-| ⌘F ou `/` | Recherche |
+| ⌘F ou `/` | Recherche ; dans Live ou Bitwig, ⌘F amène Crate devant, sur la recherche (Échap y revient) |
 | ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre (avec la lecture auto, active par défaut, le sample joue aussitôt) |
 | → | Ouvrir un dossier, y entrer s'il est ouvert, lire un sample |
 | ← | Fermer un dossier, sinon remonter au dossier parent |

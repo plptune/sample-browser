@@ -7,7 +7,9 @@ import {
   type Source,
   type TreeRoot, type TreeRow,
 } from "../api";
+import type { DawShortcutConfig } from "../api/bindings";
 import { inTauri } from "../lib/env";
+import { DEFAULT_DAW_SHORTCUT } from "../lib/shortcut";
 import { isChip } from "../lib/query";
 
 /** Colonne étroite à côté du DAW, ou grande fenêtre (arbre large + inspecteur). */
@@ -329,6 +331,24 @@ function createAppState() {
       if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setAlwaysOnTop(v));
     }),
   );
+
+  // Recherche depuis le DAW : le raccourci (⌘F) est pris côté Rust, seulement quand un DAW de la liste est devant.
+  const [dawShortcut, setDawShortcut] = createSignal<DawShortcutConfig>(DEFAULT_DAW_SHORTCUT);
+  createEffect(
+    on(dawShortcut, (cfg) => {
+      if (!inTauri) return;
+      void import("../api/bindings").then(async ({ commands }) => {
+        const r = await commands.setDawShortcut(cfg);
+        if (r.status === "error") setNotice(r.error);
+      });
+    }),
+  );
+  /** Rend la main au DAW d'où l'on a sauté dans Crate (Échap dans la recherche vide, glisser terminé). */
+  async function returnToDaw(): Promise<boolean> {
+    if (!inTauri) return false;
+    const { commands } = await import("../api/bindings");
+    return commands.returnToDaw();
+  }
 
   // Pics du sample du tiroir (les lignes ne les transportent qu'en densité « waveform »).
   const [currentPeaks, setCurrentPeaks] = createSignal<number[]>([]);
@@ -1055,6 +1075,7 @@ function createAppState() {
     layout: Layout;
     fontSize: FontSize;
     colors: ColorOverrides;
+    dawShortcut: DawShortcutConfig;
   }
   /** Mode d'affichage mémorisé : appliqué à la fenêtre une fois l'app lancée. */
   let savedLayout: Layout = "side";
@@ -1077,6 +1098,8 @@ function createAppState() {
       if (p.layout === "full" || p.layout === "side") savedLayout = p.layout;
       if (p.fontSize === "sm" || p.fontSize === "base" || p.fontSize === "lg") setFontSize(p.fontSize);
       if (p.colors && typeof p.colors === "object") setColorOverrides(p.colors);
+      const d = p.dawShortcut;
+      if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut(d);
     });
   }
   function savePrefs() {
@@ -1092,6 +1115,7 @@ function createAppState() {
       layout: layout(),
       fontSize: fontSize(),
       colors: colorOverrides(),
+      dawShortcut: dawShortcut(),
     };
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(p));
@@ -1164,7 +1188,7 @@ function createAppState() {
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
     layout, toggleLayout, memberships, removeTag, addTag,
-    fontSize, setFontSize, colors, colorOverrides, setColor, resetColors,
+    fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, returnToDaw,
     tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,

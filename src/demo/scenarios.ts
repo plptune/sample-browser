@@ -1,6 +1,6 @@
 // Scénarios de démo : chacun remet l'app dans un état précis et reproductible.
 import { batch, createSignal } from "solid-js";
-import { mockSetMissing } from "../api/mock";
+import { api, demoSetMissing, type TreeRoot } from "../api";
 import { SAMPLES } from "../mock/generate";
 import { app } from "../state/app";
 
@@ -14,13 +14,19 @@ export interface Scenario {
 export const [acOpen, setAcOpen] = createSignal(false);
 let timers: number[] = [];
 
-const firstId = (prefix: string, nth = 0) => SAMPLES.filter((s) => s.name.startsWith(prefix))[nth].id;
+/** Sélectionne la n-ième ligne sample dont le nom commence par `prefix`. */
+function selectSample(prefix: string, nth = 0) {
+  const row = app.visible().filter((r) => r.type === "sample" && r.sample.name.startsWith(prefix))[nth];
+  if (row) app.select(row.key);
+  return row?.type === "sample" ? row.sample : undefined;
+}
 
-async function reset() {
+/** Remet l'app à zéro sur un onglet, avec ces nœuds dépliés. */
+async function reset(expanded: string[] = [], tab: TreeRoot = "library") {
   timers.forEach(clearInterval);
   timers = [];
   app.stop();
-  mockSetMissing([]);
+  await demoSetMissing([]);
   batch(() => {
     setAcOpen(false);
     app.setEmpty(false);
@@ -28,17 +34,21 @@ async function reset() {
     app.setVisibleLimit(null);
     app.setChips([]);
     app.setDraft("");
-    app.setSort("name");
-    app.goTo({ type: "all" });
+    app.setTabSignal(tab);
+    app.setExpanded([], tab === "library" ? "virtual" : "library");
+    app.setExpanded(expanded, tab);
     app.setSelection([]);
     app.setCursor(null);
-    app.setExpanded([]);
-    app.setSidebarCollapsed(false);
-    app.setOpenSections({ library: true, collections: true, sources: true });
+    app.setCurrent(null);
     app.setAutoPlay(false);
     app.setDropTarget(null);
-    app.setRenamingId(null);
+    app.setDraggingKey(null);
     app.setDensity("compact");
+    app.setView("browser");
+    app.closeOverlays();
+    app.setRenamingKey(null);
+    app.closeCommit();
+    app.clearHistory();
   });
   await Promise.all([app.refresh(), app.reloadLibrary()]);
 }
@@ -54,10 +64,9 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 2, key: "2", label: "Indexation en cours",
     run: async () => {
-      await reset();
-      app.setOpenSections({ library: true, collections: false, sources: true });
+      await reset(["f:10", "f:11", "f:12"]);
       const total = 3100;
-      const steps = [24, 60, 140, 260, 400];
+      const steps = [3, 6, 12, 24, 999];
       let done = 380;
       let step = 0;
       app.setScan({ folder: "Samples", done, total });
@@ -83,12 +92,8 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 3, key: "3", label: "Navigation",
     run: async () => {
-      await reset();
-      app.setOpenSections({ library: true, collections: false, sources: true });
-      app.setExpanded([10, 11]);
-      app.goTo({ type: "folder", id: 12 });
-      await app.refresh();
-      app.select(app.visible()[3].id);
+      await reset(["f:10", "f:11", "f:12"]);
+      selectSample("Kick", 3);
     },
   },
   {
@@ -98,7 +103,7 @@ export const SCENARIOS: Scenario[] = [
       app.setChips(["type:loop", "#lofi", "bpm:80-110"]);
       app.setDraft("#");
       await app.refresh();
-      app.select(app.visible()[1].id);
+      selectSample("Keys_Loop", 0);
       setAcOpen(true);
     },
   },
@@ -113,40 +118,91 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 6, key: "6", label: "Lecture",
     run: async () => {
-      await reset();
-      app.setOpenSections({ library: true, collections: true, sources: false });
-      app.goTo({ type: "collection", id: 1 });
+      // Dossier virtuel épinglé dans Bibliothèque (repère à droite), ouvert sur un sous-dossier.
+      await reset(["v:3", "v:5"]);
+      const s = selectSample("Texture", 1);
+      document.querySelector<HTMLElement>(".cr-tree")?.focus();
+      if (s) app.play(s.id);
+    },
+  },
+  {
+    id: 7, key: "7", label: "Tagging",
+    run: async () => {
+      await reset(["f:10", "f:11", "f:12"]);
+      // Multi-sélection de 4 kicks, puis T.
+      const kicks = app.visible().filter((r) => r.type === "sample").slice(2, 6);
+      // Un tag commun aux 4 (coché) à côté de tags partiels (–).
+      await api.addTag(kicks.flatMap((r) => (r.type === "sample" ? [r.sample.id] : [])), "punchy");
       await app.refresh();
-      const id = app.visible().find((s) => s.name.startsWith("Keys_Loop"))!.id;
-      app.select(id);
-      document.querySelector<HTMLElement>(".cr-list")?.focus();
-      app.play(id);
+      app.select(kicks[0].key);
+      app.select(kicks[3].key, "range");
+      app.openTagging();
+    },
+  },
+  {
+    id: 8, key: "8", label: "Collections",
+    run: async () => {
+      // Recherche en cours d'enregistrement comme collection smart (⌘S). L'arbre montre ce qui sera enregistré ;
+      // après ⏎, la collection apparaît dans l'onglet Virtuels.
+      await reset();
+      app.setChips(["#dark", "dur:<1s"]);
+      await app.refresh();
+      app.openSaveSearch();
+      app.setSaving("Courts & sombres 2");
+    },
+  },
+  {
+    id: 9, key: "9", label: "Drag en cours",
+    run: async () => {
+      // État figé, onglet Virtuels : un sample de « Textures » glissé au-dessus du dossier virtuel « Drums ».
+      await reset(["v:3", "v:5"], "virtual");
+      const s = selectSample("Texture", 1);
+      const row = app.visible().find((r) => r.type === "sample" && r.sample.id === s?.id);
+      if (row) app.setDraggingKey(row.key);
+      app.setDropTarget("v:4");
     },
   },
   {
     id: 10, key: "0", label: "Erreurs",
     run: async () => {
-      await reset();
-      const missing = [firstId("Clap", 0), firstId("Clap", 2), firstId("Clap", 3)];
-      mockSetMissing(missing);
-      app.setOpenSections({ library: false, collections: false, sources: true });
-      app.setExpanded([20]);
-      app.setDraft("clap");
+      const claps = SAMPLES.filter((s) => s.name.startsWith("Clap") && s.folderId === 13);
+      await reset(["f:10", "f:11", "f:13", "f:20"]);
+      await demoSetMissing([claps[0].id, claps[2].id, claps[3].id]);
       await app.refresh();
-      app.select(missing[0]);
+      const row = app.visible().find((r) => r.type === "sample" && r.sample.id === claps[2].id);
+      if (row) app.select(row.key);
+    },
+  },
+  {
+    id: 11, key: "-", label: "Réglages",
+    run: async () => {
+      await reset();
+      app.setView("settings");
     },
   },
   {
     id: 12, key: "=", label: "Mode waveform",
     run: async () => {
-      await reset();
+      await reset(["f:1", "f:2", "f:3"]);
       app.setDensity("wave");
-      app.setOpenSections({ library: true, collections: false, sources: false });
-      app.goTo({ type: "folder", id: 3 });
-      await app.refresh();
-      const id = app.visible().find((s) => s.name.startsWith("Drum_Loop"))!.id;
-      app.select(id);
-      app.play(id);
+      const s = selectSample("Drum_Loop", 0);
+      if (s) app.play(s.id);
+    },
+  },
+  {
+    id: 13, key: "[", label: "Dossiers virtuels",
+    run: async () => {
+      // Onglet Virtuels : favoris, collections à plat, dossiers virtuels en arborescence.
+      await reset(["g:collections", "v:1", "v:3"], "virtual");
+      app.select("v:3");
+    },
+  },
+  {
+    id: 14, key: "]", label: "Créer un vrai dossier",
+    run: async () => {
+      await reset(["v:3"], "virtual");
+      app.select("v:3");
+      await app.openCommit("v:3");
     },
   },
 ];

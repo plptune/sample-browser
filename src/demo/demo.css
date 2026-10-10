@@ -1,4 +1,4 @@
-/* Habillage de démo uniquement (barre, scène, fausse fenêtre, galerie). Ne fait pas partie du DS. */
+/* Habillage de démo uniquement (barre, scène, fausse fenêtre). Ne fait pas partie du DS. */
 
 html,
 body,
@@ -114,62 +114,8 @@ body {
   background-size: 4px 4px;
 }
 
-/* ---------- Galerie ---------- */
-
-.gal {
-  padding: 24px 32px 64px;
-  min-height: 100%;
-  box-sizing: border-box;
-}
-
-.gal h1 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #eee;
-  margin: 0 0 4px;
-}
-
-.gal h2 {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #888;
-  margin: 40px 0 12px;
-}
-
-.gal-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.gal-frame {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.gal-frame > small {
-  color: #666;
-}
-
-.gal-surface {
+/* Fenêtre Tauri : le panneau occupe toute la fenêtre. */
+.app-window {
+  height: 100%;
   background: var(--cr-bg);
-  box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.3);
-}
-
-.gal-state {
-  padding: 6px 8px 2px;
-  font: 10px ui-monospace, Menlo, monospace;
-  color: var(--cr-text-3);
-}
-
-.gal-pad {
-  padding: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
 }

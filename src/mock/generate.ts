@@ -1,7 +1,15 @@
 // Données factices déterministes (graine fixe) : mêmes samples à chaque chargement,
 // pour des captures stables. Aucun aléa au rendu.
 
-import type { Collection, FolderNode, Sample, SampleKind } from "../api/types";
+import type { Collection, Sample, SampleKind, VirtualFolder } from "../api/types";
+
+export interface FolderNode {
+  id: number;
+  name: string;
+  count: number;
+  offline?: boolean;
+  children: FolderNode[];
+}
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -36,7 +44,11 @@ export const SOURCES: FolderNode[] = [
         id: 2, name: "packs", count: 0, children: [
           { id: 3, name: "Dusty Tapes Vol.2", count: 0, children: [] },
           { id: 4, name: "Night Textures", count: 0, children: [] },
-          { id: 5, name: "Lofi Keys", count: 0, children: [] },
+          {
+            id: 5, name: "Lofi Keys", count: 0, children: [
+              { id: 6, name: "MIDI", count: 0, children: [] },
+            ],
+          },
         ],
       },
     ],
@@ -71,7 +83,7 @@ export const SOURCES: FolderNode[] = [
   },
 ];
 
-const ROOT_PATHS: Record<number, string> = {
+export const ROOT_PATHS: Record<number, string> = {
   1: "~/Splice/sounds",
   10: "~/Music/Samples",
   20: "/Volumes/Field SSD",
@@ -209,8 +221,9 @@ function makeSamples(): Sample[] {
         key,
         kind: cat.kind,
         tags: [...tags].sort(),
-        fav: rand() < 0.08,
         missing: false,
+        fav: false,
+        hidden: false,
         peaks: peaksFor(cat.shape, beats),
       });
     }
@@ -218,7 +231,57 @@ function makeSamples(): Sample[] {
   return samples;
 }
 
-export const SAMPLES: Sample[] = makeSamples();
+/** Clips MIDI (préécoute au piano dans l'app) : valeurs fixes, sans tirage, pour ne pas décaler la graine. */
+const MIDI_CLIPS: [string, number | null, string, number, "loop" | "oneshot", string[]][] = [
+  ["Lofi_Chords_90_Am", 90, "Am", 4, "loop", ["lofi", "warm"]],
+  ["Lofi_Chords_84_Dm", 84, "Dm", 4, "loop", ["lofi"]],
+  ["Keys_Progression_100_C", 100, "C", 4, "loop", ["clean"]],
+  ["Rhodes_Chords_76_F", 76, "F", 2, "loop", ["warm"]],
+  ["Bass_Line_90_Am", 90, "Am", 2, "loop", []],
+  ["Melody_Loop_120_Em", 120, "Em", 2, "loop", ["bright"]],
+  ["Chord_Stab_Gm", null, "Gm", 1, "oneshot", []],
+];
+
+function midiPeaks(beats: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < 256; i++) {
+    const t = i / 256;
+    const pos = (t * beats) % 1; // une attaque par temps
+    out.push(Math.max(0.02, Math.min(1, Math.exp(-pos * 3) * 0.7 + 0.15)));
+  }
+  return out;
+}
+
+function makeMidi(first: number): Sample[] {
+  return MIDI_CLIPS.map(([name, bpm, key, bars, kind, tags], i) => {
+    const beats = bars * 4;
+    return {
+      id: first + i,
+      name,
+      ext: "mid",
+      path: `${pathOf.get(6)}/${name}.mid`,
+      folderId: 6,
+      durationMs: Math.round((beats * 60000) / (bpm ?? 120)),
+      sampleRate: 0,
+      bitDepth: 0,
+      channels: 0,
+      bpm,
+      key,
+      kind,
+      tags,
+      missing: false,
+      fav: false,
+      hidden: false,
+      peaks: midiPeaks(beats),
+    };
+  });
+}
+
+const AUDIO: Sample[] = makeSamples();
+export const SAMPLES: Sample[] = [...AUDIO, ...makeMidi(AUDIO.length + 1)];
+
+// Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
+for (const s of SAMPLES) s.fav = s.id % 11 === 0;
 
 // Nombre de samples par dossier (cumulé vers les parents).
 (function count(nodes: FolderNode[]): void {
@@ -228,26 +291,42 @@ export const SAMPLES: Sample[] = makeSamples();
   }
 })(SOURCES);
 
-// ---------- Collections ----------
+// ---------- Collections et dossiers virtuels ----------
 
 const byPrefix = (p: string, n: number, step = 1) =>
   SAMPLES.filter((s) => s.name.startsWith(p)).filter((_, i) => i % step === 0).slice(0, n).map((s) => s.id);
 
-export const COLLECTION_ITEMS: Record<number, number[]> = {
-  1: [...byPrefix("Keys_Loop", 6, 3), ...byPrefix("Pad", 4, 4), ...byPrefix("Bass_Loop", 3, 5), ...byPrefix("Drum_Loop", 5, 6)],
-  2: byPrefix("Kick", 12, 3),
-  3: [...byPrefix("Texture", 10, 2), ...byPrefix("Ambience", 4, 3)],
-  4: byPrefix("Vox_Chop", 14, 1),
-};
-
-export const COLLECTIONS: Omit<Collection, "count">[] = [
-  { id: 1, name: "Night Drive", kind: "manual" },
-  { id: 2, name: "Go-to kicks", kind: "manual" },
-  { id: 3, name: "Textures", kind: "manual" },
-  { id: 4, name: "Vocal chops", kind: "manual" },
-  { id: 5, name: "Loops en Am", kind: "smart", query: "type:loop key:Am" },
-  { id: 6, name: "Courts & sombres", kind: "smart", query: "#dark dur:<1s" },
+/** Collections : regroupements à plat. */
+export const COLLECTIONS: Collection[] = [
+  { id: 1, name: "Go-to kicks", kind: "manual", pinned: true },
+  { id: 2, name: "Vocal chops", kind: "manual", pinned: false },
+  { id: 3, name: "Loops en Am", kind: "smart", pinned: false, query: "type:loop key:Am" },
+  { id: 4, name: "Courts & sombres", kind: "smart", pinned: false, query: "#dark dur:<1s" },
 ];
 
-// « Récents » : sous-ensemble fixe
-export const RECENT_IDS = SAMPLES.filter((s) => s.id % 17 === 3).map((s) => s.id);
+export const COLLECTION_ITEMS: Record<number, number[]> = {
+  1: byPrefix("Kick", 12, 3),
+  2: byPrefix("Vox_Chop", 14, 1),
+};
+
+/** Dossiers virtuels : Projets › Night Drive ; Pack 2026 › Drums, Textures. */
+export const VIRTUAL_FOLDERS: VirtualFolder[] = [
+  { id: 1, name: "Projets", parentId: null, pinned: false },
+  { id: 2, name: "Night Drive", parentId: 1, pinned: false },
+  { id: 3, name: "Pack 2026", parentId: null, pinned: true },
+  { id: 4, name: "Drums", parentId: 3, pinned: false },
+  { id: 5, name: "Textures", parentId: 3, pinned: false },
+];
+
+export const VIRTUAL_ITEMS: Record<number, number[]> = {
+  2: [...byPrefix("Keys_Loop", 6, 3), ...byPrefix("Pad", 4, 4), ...byPrefix("Bass_Loop", 3, 5), ...byPrefix("Drum_Loop", 5, 6)],
+  3: byPrefix("Riser", 3, 2),
+  4: [...byPrefix("Kick", 4, 5), ...byPrefix("Snare", 4, 5), ...byPrefix("Clap", 2, 4)],
+  5: [...byPrefix("Texture", 10, 2), ...byPrefix("Ambience", 4, 3)],
+};
+
+/** Favoris épinglés dans l'onglet Bibliothèque. */
+export const FAVORITES = { pinned: true };
+
+/** Sous-dossiers sources épinglés comme raccourcis dans Bibliothèque. */
+export const PINNED_FOLDERS: number[] = [3]; // Splice › packs › Dusty Tapes Vol.2

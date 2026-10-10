@@ -27,9 +27,8 @@ function suggestionsFor(token: string): { prefix: string; items: AcItem[] } | nu
   }
   if (t.toLowerCase().startsWith("in:")) {
     const q = t.slice(3).toLowerCase();
-    const items = lib.collections
-      .filter((c) => c.name.toLowerCase().startsWith(q))
-      .map((c) => ({ label: `in:${c.name.split(" ")[0]}`, count: c.count }));
+    const names = [...lib.collections.map((c) => c.name), ...lib.virtualFolders.map((f) => f.name)];
+    const items = names.filter((n) => n.toLowerCase().startsWith(q)).map((n) => ({ label: `in:${n.split(" ")[0]}` }));
     return { prefix: neg, items };
   }
   return null;
@@ -90,7 +89,7 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
     }
     if (e.key === "ArrowDown" || e.key === "Enter") {
       e.preventDefault();
-      const list = document.querySelector<HTMLElement>(".cr-list");
+      const list = document.querySelector<HTMLElement>(".cr-tree");
       list?.focus();
       if (app.cursor() === null) app.move(0);
     }
@@ -111,7 +110,7 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
             type="text"
             spellcheck={false}
             autocomplete="off"
-            placeholder={app.chips().length ? "" : "Rechercher   #tag  bpm:  key:"}
+            placeholder={app.chips().length ? "" : "Rechercher"}
             value={app.draft()}
             onInput={(e) => {
               setAcDismissed(false);

@@ -4,7 +4,7 @@
  * Règle : aucun composant n'utilise de valeur en dur hors de ce fichier.
  *
  * Palette volontairement réduite : niveaux de gris + UN accent (ambre).
- * L'accent ne sert qu'à : lecture en cours, progression, focus clavier, favori.
+ * L'accent ne sert qu'à : lecture en cours, progression, focus clavier, cible de dépôt.
  */
 
 :root,
@@ -99,26 +99,32 @@
   /* Dimensions fixes */
   --cr-titlebar-h: 28px;
   --cr-traffic-w: 72px;   /* réserve des feux macOS (titleBarStyle Overlay) */
-  --cr-field-h: 24px;
+  --cr-search-h: 30px;   /* champ de recherche, plus haut que le reste mais texte normal */
   --cr-row-h: 24px;       /* ligne compacte */
   --cr-row-h-wave: 36px;  /* ligne avec mini-waveform */
   --cr-item-h: 22px;      /* item de sidebar */
   --cr-header-h: 20px;    /* en-tête de colonne / section */
-  --cr-indent: 12px;      /* retrait par niveau d'arbre */
+  /* Grille horizontale : deux colonnes, partout dans le panneau.
+     icônes (chevron, repère, ▶) à --cr-gutter, libellés à --cr-gutter + --cr-slot + --cr-space-1. */
+  --cr-gutter: var(--cr-space-2);                       /* 8 px */
+  --cr-slot: var(--cr-icon);                            /* 12 px : emplacement d'icône */
+  --cr-indent: calc(var(--cr-slot) + var(--cr-space-1)); /* 16 px : un niveau = le chevron enfant sous le libellé parent */
   --cr-icon: 12px;
   --cr-icon-btn: 20px;
   --cr-chip-h: 16px;      /* chips de requête, tags */
   --cr-mark: 6px;         /* repère de collection */
-  --cr-input-min: 64px;
-  --cr-sidebar-max: 42%;  /* part max de la colonne prise par la sidebar */
+  --cr-input-min: 24px;
   --cr-empty-max: 220px;
+  --cr-menu-w: 200px;     /* menu contextuel */
+  --cr-popover-list-max: 216px; /* liste du popover de tags (9 lignes) */
+  --cr-switch-w: 24px;
+  --cr-switch-h: 14px;
   --cr-wave-h: 44px;      /* waveform du tiroir */
   --cr-wave-mini-h: 12px;
 
   /* Colonnes de la liste */
   --cr-col-bpm: 32px;
   --cr-col-key: 28px;
-  --cr-col-dur: 36px;
 
   --cr-radius: 2px;
   --cr-radius-lg: 4px;

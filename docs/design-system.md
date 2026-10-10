@@ -39,7 +39,7 @@ Inspiré du browser d'Ableton Live : dense, plat, gris, lisible à 11 px. Une co
 | --- | --- |
 | Base (modifiables) | `--cr-bg` (fond de l'arbre, #232323 en sombre) · `--cr-accent` : les deux couleurs réglables dans Réglages › Apparence ; tout le reste en découle |
 | Surfaces | `--cr-surface` (barre titre, recherche, tiroir) · `--cr-surface-raised` (champs, popovers) · `--cr-hover` · `--cr-selected` · `--cr-selected-focus` (état actif neutre : menus, boutons) — dérivées de `--cr-bg` par `color-mix` |
-| Sélection | inversion : `--cr-row-selected-focus` (= `--cr-text-strong`) avec `--cr-on-row-selected` (= `--cr-bg`) ; sans focus `--cr-row-selected` (= `--cr-text-2`) |
+| Sélection | inversion atténuée : `--cr-row-selected-focus` (`--cr-text-strong` à 70 % dans `--cr-bg`) avec `--cr-on-row-selected` (= `--cr-bg`) ; sans focus `--cr-row-selected` (`--cr-text-strong` à 50 % en sombre, 60 % en clair : plus bas, le texte passe sous 4,5:1) |
 | Lignes | `--cr-line` (entre zones) · `--cr-line-soft` (internes) · `--cr-guide` (lignes de parenté de l'arbre, fond + 6 %) |
 | Texte | `--cr-text-strong` · `--cr-text` · `--cr-text-2` · `--cr-text-3` · `--cr-text-disabled` |
 | Accent | `--cr-accent` · `--cr-accent-soft` (dérivé) · `--cr-on-accent` (noir ou blanc selon la couleur choisie) |

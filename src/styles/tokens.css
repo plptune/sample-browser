@@ -30,8 +30,8 @@
   --cr-guide: color-mix(in srgb, var(--cr-bg), #fff 6%);           /* lignes de parenté de l'arbre (décor, très doux) */
 
   /* Sélection de l'arbre (et onglet actif) : inversion. Fond clair, texte du fond ; un peu moins franc sans focus. */
-  --cr-row-selected: var(--cr-text-2);          /* liste non focus */
-  --cr-row-selected-focus: var(--cr-text-strong); /* liste focus */
+  --cr-row-selected: color-mix(in srgb, var(--cr-text-strong) 50%, var(--cr-bg));       /* liste non focus (45 % : 3,99:1, trop pâle) */
+  --cr-row-selected-focus: color-mix(in srgb, var(--cr-text-strong) 70%, var(--cr-bg)); /* liste focus */
   --cr-on-row-selected: var(--cr-bg);
 
   /* Texte */
@@ -70,8 +70,8 @@
   --cr-line-soft: color-mix(in srgb, var(--cr-bg), #000 10%);
   --cr-guide: color-mix(in srgb, var(--cr-bg), #000 7%);
 
-  --cr-row-selected: var(--cr-text-2);
-  --cr-row-selected-focus: var(--cr-text-strong);
+  --cr-row-selected: color-mix(in srgb, var(--cr-text-strong) 60%, var(--cr-bg));       /* 55 % : 4,48:1, trop pâle */
+  --cr-row-selected-focus: color-mix(in srgb, var(--cr-text-strong) 70%, var(--cr-bg));
   --cr-on-row-selected: var(--cr-bg);
 
   --cr-text: #252525;

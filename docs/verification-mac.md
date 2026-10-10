@@ -10,6 +10,9 @@ au premier lancement (app non signée). Ou `pnpm tauri dev` depuis le dépôt. P
 
 Cocher au fur et à mesure ; noter à côté ce qui ne va pas (mesure, capture).
 
+Un agent local peut faire la partie automatisable (contrôles, mesures, analyse sur de vrais samples, rapport) :
+lui donner [`agent-mac.md`](agent-mac.md).
+
 ## 1. Fenêtre (phases 0 et 1)
 
 - [ ] La fenêtre s'ouvre en 320 × 760, se rétrécit jusqu'à 260 px de large, pas moins.

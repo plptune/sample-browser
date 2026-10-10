@@ -88,6 +88,11 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 - **Grille** : icônes (chevron, ▶, !, coche) à 8 px, libellés à 24 px, +16 px par niveau d'arbre.
 - **Recherche** : chips pour les tokens reconnus ; les tokens en cours de frappe (`#ta`) ne filtrent pas ; une recherche masque les collections (sinon doublons) et ouvre tous les dossiers qui ont des résultats.
 - **Tiroir** : ▶ / ■, nom, temps / durée, étoile favori grise, waveform. Rien d'autre (ni tags ni méta).
+- **Deux modes d'affichage** (v1.4) : la **colonne** ci-dessus, à côté du DAW, et la **grande fenêtre** (bouton ⤢ de la
+  barre titre ou ⌘⇧F, qui agrandit la fenêtre à l'écran sans plein écran macOS). En grand : le même arbre avec les
+  colonnes Durée, Format et Tags (et leurs en-têtes), et à droite un **inspecteur** à la place du tiroir (grande
+  waveform, lecture, métadonnées, tags modifiables, collections et dossiers virtuels qui contiennent le sample, chemin et
+  « Afficher dans le Finder »). Le mode suit l'état agrandi de la fenêtre et est retrouvé au lancement.
 - **Surcouches** (une seule à la fois, Échap ferme) : autocomplétion, popover de tags, enregistrement ⌘S, menu contextuel.
 - **Réglages** (⌘,) et **Créer un vrai dossier** : remplacent l'arbre ; ‹ ou Échap pour revenir.
 - **Historique** : chaque saut (onglet, chip ajoutée ou retirée, raccourci, recherche enregistrée) mémorise l'arbre tel qu'on le quitte ; ⌥← / ⌥→ (ou ⌘[ / ⌘], ou les boutons de la souris) y reviennent. Ouvrir un dossier n'est pas un saut.
@@ -119,6 +124,7 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘L | Boucle |
 | ⌘⇧Espace | Lire un sample au hasard |
 | ⌘, | Réglages |
+| ⌘⇧F | Grande fenêtre / retour en colonne |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
 ## Langage de recherche
@@ -397,3 +403,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v1.1 | Phase 5 : masquer (`is:hidden`), tout au clavier (⇧F10, ⌘⌫, ⌘⇧N, ⇧← / ⇧→), réglages mémorisés, vraie progression de copie |
 | v1.2 | Phase 6 : analyse de fond (nom, chunk acid, audio) ; `key:` avec enharmonies ; avancement dans les Réglages |
 | v1.3 | Fichiers MIDI : index, préécoute au piano synthétique, tempo et tonalité lus dans les notes, `type:midi`, repère « MIDI » |
+| v1.4 | Deux modes d'affichage : colonne et grande fenêtre (arbre large + inspecteur), ⌘⇧F |

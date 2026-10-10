@@ -1139,3 +1139,225 @@
   min-width: 0;
   white-space: normal;
 }
+
+
+/* ---------- Deux modes : colonne (défaut) et grande fenêtre ---------- */
+
+/* L'arbre (et, en mode grand, l'inspecteur à sa droite). */
+.cr-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.cr-split__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Colonnes du mode grand, alignées à droite comme BPM et clé. */
+.cr-col-dur,
+.cr-col-fmt,
+.cr-col-tags {
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-col-dur { width: var(--cr-col-dur); text-align: right; }
+.cr-col-fmt { width: var(--cr-col-fmt); padding-left: var(--cr-space-3); }
+.cr-col-tags { width: var(--cr-col-tags); color: var(--cr-text-3); }
+
+.cr-colhead {
+  flex: none;
+  height: var(--cr-row-h);
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  padding: 0 var(--cr-space-2) 0 calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1));
+  border-bottom: var(--cr-border) solid var(--cr-line);
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-3);
+  white-space: nowrap;
+}
+
+.cr-colhead__name {
+  flex: 1;
+}
+
+.cr-colhead .cr-col-bpm,
+.cr-colhead .cr-col-key {
+  text-align: right;
+}
+
+/* Réglages et « Créer un vrai dossier » : centrés, largeur de lecture. */
+.cr-panel[data-layout="full"] .cr-settings > * {
+  max-width: var(--cr-wide-max);
+  margin-inline: auto;
+}
+
+/* ---------- Inspecteur (mode grand) ---------- */
+
+.cr-inspector {
+  flex: none;
+  width: var(--cr-inspector-w);
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-2);
+  padding: var(--cr-space-2) var(--cr-space-3) var(--cr-space-3);
+  background: var(--cr-surface);
+  border-left: var(--cr-border) solid var(--cr-line);
+}
+
+.cr-inspector__empty {
+  margin: auto;
+  font-size: var(--cr-fs-md);
+  color: var(--cr-text-3);
+}
+
+.cr-inspector__head {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+}
+
+.cr-inspector__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cr-fs-lg);
+  color: var(--cr-text-strong);
+}
+
+.cr-inspector__note {
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-2);
+}
+
+.cr-inspector__wave {
+  height: var(--cr-inspector-wave-h);
+  background: var(--cr-bg);
+  border-radius: var(--cr-radius);
+}
+
+.cr-inspector__transport {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+}
+
+.cr-inspector__time {
+  font-size: var(--cr-fs-sm);
+  color: var(--cr-text-2);
+}
+
+.cr-inspector__meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--cr-space-1) var(--cr-space-3);
+  margin: 0;
+  font-size: var(--cr-fs-sm);
+}
+
+.cr-inspector__meta dt {
+  color: var(--cr-text-3);
+}
+
+.cr-inspector__meta dd {
+  margin: 0;
+  color: var(--cr-text);
+}
+
+.cr-inspector__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+}
+
+.cr-inspector__h {
+  margin: 0;
+  font-size: var(--cr-fs-xs);
+  font-weight: 500;
+  color: var(--cr-text-3);
+}
+
+.cr-inspector__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cr-space-1);
+}
+
+.cr-tag--removable {
+  gap: 2px;
+  padding-right: 0;
+}
+
+.cr-tag__remove {
+  width: var(--cr-chip-h);
+  height: var(--cr-chip-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cr-text-3);
+  cursor: pointer;
+}
+
+.cr-tag__remove:hover {
+  color: var(--cr-text);
+}
+
+.cr-tag__remove svg {
+  width: 8px;
+  height: 8px;
+}
+
+.cr-inspector__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cr-inspector__link {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  height: var(--cr-row-h);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--cr-fs-sm);
+  color: var(--cr-text);
+  cursor: pointer;
+}
+
+.cr-inspector__link:hover {
+  color: var(--cr-text-strong);
+  text-decoration: underline;
+}
+
+.cr-inspector__link svg {
+  color: var(--cr-text-3);
+}
+
+.cr-inspector__none {
+  font-size: var(--cr-fs-sm);
+  color: var(--cr-text-3);
+}
+
+.cr-inspector__path {
+  font-family: var(--cr-font-mono);
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-2);
+  overflow-wrap: anywhere;
+}

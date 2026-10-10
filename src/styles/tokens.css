@@ -125,6 +125,13 @@
   /* Colonnes de la liste */
   --cr-col-bpm: 32px;
   --cr-col-key: 28px;
+  /* Mode grand : colonnes en plus, inspecteur */
+  --cr-col-dur: 44px;
+  --cr-col-fmt: 156px;
+  --cr-col-tags: 168px;
+  --cr-inspector-w: 340px;
+  --cr-inspector-wave-h: 120px;
+  --cr-wide-max: 640px;   /* Réglages et « Créer un vrai dossier » en mode grand */
 
   --cr-radius: 2px;
   --cr-radius-lg: 4px;

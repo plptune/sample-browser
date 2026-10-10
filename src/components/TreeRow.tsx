@@ -35,6 +35,11 @@ export function TreeRow(props: {
   dragging?: boolean;
   /** Fichier MIDI (joué au piano dans l'app) : repère « MIDI » avant le BPM. */
   midi?: boolean;
+  /** Mode grand : colonnes durée, format et tags avant BPM / clé. */
+  wide?: boolean;
+  duration?: string;
+  format?: string;
+  tags?: string[];
   bpm?: number | null;
   keyName?: string | null;
   peaks?: number[];
@@ -133,8 +138,16 @@ export function TreeRow(props: {
           </span>
         )}
       </Show>
-      <Show when={isSample() && props.midi}>
+      {/* En mode grand, « MIDI » est dans la colonne Format. */}
+      <Show when={isSample() && props.midi && !props.wide}>
         <span class="cr-node__badge">MIDI</span>
+      </Show>
+      <Show when={isSample() && props.wide}>
+        <span class="cr-col-dur cr-node__meta">{props.duration ?? ""}</span>
+        <span class="cr-col-fmt cr-node__meta">{props.format ?? ""}</span>
+        <span class="cr-col-tags" title={props.tags?.join(", ")}>
+          {props.tags?.join(" · ") ?? ""}
+        </span>
       </Show>
       <Show when={isSample()}>
         <span class="cr-col-bpm cr-node__meta">{props.bpm ?? ""}</span>

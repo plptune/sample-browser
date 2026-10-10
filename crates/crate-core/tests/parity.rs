@@ -205,6 +205,21 @@ fn memes_positions_focus() {
 }
 
 #[test]
+fn memes_appartenances() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    let want = fx["memberships"].as_object().unwrap();
+    assert!(!want.is_empty());
+    for s in lib.samples() {
+        let got = lib.memberships(s.id);
+        match want.get(&s.id.to_string()) {
+            Some(w) => assert_eq!(got, strings(w), "memberships({})", s.id),
+            None => assert!(got.is_empty(), "memberships({}) : {got:?}", s.id),
+        }
+    }
+}
+
+#[test]
 fn memes_chemins_de_dossiers() {
     let fx = fixture();
     let lib = MockLibrary::demo();

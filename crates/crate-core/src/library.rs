@@ -515,6 +515,10 @@ impl Backend for SqliteLibrary {
         ));
     }
 
+    fn memberships(&self, id: SampleId) -> Vec<NodeKey> {
+        self.cat.memberships(id)
+    }
+
     fn node_path(&self, key: &str) -> Option<String> {
         if !(key.starts_with("f:") || key.starts_with("p:")) {
             return None;

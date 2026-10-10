@@ -1164,6 +1164,21 @@ impl Backend for Catalog {
         self.synonyms = crate::synonyms::normalize(groups);
     }
 
+    fn memberships(&self, id: SampleId) -> Vec<NodeKey> {
+        let has = |items: Option<&Vec<SampleId>>| items.is_some_and(|v| v.contains(&id));
+        let collections = self
+            .collections
+            .iter()
+            .filter(|c| c.kind == CollectionKind::Manual && has(self.collection_items.get(&c.id)))
+            .map(|c| format!("c:{}", c.id));
+        let folders = self
+            .virtual_folders
+            .iter()
+            .filter(|f| has(self.virtual_items.get(&f.id)))
+            .map(|f| format!("v:{}", f.id));
+        collections.chain(folders).collect()
+    }
+
     fn node_path(&self, key: &str) -> Option<String> {
         if !(key.starts_with("f:") || key.starts_with("p:")) {
             return None;

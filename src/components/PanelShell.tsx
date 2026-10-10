@@ -6,6 +6,7 @@ import { CommitView } from "./CommitView";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { EmptyState } from "./EmptyState";
 import { IconButton } from "./IconButton";
+import { Inspector } from "./Inspector";
 import { PreviewDrawer } from "./PreviewDrawer";
 import { SaveSearch } from "./SaveSearch";
 import { ScanStatus } from "./ScanStatus";
@@ -189,7 +190,7 @@ function tagChoices() {
 
 export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
   return (
-    <div class="cr-panel cr-root" data-density={app.density()}>
+    <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()}>
       <header class="cr-titlebar" data-tauri-drag-region>
         <Tabs
           value={app.tab()}
@@ -204,6 +205,11 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
         <Show when={app.tab() === "virtual" && app.view() === "browser" && !app.empty()}>
           <IconButton icon="plus" label="Nouveau dossier virtuel (⌘N)" onClick={() => app.newVirtualFolder()} />
         </Show>
+        <IconButton
+          icon={app.layout() === "full" ? "collapse" : "expand"}
+          label={app.layout() === "full" ? "Revenir en colonne (⌘⇧F)" : "Agrandir (⌘⇧F)"}
+          onClick={() => void app.toggleLayout()}
+        />
         <IconButton
           icon="settings"
           label="Réglages (⌘,)"
@@ -284,32 +290,58 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
           </Show>
           <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
           <Notice />
-          <Show
-            when={app.shownTotal()}
-            fallback={
-              <EmptyState
-                variant="noresults"
-                title="Aucun résultat"
-                body={<>Rien ne correspond à « {app.queryLine()} ».</>}
-                hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
+          {/* Mode colonne : l'arbre puis le tiroir. Mode grand : l'arbre à gauche, l'inspecteur à droite.
+              L'arbre reste le même élément d'un mode à l'autre (rien n'est recréé). */}
+          <div class="cr-split">
+            <div class="cr-split__main">
+              <Show
+                when={app.shownTotal()}
+                fallback={
+                  <EmptyState
+                    variant="noresults"
+                    title="Aucun résultat"
+                    body={<>Rien ne correspond à « {app.queryLine()} ».</>}
+                    hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
+                  />
+                }
+              >
+                <Browser />
+              </Show>
+              <Show when={app.debug()}>
+                <DebugOverlay />
+              </Show>
+            </div>
+            <Show when={app.layout() === "full"}>
+              <Inspector
+                sample={app.current()}
+                peaks={app.currentPeaks()}
+                playing={app.playingId() !== null && app.playingId() === app.current()?.id}
+                progress={app.progress()}
+                themeKey={app.theme()}
+                selectionCount={app.selectedSamples().length}
+                memberships={app.memberships()}
+                onTogglePlay={() => app.togglePlay()}
+                onToggleFav={() => app.toggleFavorite(app.selectedSamples().length ? app.selectedSamples() : [app.current()!])}
+                onSeek={app.seekTo}
+                onRemoveTag={(t) => void app.removeTag(t)}
+                onAddTag={() => app.openTagging()}
+                onJump={(k) => void app.jumpTo(k)}
+                onReveal={() => app.showInFinder(app.current()?.path)}
               />
-            }
-          >
-            <Browser />
+            </Show>
+          </div>
+          <Show when={app.layout() !== "full"}>
+            <PreviewDrawer
+              sample={app.current()}
+              peaks={app.currentPeaks()}
+              playing={app.playingId() !== null && app.playingId() === app.current()?.id}
+              progress={app.progress()}
+              themeKey={app.theme()}
+              onTogglePlay={() => app.togglePlay()}
+              onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
+              onSeek={app.seekTo}
+            />
           </Show>
-          <Show when={app.debug()}>
-            <DebugOverlay />
-          </Show>
-          <PreviewDrawer
-            sample={app.current()}
-            peaks={app.currentPeaks()}
-            playing={app.playingId() !== null && app.playingId() === app.current()?.id}
-            progress={app.progress()}
-            themeKey={app.theme()}
-            onTogglePlay={() => app.togglePlay()}
-            onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
-            onSeek={app.seekTo}
-          />
           <Show when={app.tagging()}>
             <TagPopover
               count={app.selectedSamples().length}

@@ -27,6 +27,8 @@ export const commands = {
 	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
 	ancestors: (key: string) => __TAURI_INVOKE<string[]>("ancestors", { key }),
 	nodePath: (key: string) => __TAURI_INVOKE<string | null>("node_path", { key }),
+	/**  Collections manuelles et dossiers virtuels qui contiennent un sample (inspecteur du mode grand). */
+	memberships: (id: number) => __TAURI_INVOKE<string[]>("memberships", { id }),
 	setHidden: (ids: number[], hidden: boolean) => __TAURI_INVOKE<void>("set_hidden", { ids, hidden }),
 	setFolderHidden: (id: number, hidden: boolean) => __TAURI_INVOKE<void>("set_folder_hidden", { id, hidden }),
 	/**  Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ». */

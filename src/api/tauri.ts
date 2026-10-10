@@ -31,6 +31,7 @@ export const tauriBackend: Backend = {
   setPinned: (key, pinned) => commands.setPinned(key, pinned),
   ancestors: (key) => commands.ancestors(key),
   nodePath: (key) => commands.nodePath(key),
+  memberships: (id) => commands.memberships(id),
   setHidden: (ids, hidden) => commands.setHidden(ids, hidden),
   setFolderHidden: (id, hidden) => commands.setFolderHidden(id, hidden),
   peaks: async (id) => (await commands.peaks(id)) as number[],

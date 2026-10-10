@@ -160,6 +160,18 @@ i–VI–III–VII, qui est aussi vi–IV–I–V de la relative majeure, lue en
 tonalité ; boucle / one-shot 90/90. Ambiguïtés réelles : un breakbeat à 80 BPM en doubles-croches et une dnb à 160
 sont le même signal (lu 160).
 
+## Deux modes d'affichage (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| Deux modes : **colonne** (le panneau de 320 px, inchangé) et **grande fenêtre**. Bascule par un bouton de la barre titre et ⌘⇧F. | Demandé : garder la colonne à côté du DAW, et pouvoir « mieux voir » quand il faut. ⌘⇧F garde le principe « tout au clavier ». |
+| La grande fenêtre **agrandit** la fenêtre à l'écran (`toggleMaximize`), sans plein écran macOS. | Choix de l'utilisateur : pas de Space dédié, le DAW reste à un ⌘Tab. |
+| Dans la fenêtre, le mode **suit l'état agrandi** (relu à chaque redimensionnement) : le bouton vert et le double-clic sur la barre titre donnent le même résultat que le bouton. Retrouvé au lancement (`crate.prefs`). | Un seul état, pas de cas où la fenêtre est grande et la disposition étroite. |
+| Grande fenêtre = **même arbre**, avec les colonnes Durée, Format et Tags (et une ligne d'en-têtes non triable), plus un **inspecteur** à droite qui remplace le tiroir : grande waveform, lecture, métadonnées, tags (× pour retirer, « + tag » ouvre le popover), collections et dossiers virtuels du sample (clic : y aller), chemin, « Afficher dans le Finder ». | Rien à réapprendre (même navigation, mêmes raccourcis) ; ce qui manquait en colonne (tags, format, appartenances) devient visible. Hauteur de ligne inchangée : la virtualisation et les mesures de la phase 3 tiennent. |
+| L'arbre reste le même élément d'un mode à l'autre ; seuls l'inspecteur et le tiroir apparaissent ou disparaissent. | La bascule ne recharge rien et garde le défilement. |
+| Contrat : `memberships(id)` → collections manuelles puis dossiers virtuels du sample (`c:…`, `v:…`), une seule implémentation dans le catalogue (démo et vraie bibliothèque), vérifiée par la parité sur les 407 samples. Les favoris n'y sont pas (l'étoile les montre). | L'inspecteur doit dire où est rangé un sample ; le contrat ne le donnait pas. |
+| Prototype : la fausse fenêtre passe de 320 à 1 200 px. Storybook : paramètre `panelWidth` pour imposer une largeur (stories « Grande fenêtre », Inspector, TreeRow « Large »). | Le mode se montre et se teste sans la fenêtre Tauri. |
+
 ## Fichiers MIDI (10 oct. 2026)
 
 | Décision | Raison |

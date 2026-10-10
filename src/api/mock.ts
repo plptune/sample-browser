@@ -476,6 +476,12 @@ export const mockBackend: Backend = {
     SYNONYMS = normalizeSynonyms(groups);
   },
 
+  async memberships(id) {
+    const collections = COLLECTIONS.filter((c) => c.kind === "manual" && (COLLECTION_ITEMS[c.id] ?? []).includes(id)).map((c) => `c:${c.id}`);
+    const folders = VIRTUAL_FOLDERS.filter((f) => (VIRTUAL_ITEMS[f.id] ?? []).includes(id)).map((f) => `v:${f.id}`);
+    return [...collections, ...folders];
+  },
+
   async nodePath(key) {
     if (!key.startsWith("f:") && !key.startsWith("p:")) return null;
     const parts: string[] = [];

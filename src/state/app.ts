@@ -10,6 +10,9 @@ import {
 import { inTauri } from "../lib/env";
 import { isChip } from "../lib/query";
 
+/** Colonne étroite à côté du DAW, ou grande fenêtre (arbre large + inspecteur). */
+export type Layout = "side" | "full";
+
 export type Density = "compact" | "wave";
 export type ThemePref = "dark" | "light" | "system";
 
@@ -250,6 +253,48 @@ function createAppState() {
     const cur = current();
     return cur?.id === id ? cur : undefined;
   };
+
+  // --- deux modes d'affichage : colonne (à côté du DAW) et grande fenêtre (arbre large + inspecteur).
+  // Dans la fenêtre, le mode suit l'état « agrandi » de la fenêtre (bouton vert, double-clic sur la barre titre).
+  const [layout, setLayoutSignal] = createSignal<Layout>("side");
+  async function syncLayout() {
+    if (!inTauri) return;
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    setLayoutSignal((await getCurrentWindow().isMaximized()) ? "full" : "side");
+  }
+  /** ⌘⇧F ou le bouton de la barre titre : agrandit la fenêtre à l'écran, ou la remet en colonne. */
+  async function toggleLayout() {
+    closeOverlays();
+    if (inTauri) {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().toggleMaximize();
+      return syncLayout();
+    }
+    // Prototype : la fausse fenêtre s'élargit.
+    const next: Layout = layout() === "full" ? "side" : "full";
+    batch(() => {
+      setLayoutSignal(next);
+      setWidth(next === "full" ? 1200 : 320);
+    });
+  }
+
+  // Collections et dossiers virtuels du sample courant (inspecteur du mode grand).
+  const [memberships, setMemberships] = createSignal<{ key: NodeKey; name: string }[]>([]);
+  createEffect(
+    on([current, library, layout], ([cur, , lay]) => {
+      if (!cur || lay !== "full") return setMemberships([]);
+      const id = cur.id;
+      void api.memberships(id).then((keys) => current()?.id === id && setMemberships(keys.map((key) => ({ key, name: nodeName(key) }))));
+    }),
+  );
+
+  /** Inspecteur : retire un tag des samples sélectionnés qui l'ont. */
+  async function removeTag(tag: string) {
+    const ids = selectedSamples().filter((s) => s.tags.includes(tag)).map((s) => s.id);
+    if (!ids.length) return;
+    await api.removeTag(ids, tag);
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
 
   // Toujours au premier plan : appliqué à la vraie fenêtre.
   createEffect(
@@ -963,7 +1008,10 @@ function createAppState() {
     volume: number;
     stopOnDrag: boolean;
     stopOnBlur: boolean;
+    layout: Layout;
   }
+  /** Mode d'affichage mémorisé : appliqué à la fenêtre une fois l'app lancée. */
+  let savedLayout: Layout = "side";
   function loadPrefs() {
     let p: Partial<Prefs> = {};
     try {
@@ -980,6 +1028,7 @@ function createAppState() {
       if (typeof p.volume === "number") setVolumeSignal(Math.max(0, Math.min(1, p.volume)));
       if (typeof p.stopOnDrag === "boolean") setStopOnDrag(p.stopOnDrag);
       if (typeof p.stopOnBlur === "boolean") setStopOnBlur(p.stopOnBlur);
+      if (p.layout === "full" || p.layout === "side") savedLayout = p.layout;
     });
   }
   function savePrefs() {
@@ -992,6 +1041,7 @@ function createAppState() {
       volume: volume(),
       stopOnDrag: stopOnDrag(),
       stopOnBlur: stopOnBlur(),
+      layout: layout(),
     };
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(p));
@@ -1009,6 +1059,13 @@ function createAppState() {
       loadPrefs();
       createRoot(() => createEffect(savePrefs));
       void api.setPlayback({ volume: volume(), looping: looping() });
+    }
+    // Fenêtre : le mode suit l'état « agrandi » ; relancée en mode grand si on l'avait quittée ainsi.
+    if (inTauri) {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await syncLayout();
+      if (!isDemoMode && savedLayout === "full" && layout() !== "full") await toggleLayout();
+      void getCurrentWindow().onResized(() => void syncLayout());
     }
     const isDemo = isDemoMode;
     setDemo(isDemo);
@@ -1056,6 +1113,7 @@ function createAppState() {
     view, setView, tagging, setTagging, saving, setSaving, menu, setMenu, renamingKey, setRenamingKey,
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
+    layout, toggleLayout, memberships, removeTag,
     tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,

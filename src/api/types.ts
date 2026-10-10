@@ -220,6 +220,8 @@ export interface Backend {
   setSynonyms(groups: string[][]): Promise<void>;
   /** Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; null sinon. */
   nodePath(key: NodeKey): Promise<string | null>;
+  /** Collections manuelles ("c:<id>") puis dossiers virtuels ("v:<id>") qui contiennent ce sample. */
+  memberships(id: SampleId): Promise<NodeKey[]>;
   planCommit(key: NodeKey, options: CommitOptions): Promise<CommitPlan>;
   /**
    * Copie les fichiers vers un nouveau dossier réel. Ne modifie ni ne déplace jamais les sources.

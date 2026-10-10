@@ -17,14 +17,15 @@ const preview: Preview = {
     controls: { expanded: true },
   },
   decorators: [
-    // Chaque story est rendue dans une colonne de la largeur choisie, comme dans l'app.
+    // Chaque story est rendue dans une colonne de la largeur choisie, comme dans l'app (`panelWidth` : largeur
+    // imposée, pour le mode grand).
     (Story, ctx) =>
       ctx.parameters.panel === false ? (
         <Story />
       ) : (
         <div
           class="cr-root cr-panel sb-panel"
-          style={{ width: `${ctx.globals.width}px`, height: ctx.parameters.panelHeight ?? "auto" }}
+          style={{ width: ctx.parameters.panelWidth ?? `${ctx.globals.width}px`, height: ctx.parameters.panelHeight ?? "auto" }}
         >
           <Story />
         </div>

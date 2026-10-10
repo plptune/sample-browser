@@ -8,3 +8,5 @@ src-tauri/gen/schemas
 
 # Rapport local de vérification sur Mac (docs/agent-mac.md)
 rapport-verification-mac.md
+test-results/
+playwright-report/

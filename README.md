@@ -15,6 +15,7 @@ La fenêtre indexe de **vrais dossiers** (SQLite, scan incrémental, surveillanc
 pnpm install
 pnpm dev          # http://localhost:1420
 pnpm build        # typecheck + build
+pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur si besoin)
 ```
 
 - `http://localhost:1420/` : le panneau + une barre de démo (scénario, thème, largeur, densité, grille 4 px).

@@ -219,7 +219,8 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
       </header>
 
       <Switch>
-        <Match when={app.empty()}>
+        {/* Bibliothèque vide : l'écran de dépôt, sauf si l'on a ouvert les Réglages (ajouter une source, thème…). */}
+        <Match when={app.empty() && app.view() !== "settings"}>
           <Notice />
           <EmptyState
             variant="drop"

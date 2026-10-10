@@ -1,5 +1,5 @@
 # Contrôles à chaque push : Rust (fmt, clippy, tests dont la parité avec le prototype),
-# contrat TypeScript à jour, build de l'app et de Storybook.
+# contrat TypeScript à jour, build de l'app et de Storybook, tests navigateur du prototype.
 name: CI
 
 on:
@@ -39,3 +39,7 @@ jobs:
         run: git diff --exit-code -- src/api/bindings.ts crates/crate-core/tests/fixtures/prototype.json
       - run: pnpm build
       - run: pnpm build-storybook
+      - name: Tests navigateur du prototype (Playwright)
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm test:e2e

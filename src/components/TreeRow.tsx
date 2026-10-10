@@ -123,9 +123,6 @@ export function TreeRow(props: {
         <Show when={folds()}>
           <Chevron open={props.open} />
         </Show>
-        <Show when={props.playing}>
-          <Icon name="play" class="cr-node__playing" />
-        </Show>
         <Show when={props.missing}>
           <span class="cr-node__warn">!</span>
         </Show>

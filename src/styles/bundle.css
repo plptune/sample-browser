@@ -565,10 +565,6 @@
   color: var(--cr-on-row-selected);
 }
 
-.cr-node__playing {
-  color: var(--cr-accent);
-}
-
 .cr-node__warn {
   color: var(--cr-danger);
 }

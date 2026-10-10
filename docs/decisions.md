@@ -235,6 +235,8 @@ sont le même signal (lu 160).
 | **Plus de ▶ sur la ligne en lecture** : la case reste vide (la mini-waveform du mode « waveform » montre toujours la progression). | Demandé. |
 | **Dossiers repliables en recherche** (case du chevron, double clic, ⏎, ← / →) : tout est ouvert, sauf ce qu'on referme. `TreeRequest.collapsed`, même calcul en Rust et en TS (parité). Une autre recherche rouvre tout. | Demandé. |
 | **⌘→ replie tout**, comme ⌘← (gardé) ; en recherche aussi : les nœuds de premier niveau se referment. | Demandé. |
+| **⌘⌥← / ⌘⌥→ calent la fenêtre** contre le bord gauche / droit de son écran, sur toute la hauteur utile (sans barre des menus ni Dock), largeur gardée ; agrandie, elle revient d'abord en colonne. Raccourci de l'app (pas global). | Demandé : ranger Crate à côté du DAW d'une touche. |
+| **Recherche depuis le DAW, Bitwig** : identifiant réel `com.bitwig.studio` (et non `com.bitwig.BitwigStudio`), corrigé aussi dans les réglages enregistrés. Traces avec `CRATE_TRACE=1` (app active, raccourci enregistré / relâché, appui, retour). | Signalé : ⌘F ne marchait pas dans Bitwig ; vérifié sur Mac avec Live 12 et Bitwig en marche. |
 
 ## Fichiers MIDI (10 oct. 2026)
 

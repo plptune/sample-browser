@@ -2,10 +2,10 @@
 // (« Cmd+KeyF » : modificateurs puis code physique de la touche, indépendant de la disposition du clavier).
 import type { DawShortcutConfig } from "../api/bindings";
 
-/** DAW proposés dans les Réglages, par identifiant d'app (bundle id). */
+/** DAW proposés dans les Réglages, par identifiant d'app (bundle id, `osascript -e 'id of app "…"'`). */
 export const KNOWN_DAWS: { id: string; name: string }[] = [
   { id: "com.ableton.live", name: "Ableton Live" },
-  { id: "com.bitwig.BitwigStudio", name: "Bitwig Studio" },
+  { id: "com.bitwig.studio", name: "Bitwig Studio" },
   { id: "com.apple.logic10", name: "Logic Pro" },
   { id: "com.cockos.reaper", name: "Reaper" },
   { id: "com.image-line.flstudio", name: "FL Studio" },
@@ -14,8 +14,16 @@ export const KNOWN_DAWS: { id: string; name: string }[] = [
 export const DEFAULT_DAW_SHORTCUT: DawShortcutConfig = {
   enabled: true,
   shortcut: "Cmd+KeyF",
-  apps: ["com.ableton.live", "com.bitwig.BitwigStudio"],
+  apps: ["com.ableton.live", "com.bitwig.studio"],
 };
+
+/** Identifiants erronés des premières versions, encore dans des réglages enregistrés → identifiant réel. */
+const RENAMED_DAWS: Record<string, string> = { "com.bitwig.BitwigStudio": "com.bitwig.studio" };
+
+/** Réglages enregistrés : identifiants corrigés, sans doublon. */
+export function migrateDawApps(apps: string[]): string[] {
+  return [...new Set(apps.map((a) => RENAMED_DAWS[a] ?? a))];
+}
 
 const MODS: [keyof KeyboardEvent & string, string, string][] = [
   ["ctrlKey", "Ctrl", "⌃"],

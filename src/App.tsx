@@ -66,6 +66,12 @@ export function App() {
       e.key === "[" ? app.back() : app.forward();
       return;
     }
+    // ⌘⌥← / ⌘⌥→ : fenêtre calée contre le bord gauche / droit de l'écran (e.code : ⌥ change la touche lue).
+    if (mod && e.altKey && !e.shiftKey && (e.code === "ArrowLeft" || e.code === "ArrowRight")) {
+      e.preventDefault();
+      void app.snapWindow(e.code === "ArrowLeft" ? "left" : "right");
+      return;
+    }
     // ⌘← / ⌘→ : referme tous les dossiers (hors des champs, où ils vont en début ou fin de ligne).
     if (mod && !e.altKey && !e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isField(e.target) && app.view() === "browser") {
       e.preventDefault();

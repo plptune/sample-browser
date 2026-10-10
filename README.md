@@ -33,6 +33,7 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | → | Ouvrir le dossier sélectionné (le curseur reste dessus) ; suivre un raccourci |
 | ← | Fermer le dossier sélectionné ; sur un sample, fermer son dossier et le sélectionner |
 | ⌘← ou ⌘→ | Tout replier, en recherche aussi (le curseur remonte au premier niveau) |
+| ⌘⌥← / ⌘⌥→ | Caler la fenêtre contre le bord gauche / droit de l'écran, sur toute la hauteur |
 | Espace | Lecture / stop du sample courant |
 | ⇧← / ⇧→ | Reculer / avancer d'un dixième dans le sample |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |

@@ -9,7 +9,7 @@ import {
 } from "../api";
 import type { DawShortcutConfig } from "../api/bindings";
 import { inTauri } from "../lib/env";
-import { DEFAULT_DAW_SHORTCUT } from "../lib/shortcut";
+import { DEFAULT_DAW_SHORTCUT, migrateDawApps } from "../lib/shortcut";
 import { isChip } from "../lib/query";
 
 /** Colonne étroite à côté du DAW, ou grande fenêtre (arbre large + inspecteur). */
@@ -336,6 +336,22 @@ function createAppState() {
       setLayoutSignal(next);
       setWidth(next === "full" ? 1200 : 320);
     });
+  }
+  /**
+   * ⌘⌥← / ⌘⌥→ : cale la fenêtre contre le bord gauche ou droit de son écran, sur toute la hauteur utile (sans barre
+   * des menus ni Dock), en gardant sa largeur. Agrandie, elle revient d'abord en colonne.
+   */
+  async function snapWindow(side: "left" | "right") {
+    if (!inTauri) return;
+    const { currentMonitor, getCurrentWindow, PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/window");
+    const win = getCurrentWindow();
+    if (await win.isMaximized()) await win.unmaximize();
+    const monitor = await currentMonitor();
+    if (!monitor) return;
+    const { position: area, size: room } = monitor.workArea;
+    const width = Math.min((await win.outerSize()).width, room.width);
+    await win.setSize(new PhysicalSize(width, room.height));
+    await win.setPosition(new PhysicalPosition(side === "left" ? area.x : area.x + room.width - width, area.y));
   }
 
   // Collections et dossiers virtuels du sample courant (inspecteur du mode grand).
@@ -1201,7 +1217,7 @@ function createAppState() {
       if (p.colors && typeof p.colors === "object") setColorOverrides(p.colors);
       if (typeof p.flatResults === "boolean") setFlatResultsSignal(p.flatResults);
       const d = p.dawShortcut;
-      if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut(d);
+      if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut({ ...d, apps: migrateDawApps(d.apps) });
     });
   }
   function savePrefs() {
@@ -1298,7 +1314,7 @@ function createAppState() {
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,
     setWidth, setDensity, setGrid, setChips, setDraft, setSelection, setCursor, setCurrent, setExpanded,
-    refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode, collapseAll,
+    snapWindow, refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode, collapseAll,
     select, move, right, left, activate, play, stop, togglePlay, selectKey,
     total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms,
     hideSelection, hideFolder, removeOrHide,

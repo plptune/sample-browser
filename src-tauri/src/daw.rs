@@ -16,6 +16,8 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_specta::Event;
 
+use crate::trace;
+
 /// Réglages (Réglages › Lecture), mémorisés côté interface et transmis au démarrage puis à chaque changement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -32,7 +34,7 @@ impl Default for DawShortcutConfig {
         Self {
             enabled: true,
             shortcut: "Cmd+KeyF".into(),
-            apps: vec!["com.ableton.live".into(), "com.bitwig.BitwigStudio".into()],
+            apps: vec!["com.ableton.live".into(), "com.bitwig.studio".into()],
         }
     }
 }
@@ -99,12 +101,16 @@ fn sync<R: Runtime>(app: &AppHandle<R>) {
     };
     let gs = app.global_shortcut();
     if let Some(old) = old {
-        let _ = gs.unregister(old);
+        let r = gs.unregister(old);
+        trace(|| format!("daw : raccourci relâché ({r:?})"));
     }
     if let Some(new) = want {
         match gs.register(new) {
-            Ok(()) => state.lock().active = Some(new),
-            Err(e) => eprintln!("[crate] raccourci {new:?} indisponible : {e}"),
+            Ok(()) => {
+                trace(|| format!("daw : raccourci {new} enregistré"));
+                state.lock().active = Some(new);
+            }
+            Err(e) => eprintln!("[crate] raccourci {new} indisponible : {e}"),
         }
     }
 }
@@ -119,6 +125,7 @@ pub fn on_activate<R: Runtime>(app: &AppHandle<R>, front: Frontmost) {
         if front.pid != std::process::id() as i32 && g.origin != Some(front.pid) {
             g.origin = None;
         }
+        trace(|| format!("daw : app active {:?} (pid {})", front.bundle, front.pid));
         g.frontmost = Some(front);
     }
     sync(app);
@@ -130,6 +137,7 @@ fn on_pressed<R: Runtime>(app: &AppHandle<R>) {
         let state = app.state::<DawShortcut>();
         let mut g = state.lock();
         g.origin = g.frontmost.as_ref().map(|f| f.pid);
+        trace(|| format!("daw : raccourci pressé, origine {:?}", g.origin));
     }
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -164,6 +172,7 @@ pub fn set_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, config: D
     if config.enabled {
         parse_shortcut(&config.shortcut)?;
     }
+    trace(|| format!("daw : réglages {config:?}"));
     state.lock().cfg = config;
     sync(&app);
     Ok(())
@@ -174,8 +183,10 @@ pub fn set_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, config: D
 #[specta::specta]
 pub fn return_to_daw(state: State<'_, DawShortcut>) -> bool {
     let Some(pid) = state.lock().origin.take() else {
+        trace(|| "daw : pas d'app d'origine, on reste".into());
         return false;
     };
+    trace(|| format!("daw : retour au pid {pid}"));
     #[cfg(target_os = "macos")]
     return macos::activate(pid);
     #[cfg(not(target_os = "macos"))]
@@ -265,8 +276,8 @@ mod tests {
     fn pris_seulement_dans_un_daw() {
         let cfg = DawShortcutConfig::default();
         assert!(desired(&cfg, Some(&front("com.ableton.live"))).is_some());
-        assert!(desired(&cfg, Some(&front("com.bitwig.BitwigStudio"))).is_some());
-        assert!(desired(&cfg, Some(&front("com.BITWIG.bitwigstudio"))).is_some(), "casse ignorée");
+        assert!(desired(&cfg, Some(&front("com.bitwig.studio"))).is_some());
+        assert!(desired(&cfg, Some(&front("com.BITWIG.Studio"))).is_some(), "casse ignorée");
         assert!(desired(&cfg, Some(&front("com.apple.Safari"))).is_none());
         assert!(desired(&cfg, Some(&Frontmost { bundle: None, pid: 1 })).is_none());
         assert!(desired(&cfg, None).is_none());

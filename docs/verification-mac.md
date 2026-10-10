@@ -140,6 +140,7 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] ⌘← et ⌘→ replient tout et le curseur reste sur le dossier de premier niveau ; dans le champ de recherche, ils vont en début / fin de ligne.
 - [ ] Pendant une recherche : un dossier se referme et se rouvre (chevron, double clic, ← / →) ; ⌘→ depuis l'arbre replie tout.
 - [ ] La ligne en lecture n'a plus de ▶.
+- [ ] ⌘⌥→ cale la fenêtre à droite de l'écran, sur toute la hauteur (sous la barre des menus, au-dessus du Dock) ; ⌘⌥← à gauche ; en mode grand, la fenêtre revient d'abord en colonne.
 - [ ] Tiroir : « Tags : » montre les tags ; taper un nom + ⏎ l'ajoute (suggestions des tags existants), × le retire.
 - [ ] Ligne sélectionnée bien visible (bleu), lisible en sombre et en clair, en colonne et en grand (tags compris).
 - [ ] Réglages : 4 onglets ; Apparence › Taille du texte S / M / L change tout le panneau ; les couleurs accent,
@@ -159,7 +160,8 @@ Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crat
 - [ ] Réglages › Lecture › Depuis le DAW : couper l'interrupteur rend ⌘F à Live ; changer le raccourci (ex. ⌃⌥Espace)
       prend effet tout de suite ; cocher Logic Pro fait marcher Logic.
 - [ ] Identifiants à confirmer si un DAW ne réagit pas : `osascript -e 'id of app "Bitwig Studio"'` (attendu
-      `com.bitwig.BitwigStudio`), idem Live (`com.ableton.live`).
+      `com.bitwig.studio`), idem Live (`com.ableton.live`). Traces : lancer avec `CRATE_TRACE=1` (app active, raccourci
+      enregistré ou refusé, appui, retour au DAW).
 
 ## 6 sexies. Retours n° 2
 

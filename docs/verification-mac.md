@@ -131,6 +131,18 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] Inspecteur : waveform cliquable, lecture, × sur un tag, « + tag », clic sur une collection, « Afficher dans le
       Finder ». Rien ne saute ni ne clignote en passant d'un mode à l'autre ; ⌥⌘D reste sous 16 ms en mode grand.
 
+## 6 quater. Retours du premier essai
+
+- [ ] Premier lancement (ou réglages jamais touchés) : ↓ joue le sample tout de suite ; le bouton ≡▶ du tiroir coupe la
+      lecture auto, et ↓ ne joue plus.
+- [ ] En colonne : pas de colonne de tonalité ; onglets en icônes (infobulle « Bibliothèque (⌘1) ») ; icône de type
+      devant chaque nom (dossier, onde, note pour un `.mid`).
+- [ ] ⌘← replie tout et le curseur reste sur le dossier de premier niveau ; dans la recherche, ⌘← va en début de ligne.
+- [ ] Tiroir : « Tags : » montre les tags ; taper un nom + ⏎ l'ajoute (suggestions des tags existants), × le retire.
+- [ ] Ligne sélectionnée bien visible (bleu), lisible en sombre et en clair, en colonne et en grand (tags compris).
+- [ ] Réglages : 4 onglets ; Apparence › Taille du texte S / M / L change tout le panneau ; les couleurs accent,
+      sélection et fond se règlent (et se rétablissent) ; tout est retrouvé après relance.
+
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).

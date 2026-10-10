@@ -17,7 +17,11 @@ let timers: number[] = [];
 /** Sélectionne la n-ième ligne sample dont le nom commence par `prefix`. */
 function selectSample(prefix: string, nth = 0) {
   const row = app.visible().filter((r) => r.type === "sample" && r.sample.name.startsWith(prefix))[nth];
+  // Une scène montre une sélection, pas une lecture : la lecture auto (active par défaut) est suspendue le temps de choisir.
+  const auto = app.autoPlay();
+  app.setAutoPlay(false);
   if (row) app.select(row.key);
+  app.setAutoPlay(auto);
   return row?.type === "sample" ? row.sample : undefined;
 }
 
@@ -40,7 +44,7 @@ async function reset(expanded: string[] = [], tab: TreeRoot = "library") {
     app.setSelection([]);
     app.setCursor(null);
     app.setCurrent(null);
-    app.setAutoPlay(false);
+    app.setAutoPlay(true); // comme au premier lancement de l'app
     app.setDropTarget(null);
     app.setDraggingKey(null);
     app.setDensity("compact");

@@ -13,7 +13,11 @@ const meta = {
     theme: "dark",
     density: "compact",
     alwaysOnTop: true,
-    autoPlay: false,
+    autoPlay: true,
+    initialTab: "sources",
+    fontSize: "base",
+    colors: { accent: "#e8a33d", primary: "#3d74d9", bg: "#232323" },
+    customColors: {},
     synonyms: [
       ["kick", "bd", "bassdrum"],
       ["snare", "sd"],
@@ -31,7 +35,18 @@ export default meta;
 
 export const Reglages: StoryObj<typeof meta> = {};
 
+/** Thème, densité, taille du texte (S / M / L) et les trois couleurs de base. */
+export const Apparence: StoryObj<typeof meta> = { args: { initialTab: "appearance" } };
+
+/** Une couleur changée : bouton × pour la rétablir, et « Rétablir toutes les couleurs ». */
+export const CouleurModifiee: StoryObj<typeof meta> = {
+  args: { initialTab: "appearance", fontSize: "lg", colors: { accent: "#e8a33d", primary: "#2fae6a", bg: "#232323" }, customColors: { primary: "#2fae6a" } },
+};
+
+export const Lecture: StoryObj<typeof meta> = { args: { initialTab: "playback" } };
+export const Recherche: StoryObj<typeof meta> = { args: { initialTab: "search" } };
+
 /** Analyse de fond en cours (tempo, tonalité) : une ligne discrète sous les sources. */
 export const AnalyseEnCours: StoryObj<typeof meta> = {
-  args: { analysis: { done: 12_480, total: 41_250 } },
+  args: { initialTab: "sources", analysis: { done: 12_480, total: 41_250 } },
 };

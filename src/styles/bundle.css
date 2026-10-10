@@ -99,12 +99,20 @@
   color: var(--cr-text-3);
 }
 
+.cr-tab[data-icon-only] {
+  width: var(--cr-icon-btn);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .cr-tab:hover {
   color: var(--cr-text-2);
 }
 
 .cr-tab[data-active] {
-  background: var(--cr-selected);
+  background: var(--cr-row-selected-focus);
   color: var(--cr-text-strong);
 }
 
@@ -412,13 +420,14 @@
   background: var(--cr-hover);
 }
 
+/* Sélection : teinte du primaire (plus franche quand la liste a le focus). */
 .cr-node[data-selected] {
-  background: var(--cr-selected);
+  background: var(--cr-row-selected);
   color: var(--cr-text-strong);
 }
 
 .cr-tree[data-focused] .cr-node[data-selected] {
-  background: var(--cr-selected-focus);
+  background: var(--cr-row-selected-focus);
 }
 
 .cr-node[data-kind="group"] {
@@ -457,6 +466,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Icône de type (dossier, sample, MIDI, collection…) entre le chevron et le libellé. */
+.cr-node__icon {
+  width: var(--cr-icon);
+  flex: none;
+  display: flex;
+  color: var(--cr-text-3);
+}
+
+.cr-node[data-kind="folder"] .cr-node__icon,
+.cr-node[data-kind="shortcut"] .cr-node__icon,
+.cr-node[data-kind="group"] .cr-node__icon {
+  color: var(--cr-text-2);
+}
+
+.cr-node[data-selected] .cr-node__icon {
+  color: var(--cr-text);
 }
 
 .cr-node__main {
@@ -522,6 +549,11 @@
 
 .cr-col-bpm { width: var(--cr-col-bpm); }
 .cr-col-key { width: var(--cr-col-key); }
+
+/* En colonne, pas de tonalité pour l'instant : la place va au nom. */
+.cr-panel:not([data-layout="full"]) .cr-col-key {
+  display: none;
+}
 
 @container panel (max-width: 279px) {
   .cr-col-bpm {
@@ -599,6 +631,55 @@
   border-radius: var(--cr-radius);
 }
 
+/* Tags du sample courant : « Tags : », les tags (× pour retirer), puis le champ « Ajouter… ». */
+.cr-drawer__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cr-space-1);
+}
+
+.cr-drawer__label {
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-2);
+}
+
+.cr-drawer__add {
+  position: relative;
+  flex: 1;
+  min-width: 64px;
+}
+
+.cr-drawer__input {
+  width: 100%;
+  height: var(--cr-chip-h);
+  padding: 0 var(--cr-space-1);
+  border: 0;
+  border-radius: var(--cr-radius);
+  background: none;
+  font: inherit;
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text);
+  outline: none;
+}
+
+.cr-drawer__input::placeholder {
+  color: var(--cr-text-3);
+}
+
+.cr-drawer__input:focus {
+  background: var(--cr-surface-raised);
+}
+
+/* Suggestions au-dessus du champ (le tiroir est en bas de la fenêtre). */
+.cr-drawer__ac .cr-ac {
+  left: 0;
+  right: auto;
+  top: auto;
+  bottom: calc(100% + var(--cr-space-1));
+  min-width: var(--cr-menu-w);
+}
+
 .cr-drawer__error {
   height: 100%;
   display: flex;
@@ -637,7 +718,7 @@
 }
 
 .cr-tag[data-variant="add"] {
-  color: var(--cr-text-3);
+  color: var(--cr-text-2);
   box-shadow: inset 0 0 0 var(--cr-border) var(--cr-line-soft);
   border: 0;
   background-image: none;
@@ -988,6 +1069,44 @@
   color: var(--cr-text-strong);
 }
 
+/* Onglets des Réglages, sous le titre, sur la colonne des libellés. */
+.cr-settings__tabs {
+  padding: var(--cr-space-1) var(--cr-space-2) 0 calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1));
+}
+
+.cr-settings__tabs .cr-seg {
+  width: 100%;
+}
+
+.cr-settings__tabs .cr-seg__item {
+  flex: 1;
+}
+
+.cr-color {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+}
+
+.cr-color__input {
+  width: var(--cr-input-min);
+  height: var(--cr-chip-h);
+  padding: 0;
+  border: 0;
+  border-radius: var(--cr-radius);
+  background: none;
+  cursor: pointer;
+}
+
+.cr-color__input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.cr-color__input::-webkit-color-swatch {
+  border: var(--cr-border) solid var(--cr-line-soft);
+  border-radius: var(--cr-radius);
+}
+
 .cr-settings__section {
   padding: var(--cr-space-2) 0;
   border-top: var(--cr-border) solid var(--cr-line-soft);
@@ -1169,7 +1288,9 @@
 
 .cr-col-dur { width: var(--cr-col-dur); text-align: right; }
 .cr-col-fmt { width: var(--cr-col-fmt); padding-left: var(--cr-space-3); }
-.cr-col-tags { width: var(--cr-col-tags); color: var(--cr-text-3); }
+.cr-col-tags { width: var(--cr-col-tags); color: var(--cr-text-2); }
+/* Sur la ligne sélectionnée (fond bleu), tout le texte passe en clair : contraste ≥ 4,5:1 (tests/e2e/contraste.spec.ts). */
+.cr-node[data-selected] .cr-col-tags { color: var(--cr-text); }
 
 .cr-colhead {
   flex: none;
@@ -1177,7 +1298,7 @@
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);
-  padding: 0 var(--cr-space-2) 0 calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1));
+  padding: 0 var(--cr-space-2) 0 var(--cr-label-x);
   border-bottom: var(--cr-border) solid var(--cr-line);
   font-size: var(--cr-fs-xs);
   color: var(--cr-text-3);

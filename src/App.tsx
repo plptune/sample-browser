@@ -7,6 +7,7 @@ import { app } from "./state/app";
 const isField = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA");
 
+import { COLOR_VARS, colorVars } from "./lib/color";
 import { inTauri } from "./lib/env";
 import { isOwnDrag, nativeDragLeave, nativeDragOver, nativeDrop } from "./lib/nativeDrag";
 
@@ -63,6 +64,13 @@ export function App() {
     if (mod && (e.key === "[" || e.key === "]")) {
       e.preventDefault();
       e.key === "[" ? app.back() : app.forward();
+      return;
+    }
+    // ⌘← : referme tous les dossiers (hors des champs, où il va en début de ligne).
+    if (mod && !e.altKey && !e.shiftKey && e.key === "ArrowLeft" && !isField(e.target) && app.view() === "browser") {
+      e.preventDefault();
+      document.querySelector<HTMLElement>(".cr-tree")?.focus();
+      void app.collapseAll();
       return;
     }
     if (e.altKey && !mod && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isField(e.target)) {
@@ -217,6 +225,13 @@ export function App() {
 
   // Le thème s'applique à toute la page (fond de fenêtre compris).
   createEffect(() => document.documentElement.setAttribute("data-theme", app.theme()));
+  // Couleurs choisies dans les Réglages : posées sur la page et sur chaque élément qui redéclare le thème.
+  const colorStyle = () => colorVars(app.colors());
+  createEffect(() => {
+    const root = document.documentElement.style;
+    const vars = colorStyle();
+    for (const v of COLOR_VARS) vars[v] ? root.setProperty(v, vars[v]) : root.removeProperty(v);
+  });
 
   // Boutons « précédent / suivant » de la souris : même historique que ⌥← / ⌥→.
   function onMouseNav(e: MouseEvent) {
@@ -244,10 +259,10 @@ export function App() {
 
   return (
     <Show when={!inTauri} fallback={<div class="app-window">{panel()}</div>}>
-      <div class="demo-page" data-theme={app.theme()}>
+      <div class="demo-page" data-theme={app.theme()} style={colorStyle()}>
         <DemoBar scenario={scenario()} onScenario={runScenario} />
         <div class="demo-stage">
-          <div class="demo-window" data-theme={app.theme()} style={{ width: `${app.width()}px` }}>
+          <div class="demo-window" data-theme={app.theme()} style={{ ...colorStyle(), width: `${app.width()}px` }}>
             <div class="demo-traffic" aria-hidden="true">
               <i />
               <i />

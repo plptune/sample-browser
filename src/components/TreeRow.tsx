@@ -1,6 +1,6 @@
-// Une ligne de l'arbre : dossier (chevron) ou sample (▶ quand lu). Même hauteur, même grille.
+// Une ligne de l'arbre : dossier (chevron) ou sample (▶ quand lu), puis l'icône de type. Même hauteur, même grille.
 import { Show, onMount } from "solid-js";
-import { Chevron, Icon } from "./Icon";
+import { Chevron, Icon, type IconName } from "./Icon";
 import { Waveform } from "./Waveform";
 
 export type TreeRowKind = "folder" | "shortcut" | "group" | "favorites" | "collection" | "smart" | "virtual" | "sample";
@@ -9,6 +9,17 @@ export type TreeRowKind = "folder" | "shortcut" | "group" | "favorites" | "colle
 export type TreeRowMarker = "shortcut" | "virtual" | "collection" | "favorites" | "pin";
 
 const MARKER_ICON = { shortcut: "alias", virtual: "virtual", collection: "collection", favorites: "star", pin: "pin" } as const;
+/** Icône de type devant le libellé. */
+const KIND_ICON: Record<Exclude<TreeRowKind, "sample">, IconName> = {
+  folder: "folder",
+  shortcut: "folder",
+  group: "folder",
+  favorites: "star",
+  collection: "collection",
+  smart: "search",
+  virtual: "virtual",
+};
+
 const MARKER_LABEL = {
   shortcut: "Raccourci vers un dossier",
   virtual: "Dossier virtuel",
@@ -33,7 +44,7 @@ export function TreeRow(props: {
   draggable?: boolean;
   dropTarget?: boolean;
   dragging?: boolean;
-  /** Fichier MIDI (joué au piano dans l'app) : repère « MIDI » avant le BPM. */
+  /** Fichier MIDI (joué au piano dans l'app) : icône de note au lieu de l'onde. */
   midi?: boolean;
   /** Mode grand : colonnes durée, format et tags avant BPM / clé. */
   wide?: boolean;
@@ -62,6 +73,7 @@ export function TreeRow(props: {
   const isSample = () => props.kind === "sample";
   // Un raccourci ne se déplie pas (il saute au dossier visé) : pas de chevron.
   const folds = () => !isSample() && props.kind !== "shortcut";
+  const kindIcon = (): IconName => (props.kind === "sample" ? (props.midi ? "midi" : "sample") : KIND_ICON[props.kind]);
   return (
     <div
       ref={props.ref}
@@ -114,6 +126,9 @@ export function TreeRow(props: {
           <span class="cr-node__warn">!</span>
         </Show>
       </span>
+      <span class="cr-node__icon" data-icon={kindIcon()}>
+        <Icon name={kindIcon()} />
+      </span>
       <div class="cr-node__main">
         <Show when={props.renaming} fallback={<span class="cr-node__label">{props.label}</span>}>
           <RenameInput value={props.label} onDone={(v) => props.onRename?.(v)} />
@@ -137,10 +152,6 @@ export function TreeRow(props: {
             <Icon name={MARKER_ICON[m()]} />
           </span>
         )}
-      </Show>
-      {/* En mode grand, « MIDI » est dans la colonne Format. */}
-      <Show when={isSample() && props.midi && !props.wide}>
-        <span class="cr-node__badge">MIDI</span>
       </Show>
       <Show when={isSample() && props.wide}>
         <span class="cr-col-dur cr-node__meta">{props.duration ?? ""}</span>

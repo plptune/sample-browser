@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "expand" | "collapse";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "expand" | "collapse" | "folder" | "sample" | "midi" | "autoplay";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -31,6 +31,22 @@ const PATHS: Record<IconName, () => JSX.Element> = {
   // Agrandir / revenir en colonne : flèches vers les coins, ou vers le centre.
   expand: () => <path d="M7 2h3v3M10 2 6.9 5.1M5 10H2V7M2 10l3.1-3.1" />,
   collapse: () => <path d="M10 2 7.1 4.9M7.1 2.6v2.3h2.3M2 10l2.9-2.9M4.9 9.4V7.1H2.6" />,
+  // Type des lignes de l'arbre : dossier (trait plein, le dossier virtuel est pointillé), sample (onde), MIDI (note).
+  folder: () => <path d="M1.6 3.2h3.1l1 1.2h4.7v5.2H1.6z" />,
+  sample: () => <path d="M1.6 6h.4M3.4 4.4v3.2M5.2 2.4v7.2M7 3.8v4.4M8.8 5v2M10.4 6h.1" />,
+  midi: () => (
+    <>
+      <circle cx="4" cy="9" r="1.5" />
+      <path d="M5.5 9V2.2l4 1.3v2" />
+    </>
+  ),
+  // Lecture auto : une liste qui se lit d'elle-même.
+  autoplay: () => (
+    <>
+      <path d="M1.8 3h5.4M1.8 6h3.4M1.8 9h3.4" />
+      <path d="M7.2 5.4v4.4L10.6 7.6z" fill="currentColor" stroke="none" />
+    </>
+  ),
   loop: () => <path d="M2.5 6.5V5.5a2 2 0 0 1 2-2h4.5M7.5 2l1.5 1.5L7.5 5M9.5 5.5v1a2 2 0 0 1-2 2H3M4.5 10 3 8.5 4.5 7" />,
 };
 

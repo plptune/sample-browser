@@ -7,6 +7,7 @@ const COLORS = [
   ["Lignes", ["--cr-line", "--cr-line-soft"]],
   ["Texte", ["--cr-text-strong", "--cr-text", "--cr-text-2", "--cr-text-3", "--cr-text-disabled"]],
   ["Accent & système", ["--cr-accent", "--cr-accent-soft", "--cr-danger"]],
+  ["Primaire (sélection)", ["--cr-primary", "--cr-row-selected", "--cr-row-selected-focus"]],
   ["Waveform", ["--cr-wave", "--cr-wave-played", "--cr-wave-mini"]],
 ] as const;
 

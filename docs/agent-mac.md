@@ -122,6 +122,8 @@ et ce qu'il doit observer. Mets en tête, dans cet ordre :
    Clavier).
 7. **Grande fenêtre** (⌘⇧F ou bouton ⤢) : la fenêtre s'agrandit, l'inspecteur apparaît ; retour en colonne à la
    taille d'avant ; bouton vert cohérent ; relance en grand (`docs/verification-mac.md`, section 6 ter).
+8. **Retours du premier essai** : lecture auto par défaut, ⌘← tout replier, tags dans le tiroir, Réglages en onglets,
+   taille du texte et couleurs (`docs/verification-mac.md`, section 6 quater).
 
 ## 8. Rapport
 

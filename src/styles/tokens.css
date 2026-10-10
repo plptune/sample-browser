@@ -3,23 +3,35 @@
  * Source unique des couleurs, tailles, espacements et polices.
  * Règle : aucun composant n'utilise de valeur en dur hors de ce fichier.
  *
- * Palette volontairement réduite : niveaux de gris + UN accent (ambre).
- * L'accent ne sert qu'à : lecture en cours, progression, focus clavier, cible de dépôt.
+ * Palette volontairement réduite : niveaux de gris + un accent (ambre) + un primaire (bleu).
+ * - L'accent ne sert qu'à : lecture en cours, progression, focus clavier, cible de dépôt.
+ * - Le primaire ne sert qu'à la sélection (lignes de l'arbre, onglet actif).
+ * Trois couleurs de base par thème (--cr-bg, --cr-accent, --cr-primary), modifiables dans les Réglages :
+ * les surfaces, lignes et sélections en découlent (color-mix), un réglage suffit donc à tout repeindre.
  */
 
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* Surfaces — du plus profond au plus élevé */
-  --cr-bg: #1b1b1b;            /* fond de la liste */
-  --cr-surface: #232323;       /* barre titre, sidebar, tiroir */
-  --cr-surface-raised: #2c2c2c;/* champs, popovers */
-  --cr-hover: #2a2a2a;
-  --cr-selected: #3b3b3b;      /* sélection, liste non focus */
-  --cr-selected-focus: #4a4a4a;/* sélection, liste focus */
-  --cr-line: #111111;          /* séparateurs de zones */
-  --cr-line-soft: #2e2e2e;     /* séparateurs internes */
+  /* Couleurs de base */
+  --cr-bg: #232323;            /* fond de la liste */
+  --cr-accent: #e8a33d;
+  --cr-primary: #3d74d9;
+  --cr-on-accent: #1b1b1b;
+
+  /* Surfaces — du plus profond au plus élevé, dérivées du fond */
+  --cr-surface: color-mix(in srgb, var(--cr-bg), #fff 3%);         /* barre titre, sidebar, tiroir */
+  --cr-surface-raised: color-mix(in srgb, var(--cr-bg), #fff 7%);  /* champs, popovers */
+  --cr-hover: color-mix(in srgb, var(--cr-bg), #fff 5%);
+  --cr-selected: color-mix(in srgb, var(--cr-bg), #fff 10%);       /* état actif neutre (menus, boutons) */
+  --cr-selected-focus: color-mix(in srgb, var(--cr-bg), #fff 17%);
+  --cr-line: color-mix(in srgb, var(--cr-bg), #000 45%);           /* séparateurs de zones */
+  --cr-line-soft: color-mix(in srgb, var(--cr-bg), #fff 6%);       /* séparateurs internes */
+
+  /* Sélection de l'arbre : teinte du primaire */
+  --cr-row-selected: color-mix(in srgb, var(--cr-primary) 30%, var(--cr-bg));       /* liste non focus */
+  --cr-row-selected-focus: color-mix(in srgb, var(--cr-primary) 55%, var(--cr-bg)); /* liste focus */
 
   /* Texte */
   --cr-text: #d8d8d8;
@@ -28,10 +40,7 @@
   --cr-text-3: #6a6a6a;
   --cr-text-disabled: #4c4c4c;
 
-  /* Accent unique */
-  --cr-accent: #e8a33d;
-  --cr-accent-soft: rgba(232, 163, 61, 0.16);
-  --cr-on-accent: #1b1b1b;
+  --cr-accent-soft: color-mix(in srgb, var(--cr-accent) 16%, transparent);
 
   /* États système (utilisés avec parcimonie, jamais en aplat) */
   --cr-danger: #d0705f;
@@ -48,13 +57,20 @@
   color-scheme: light;
 
   --cr-bg: #e4e4e4;
-  --cr-surface: #d8d8d8;
-  --cr-surface-raised: #f0f0f0;
-  --cr-hover: #dadada;
-  --cr-selected: #c6c6c6;
-  --cr-selected-focus: #b4b4b4;
-  --cr-line: #b0b0b0;
-  --cr-line-soft: #cdcdcd;
+  --cr-accent: #c67a12;
+  --cr-primary: #2f6fe0;
+  --cr-on-accent: #ffffff;
+
+  --cr-surface: color-mix(in srgb, var(--cr-bg), #000 5%);
+  --cr-surface-raised: color-mix(in srgb, var(--cr-bg), #fff 45%);
+  --cr-hover: color-mix(in srgb, var(--cr-bg), #000 4.5%);
+  --cr-selected: color-mix(in srgb, var(--cr-bg), #000 13%);
+  --cr-selected-focus: color-mix(in srgb, var(--cr-bg), #000 21%);
+  --cr-line: color-mix(in srgb, var(--cr-bg), #000 23%);
+  --cr-line-soft: color-mix(in srgb, var(--cr-bg), #000 10%);
+
+  --cr-row-selected: color-mix(in srgb, var(--cr-primary) 25%, var(--cr-bg));
+  --cr-row-selected-focus: color-mix(in srgb, var(--cr-primary) 50%, var(--cr-bg));
 
   --cr-text: #252525;
   --cr-text-strong: #000000;
@@ -62,9 +78,7 @@
   --cr-text-3: #8a8a8a;
   --cr-text-disabled: #ababab;
 
-  --cr-accent: #c67a12;
-  --cr-accent-soft: rgba(198, 122, 18, 0.16);
-  --cr-on-accent: #ffffff;
+  --cr-accent-soft: color-mix(in srgb, var(--cr-accent) 16%, transparent);
 
   --cr-danger: #b2452f;
 
@@ -76,7 +90,7 @@
 }
 
 :root {
-  /* Typo — une seule famille, quatre tailles */
+  /* Typo — une seule famille, quatre tailles (taille du texte M ; S et L plus bas) */
   --cr-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
   --cr-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --cr-fs-xs: 10px;  /* en-têtes de section, méta */
@@ -105,10 +119,13 @@
   --cr-item-h: 22px;      /* item de sidebar */
   --cr-header-h: 20px;    /* en-tête de colonne / section */
   /* Grille horizontale : deux colonnes, partout dans le panneau.
-     icônes (chevron, repère, ▶) à --cr-gutter, libellés à --cr-gutter + --cr-slot + --cr-space-1. */
+     icônes (chevron, repère, ▶) à --cr-gutter, libellés à --cr-gutter + --cr-slot + --cr-space-1
+     (dans l'arbre, une icône de type s'intercale : libellés à --cr-label-x). */
   --cr-gutter: var(--cr-space-2);                       /* 8 px */
   --cr-slot: var(--cr-icon);                            /* 12 px : emplacement d'icône */
-  --cr-indent: calc(var(--cr-slot) + var(--cr-space-1)); /* 16 px : un niveau = le chevron enfant sous le libellé parent */
+  --cr-indent: var(--cr-slot);                          /* 12 px : un niveau = le chevron enfant sous l'icône du parent */
+  /* Début des libellés de l'arbre : chevron, icône de type, libellé. */
+  --cr-label-x: calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1) + var(--cr-icon) + var(--cr-space-1));
   --cr-icon: 12px;
   --cr-icon-btn: 20px;
   --cr-chip-h: 16px;      /* chips de requête, tags */
@@ -139,4 +156,22 @@
 
   --cr-dur-fast: 80ms;
   --cr-z-pop: 10;
+}
+
+/* Taille du texte (Réglages › Apparence) : S et L autour des valeurs par défaut (M). */
+.cr-root[data-font-size="sm"] {
+  --cr-fs-xs: 9px;
+  --cr-fs-sm: 10px;
+  --cr-fs-md: 11px;
+  --cr-fs-lg: 12px;
+}
+
+.cr-root[data-font-size="lg"] {
+  --cr-fs-xs: 11px;
+  --cr-fs-sm: 12px;
+  --cr-fs-md: 13px;
+  --cr-fs-lg: 14px;
+  --cr-row-h: 26px;
+  --cr-row-h-wave: 38px;
+  --cr-item-h: 24px;
 }

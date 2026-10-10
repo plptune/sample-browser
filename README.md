@@ -28,9 +28,10 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | Touche | Action |
 | --- | --- |
 | ⌘F ou `/` | Recherche |
-| ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre |
+| ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre (avec la lecture auto, active par défaut, le sample joue aussitôt) |
 | → | Ouvrir un dossier, y entrer s'il est ouvert, lire un sample |
 | ← | Fermer un dossier, sinon remonter au dossier parent |
+| ⌘← | Tout replier (le curseur remonte au premier niveau) |
 | Espace | Lecture / stop du sample courant |
 | ⇧← / ⇧→ | Reculer / avancer d'un dixième dans le sample |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |

@@ -29,9 +29,9 @@ function markerFor(row: FolderRow): TreeRowMarker | undefined {
   return row.kind === "virtual" ? "virtual" : row.kind === "favorites" ? "favorites" : "collection";
 }
 
-/** Hauteur d'une ligne : 24 px, 36 px pour un sample en densité « waveform » (tokens --cr-row-h*). */
-const ROW_H = 24;
-const ROW_H_WAVE = 36;
+/** Hauteur d'une ligne par taille de texte : compacte, et sample en densité « waveform » (tokens --cr-row-h*). */
+const ROW_H = { sm: 24, base: 24, lg: 26 } as const;
+const ROW_H_WAVE = { sm: 36, base: 36, lg: 38 } as const;
 const PAD = 4; // --cr-space-1, en haut et en bas de l'arbre
 /** Lignes montées au-delà de l'écran. `?overscan=1000` dans l'URL du prototype : tout monter (tests anciens). */
 const OVERSCAN = Number(new URLSearchParams(globalThis.location?.search ?? "").get("overscan")) || 20;
@@ -44,7 +44,7 @@ export function Browser() {
       return app.shownTotal();
     },
     getScrollElement: () => scroller,
-    estimateSize: (i) => (wave() && app.rowAt(i)?.type !== "node" ? ROW_H_WAVE : ROW_H),
+    estimateSize: (i) => (wave() && app.rowAt(i)?.type !== "node" ? ROW_H_WAVE : ROW_H)[app.fontSize()],
     overscan: OVERSCAN,
     paddingStart: PAD,
     paddingEnd: PAD,
@@ -67,7 +67,7 @@ export function Browser() {
   );
   // En densité « waveform », la hauteur dépend du type de ligne, connu une fois la page chargée.
   createEffect(
-    on([app.rows, wave], () => virtualizer.measure(), { defer: true }),
+    on([app.rows, wave, app.fontSize], () => virtualizer.measure(), { defer: true }),
   );
 
   const dropRoot = (e: DragEvent) => {

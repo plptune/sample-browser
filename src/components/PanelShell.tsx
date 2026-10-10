@@ -7,6 +7,7 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { EmptyState } from "./EmptyState";
 import { IconButton } from "./IconButton";
 import { Inspector } from "./Inspector";
+import { DEFAULT_COLORS } from "../lib/color";
 import { PreviewDrawer } from "./PreviewDrawer";
 import { SaveSearch } from "./SaveSearch";
 import { ScanStatus } from "./ScanStatus";
@@ -190,14 +191,15 @@ function tagChoices() {
 
 export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
   return (
-    <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()}>
+    <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()} data-font-size={app.fontSize()}>
       <header class="cr-titlebar" data-tauri-drag-region>
         <Tabs
           value={app.tab()}
           items={[
-            { value: "library", label: "Bibliothèque", shortcut: "⌘1" },
-            { value: "virtual", label: "Virtuels", shortcut: "⌘2" },
+            { value: "library", label: "Bibliothèque", shortcut: "⌘1", icon: "folder" },
+            { value: "virtual", label: "Virtuels", shortcut: "⌘2", icon: "virtual" },
           ]}
+          iconOnly={app.layout() === "side"}
           springLoaded={app.draggingKey() !== null}
           onChange={(t) => app.switchTab(t)}
         />
@@ -261,6 +263,12 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onAddSource={() => app.addFolder()}
             synonyms={app.synonyms()}
             onSynonyms={app.saveSynonyms}
+            fontSize={app.fontSize()}
+            onFontSize={app.setFontSize}
+            colors={{ ...DEFAULT_COLORS[app.theme()], ...app.colors() }}
+            customColors={app.colors()}
+            onColor={app.setColor}
+            onResetColors={app.resetColors}
           />
         </Match>
         <Match when={app.view() === "commit" && app.commit()}>
@@ -338,8 +346,13 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
               playing={app.playingId() !== null && app.playingId() === app.current()?.id}
               progress={app.progress()}
               themeKey={app.theme()}
+              autoPlay={app.autoPlay()}
+              knownTags={app.library()?.tags.map((t) => ({ label: t.name, count: t.count })) ?? []}
               onTogglePlay={() => app.togglePlay()}
               onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
+              onAutoPlay={app.setAutoPlay}
+              onAddTag={(t) => void app.addTag(t)}
+              onRemoveTag={(t) => void app.removeTag(t)}
               onSeek={app.seekTo}
             />
           </Show>

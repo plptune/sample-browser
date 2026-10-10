@@ -7,8 +7,8 @@ const meta = {
   args: {
     value: "library",
     items: [
-      { value: "library", label: "Bibliothèque", shortcut: "⌘1" },
-      { value: "virtual", label: "Virtuels", shortcut: "⌘2" },
+      { value: "library", label: "Bibliothèque", shortcut: "⌘1", icon: "folder" },
+      { value: "virtual", label: "Virtuels", shortcut: "⌘2", icon: "virtual" },
     ],
   },
   // Les onglets vivent dans la barre titre (72 px réservés aux feux macOS).
@@ -25,3 +25,5 @@ type Story = StoryObj<typeof meta>;
 
 export const Bibliotheque: Story = {};
 export const Virtuels: Story = { args: { value: "virtual" } };
+/** Colonne étroite : icônes seules, le nom reste dans l'infobulle. */
+export const Icones: Story = { args: { iconOnly: true } };

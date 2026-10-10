@@ -172,6 +172,22 @@ sont le même signal (lu 160).
 | Contrat : `memberships(id)` → collections manuelles puis dossiers virtuels du sample (`c:…`, `v:…`), une seule implémentation dans le catalogue (démo et vraie bibliothèque), vérifiée par la parité sur les 407 samples. Les favoris n'y sont pas (l'étoile les montre). | L'inspecteur doit dire où est rangé un sample ; le contrat ne le donnait pas. |
 | Prototype : la fausse fenêtre passe de 320 à 1 200 px. Storybook : paramètre `panelWidth` pour imposer une largeur (stories « Grande fenêtre », Inspector, TreeRow « Large »). | Le mode se montre et se teste sans la fenêtre Tauri. |
 
+## Retours du premier essai sur Mac (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Lecture auto activée par défaut** (↑ / ↓ et clic lisent tout de suite), avec un bouton dans le tiroir pour la couper sans passer par les Réglages. Les réglages déjà mémorisés gardent leur valeur. | Demandé : parcourir au clavier en écoutant, comme un navigateur de samples. |
+| **Sélection en bleu** (`--cr-primary`), l'ambre reste à la lecture. La règle « un seul accent » devient « un accent + un primaire ». Seules les lignes de l'arbre et l'onglet actif sont teintés ; menus et boutons gardent l'état actif gris. | Choix de l'utilisateur : la ligne sélectionnée doit ressortir, sans se confondre avec la ligne en lecture. |
+| Fond sombre éclairci (#1b1b1b → #232323) ; surfaces, lignes et sélections **dérivées par `color-mix`** de trois couleurs de base (fond, accent, primaire). | Demandé (« un noir un peu moins sombre ») ; la dérivation permet de régler ces trois couleurs dans les Réglages sans casser l'équilibre des gris. |
+| Couleurs modifiables **par thème**, posées en variables CSS sur la page ; texte sur l'accent choisi en noir ou blanc selon sa luminance. | Choix de l'utilisateur : accent, sélection, fond ; le reste suit. |
+| Taille du texte **S / M / L** : M = tailles d'avant ; L agrandit aussi les lignes (26 px), la virtualisation lit la hauteur de la taille courante. | Demandé : trois tailles. |
+| En colonne : **pas de tonalité** (colonne masquée, toujours en mode grand), **onglets en icônes**. | Demandé : gagner de la place dans 320 px. |
+| **Icône de type** devant chaque nom (dossier, sample, MIDI…) ; le repère texte « MIDI » disparaît des lignes. Retrait par niveau réduit à 12 px. | Demandé. L'icône remplace le badge sans prendre plus de place ; le retrait compense la largeur de l'icône. |
+| **⌘← replie tout** l'onglet courant ; le curseur remonte sur l'élément de premier niveau qui le contenait. Dans un champ, ⌘← garde son sens. | Demandé. |
+| **Tags dans le tiroir** (comme dans l'inspecteur), avec un champ d'ajout direct qui propose les tags existants. | Demandé : taguer sans ouvrir le popover. |
+| **Réglages en onglets** : Sources, Apparence, Lecture, Recherche. | Demandé : la liste devenait longue. |
+| **Test de contraste** automatique (`tests/e2e/contraste.spec.ts`, WCAG ≥ 4,5:1) sur le texte des lignes (sélectionnées ou non), du tiroir et de l'inspecteur, dans les deux thèmes et les deux modes. Les tags des lignes passent de `text-3` à `text-2` (2,9:1 → 5,6:1). | Signalé à l'essai : tags illisibles sur la ligne sélectionnée en mode grand. Le test empêche que ça revienne. |
+
 ## Fichiers MIDI (10 oct. 2026)
 
 | Décision | Raison |

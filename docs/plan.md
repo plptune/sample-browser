@@ -404,3 +404,4 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v1.2 | Phase 6 : analyse de fond (nom, chunk acid, audio) ; `key:` avec enharmonies ; avancement dans les Réglages |
 | v1.3 | Fichiers MIDI : index, préécoute au piano synthétique, tempo et tonalité lus dans les notes, `type:midi`, repère « MIDI » |
 | v1.4 | Deux modes d'affichage : colonne et grande fenêtre (arbre large + inspecteur), ⌘⇧F |
+| v1.5 | Retours du premier essai sur Mac : lecture auto par défaut, sélection en bleu, fond plus clair, icônes de type, ⌘← tout replier, tags dans le tiroir, Réglages en onglets, taille du texte et couleurs modifiables, test de contraste |

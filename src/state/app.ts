@@ -15,6 +15,11 @@ export type Layout = "side" | "full";
 
 export type Density = "compact" | "wave";
 export type ThemePref = "dark" | "light" | "system";
+/** Taille du texte (Réglages › Apparence) : S, M (défaut), L. */
+export type FontSize = "sm" | "base" | "lg";
+/** Couleurs de base modifiables, par thème ; absentes = celles du design system. */
+export type ColorRole = "accent" | "primary" | "bg";
+export type ColorOverrides = Partial<Record<"dark" | "light", Partial<Record<ColorRole, string>>>>;
 
 export interface MenuState {
   x: number;
@@ -73,7 +78,7 @@ function createAppState() {
   const [current, setCurrent] = createSignal<Sample | null>(null); // dernier sample sélectionné (tiroir)
   const [playingId, setPlayingId] = createSignal<SampleId | null>(null);
   const [progress, setProgress] = createSignal(0);
-  const [autoPlay, setAutoPlay] = createSignal(false);
+  const [autoPlay, setAutoPlay] = createSignal(true); // ↑/↓ et clic lisent tout de suite
   const [listFocused, setListFocused] = createSignal(false);
   const [dropTarget, setDropTarget] = createSignal<NodeKey | null>(null);
   const [draggingKey, setDraggingKey] = createSignal<string | null>(null);
@@ -116,6 +121,19 @@ function createAppState() {
     void refresh();
   };
   const [grid, setGrid] = createSignal(false);
+  const [fontSize, setFontSize] = createSignal<FontSize>("base");
+  const [colorOverrides, setColorOverrides] = createSignal<ColorOverrides>({});
+  /** Couleurs modifiées du thème affiché. */
+  const colors = () => colorOverrides()[theme()] ?? {};
+  /** Change (ou, avec `null`, rend au design system) une couleur du thème affiché. */
+  function setColor(role: ColorRole, value: string | null) {
+    const t = theme();
+    const cur = { ...(colorOverrides()[t] ?? {}) };
+    if (value === null) delete cur[role];
+    else cur[role] = value;
+    setColorOverrides({ ...colorOverrides(), [t]: cur });
+  }
+  const resetColors = () => setColorOverrides({ ...colorOverrides(), [theme()]: {} });
 
   const queryLine = () => [...chips(), draft()].join(" ").trim();
   // Les tokens spéciaux encore en cours de frappe (#ta, bpm:1…) ne filtrent pas : seul le texte libre filtre en direct.
@@ -288,7 +306,16 @@ function createAppState() {
     }),
   );
 
-  /** Inspecteur : retire un tag des samples sélectionnés qui l'ont. */
+  /** Tiroir : ajoute un tag (nouveau ou existant) aux samples sélectionnés. */
+  async function addTag(tag: string) {
+    const name = tag.trim();
+    const ids = selectedSamples().filter((s) => !s.tags.includes(name)).map((s) => s.id);
+    if (!name || !ids.length) return;
+    await api.addTag(ids, name);
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  /** Inspecteur et tiroir : retire un tag des samples sélectionnés qui l'ont. */
   async function removeTag(tag: string) {
     const ids = selectedSamples().filter((s) => s.tags.includes(tag)).map((s) => s.id);
     if (!ids.length) return;
@@ -371,6 +398,23 @@ function createAppState() {
   }
 
   const toggleNode = (key: NodeKey) => setOpen(key, !expanded().includes(key));
+
+  /** ⌘← : referme tous les dossiers de l'onglet ; le curseur remonte sur l'élément de premier niveau qui le contenait. */
+  async function collapseAll() {
+    if (searching()) return; // en recherche, l'arbre est entièrement ouvert
+    // Remonte par les lignes chargées (les parents sont au-dessus, en général déjà chargés).
+    let top: string | null = cursor();
+    for (let r = rowByKey(top); r?.parent; r = rowByKey(r.parent)) top = r.parent;
+    setExpanded([]);
+    await refresh();
+    if (top && indexOf(top) < 0) top = (await api.ancestors(top))[0] ?? null;
+    if (top && indexOf(top) >= 0) return select(top);
+    if (shownTotal()) {
+      await ensureRange(0, 1);
+      const first = rows()[0];
+      if (first) select(first.key);
+    }
+  }
 
   // --- sélection (les samples sélectionnés sont gardés à part : leurs lignes peuvent sortir des pages chargées)
   const selData = new Map<string, Sample>();
@@ -1009,6 +1053,8 @@ function createAppState() {
     stopOnDrag: boolean;
     stopOnBlur: boolean;
     layout: Layout;
+    fontSize: FontSize;
+    colors: ColorOverrides;
   }
   /** Mode d'affichage mémorisé : appliqué à la fenêtre une fois l'app lancée. */
   let savedLayout: Layout = "side";
@@ -1029,6 +1075,8 @@ function createAppState() {
       if (typeof p.stopOnDrag === "boolean") setStopOnDrag(p.stopOnDrag);
       if (typeof p.stopOnBlur === "boolean") setStopOnBlur(p.stopOnBlur);
       if (p.layout === "full" || p.layout === "side") savedLayout = p.layout;
+      if (p.fontSize === "sm" || p.fontSize === "base" || p.fontSize === "lg") setFontSize(p.fontSize);
+      if (p.colors && typeof p.colors === "object") setColorOverrides(p.colors);
     });
   }
   function savePrefs() {
@@ -1042,6 +1090,8 @@ function createAppState() {
       stopOnDrag: stopOnDrag(),
       stopOnBlur: stopOnBlur(),
       layout: layout(),
+      fontSize: fontSize(),
+      colors: colorOverrides(),
     };
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(p));
@@ -1113,14 +1163,15 @@ function createAppState() {
     view, setView, tagging, setTagging, saving, setSaving, menu, setMenu, renamingKey, setRenamingKey,
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
-    layout, toggleLayout, memberships, removeTag,
+    layout, toggleLayout, memberships, removeTag, addTag,
+    fontSize, setFontSize, colors, colorOverrides, setColor, resetColors,
     tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,
     setWidth, setDensity, setGrid, setChips, setDraft, setSelection, setCursor, setCurrent, setExpanded,
-    refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode,
+    refresh, reloadLibrary, rowByKey, setQueryDraft, removeChip, editChip, clearQuery, setOpen, toggleNode, collapseAll,
     select, move, right, left, activate, play, stop, togglePlay, selectKey,
     total, shownTotal, rowAt, indexOf, setViewRange, ensureRange, currentPeaks, scrollReset, synonyms, saveSynonyms,
     hideSelection, hideFolder, removeOrHide,

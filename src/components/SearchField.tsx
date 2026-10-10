@@ -43,6 +43,9 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
   const [optsOpen, setOptsOpen] = createSignal(false);
   let opts: HTMLDivElement | undefined;
   let optsButton: HTMLElement | undefined;
+  // Menu des filtres actifs (entonnoir) : un clic sur un filtre le retire.
+  const [filtersOpen, setFiltersOpen] = createSignal(false);
+  let filtersButton: HTMLElement | undefined;
 
   const current = () => app.draft().split(/\s+/).pop() ?? "";
   const ac = createMemo(() => {
@@ -132,14 +135,41 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
         <Show when={app.queryLine()}>
           <IconButton icon="close" label="Clear search" onClick={() => app.clearQuery()} />
         </Show>
+        {/* Filtres actifs (dossiers aplatis) : l'entonnoir passe en couleur primaire. */}
         <IconButton
-          icon="options"
+          icon="filter"
+          label={app.flattened().length ? `Filters (${app.flattened().length} active)` : "Filters"}
+          active={filtersOpen()}
+          primary={app.flattened().length > 0}
+          ref={(el) => (filtersButton = el)}
+          onClick={() => setFiltersOpen(!filtersOpen())}
+        />
+        <IconButton
+          icon="gear"
           label="Search options"
           active={optsOpen() || app.flatResults()}
           ref={(el) => (optsButton = el)}
           onClick={() => setOptsOpen(!optsOpen())}
         />
       </div>
+      <Show when={filtersOpen()}>
+        <ContextMenu
+          x={10_000}
+          y={opts?.offsetHeight ?? 0}
+          items={[
+            { type: "header", label: "Active filters" },
+            ...(app.flattened().length
+              ? [
+                  ...app.flattened().map((k) => ({ label: `Flattened: ${app.nodeName(k)}`, shortcut: "×", action: () => app.flatten(k, false) })),
+                  { type: "separator" as const },
+                  { label: "Clear filters", action: () => app.clearFilters() },
+                ]
+              : [{ label: "No active filters", disabled: true }]),
+          ]}
+          anchor={() => filtersButton}
+          onClose={() => setFiltersOpen(false)}
+        />
+      </Show>
       <Show when={optsOpen()}>
         <ContextMenu
           x={10_000}

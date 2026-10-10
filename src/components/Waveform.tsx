@@ -1,7 +1,7 @@
 // Waveform dessinée dans un <canvas>. Les couleurs sont lues dans les tokens CSS hérités, donc suivent le thème.
 // - `mini` (lignes de l'arbre) : barres à partir des 256 pics.
 // - `full` (tiroir, inspecteur) : forme pleine continue à partir d'une forme d'onde détaillée (min / max / RMS)
-//   demandée à la largeur affichée (`loadDetail`), sinon des 256 pics. La partie lue et la tête de lecture sont
+//   demandée à la largeur affichée (`loadDetail`) ; rien n'est dessiné avant qu'elle arrive. La partie lue et la tête sont
 //   dessinées sur un second canvas, à chaque image pendant la lecture (position extrapolée entre deux événements).
 import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
 import type { Waveform as WaveformData } from "../api";
@@ -105,14 +105,20 @@ export function Waveform(props: {
       drawBars(ctx, c.base, c.played, props.progress);
       return;
     }
-    const d = detail();
+    // Tant que la forme détaillée du sample affiché n'est pas là : rien (ni barres, ni forme approchée).
     const pctx = fit(played, dpr);
+    if (!props.loadDetail) {
+      // Sans source détaillée (stories) : barres des pics.
+      canvas.dataset.shape = "bars";
+      drawBars(ctx, c.base);
+      drawBars(pctx, c.played);
+      return drawHead();
+    }
+    const d = detail();
+    canvas.dataset.shape = d ? "detail" : "none";
     if (d) {
       drawShape(ctx, c.base, d);
       drawShape(pctx, c.played, d);
-    } else {
-      drawBars(ctx, c.base);
-      drawBars(pctx, c.played);
     }
     drawHead();
   }
@@ -133,7 +139,7 @@ export function Waveform(props: {
     const dpr = window.devicePixelRatio || 1;
     const ctx = fit(overlay, dpr);
     const p = estimate();
-    if (p === undefined) return;
+    if (p === undefined || (props.loadDetail && !detail())) return;
     const px = Math.max(0, Math.min(size.w, p * size.w));
     if (px > 0) ctx.drawImage(played, 0, 0, px * dpr, size.h * dpr, 0, 0, px, size.h);
     ctx.fillStyle = colors().played;
@@ -156,31 +162,39 @@ export function Waveform(props: {
   );
   onCleanup(() => cancelAnimationFrame(raf));
 
-  // --- forme détaillée : redemandée au changement de sample ou de largeur (après 150 ms sans redimensionnement)
+  // --- forme détaillée : demandée tout de suite au changement de sample ; au redimensionnement, après 150 ms et
+  // seulement si la largeur a changé de plus de 10 %. Colonnes arrondies au multiple de 128 supérieur : la mise en
+  // page qui se stabilise ne relance pas de demande.
   let timer = 0;
-  let wanted = "";
-  function requestDetail() {
-    const load = props.loadDetail;
-    if (!load || !size.w) return;
-    const buckets = Math.round(size.w * (window.devicePixelRatio || 1));
-    const key = `${props.detailKey}|${buckets}`;
-    if (key === wanted) return;
-    wanted = key;
+  let wanted = { key: undefined as string | number | undefined, buckets: 0 };
+  const bucketsFor = (w: number) => Math.max(128, Math.ceil((w * (window.devicePixelRatio || 1)) / 128) * 128);
+  function load(buckets: number) {
+    const fetch = props.loadDetail;
+    const key = props.detailKey;
+    if (!fetch) return;
+    wanted = { key, buckets };
+    void fetch(buckets).then((d) => {
+      // Réponse périmée (autre sample, autre taille) : ignorée.
+      if (wanted.key === key && wanted.buckets === buckets) setDetail(d.max.length ? d : null);
+    });
+  }
+  function onResize() {
+    if (!props.loadDetail || !size.w) return;
+    const b = bucketsFor(size.w);
+    if (wanted.key !== props.detailKey) return load(b); // premier dessin de ce sample
+    if (Math.abs(b - wanted.buckets) / wanted.buckets <= 0.1) return;
     clearTimeout(timer);
-    timer = window.setTimeout(() => {
-      void load(buckets).then((d) => {
-        if (wanted === key) setDetail(d.max.length ? d : null);
-      });
-    }, 150);
+    timer = window.setTimeout(() => load(bucketsFor(size.w)), 150);
   }
   onCleanup(() => clearTimeout(timer));
   createEffect(
     on(
       () => props.detailKey,
       () => {
+        clearTimeout(timer);
         setDetail(null);
-        wanted = "";
-        requestDetail();
+        wanted = { key: undefined, buckets: 0 };
+        if (size.w) load(bucketsFor(size.w));
       },
     ),
   );
@@ -190,7 +204,7 @@ export function Waveform(props: {
       size.w = Math.round(e.contentRect.width);
       size.h = Math.round(e.contentRect.height);
       draw();
-      requestDetail();
+      onResize();
     });
     ro.observe(canvas);
     onCleanup(() => ro.disconnect());

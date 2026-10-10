@@ -139,6 +139,8 @@ enum RowRef {
         parent: Option<u32>,
         depth: u32,
         open: bool,
+        /// Dossier aplati : ses samples (toute la sous-arborescence) suivent, sans sous-dossiers.
+        flat: bool,
     },
     Sample {
         idx: usize,
@@ -153,6 +155,7 @@ pub(crate) struct TreeCache {
     query: String,
     expanded: Vec<NodeKey>,
     flat: bool,
+    flattened: Vec<NodeKey>,
     /// Clés des nœuds ouverts ; les lignes y renvoient par index (parent).
     keys: Vec<NodeKey>,
     rows: Vec<RowRef>,
@@ -600,7 +603,30 @@ impl Catalog {
 
     /// Marche complète de l'arbre (lignes légères) : sans recherche, les nœuds ouverts ; avec, les nœuds qui
     /// contiennent au moins un résultat, tous ouverts.
-    fn build_tree(&self, root: TreeRoot, q: &str, expanded: &[NodeKey], flat: bool) -> TreeCache {
+    /// Samples d'un dossier aplati : toute sa sous-arborescence (source ou virtuelle), une fois chacun, triés par nom.
+    fn flattened_idx(&self, key: &str) -> Vec<usize> {
+        let mut v = if let Some(id) = key.strip_prefix("f:") {
+            let mut out = Vec::new();
+            fn visit(lib: &Catalog, f: &FolderNode, out: &mut Vec<usize>) {
+                out.extend(lib.by_folder.get(&f.id).into_iter().flatten().copied());
+                for c in &f.children {
+                    visit(lib, c, out);
+                }
+            }
+            if let Some(f) = self.folders.get(&id.parse().unwrap_or(0)) {
+                visit(self, f, &mut out);
+            }
+            out
+        } else if let Some(id) = key.strip_prefix("v:") {
+            self.subtree_idx(id.parse().unwrap_or(0))
+        } else {
+            self.child_idx(key, false)
+        };
+        self.sort_idx(&mut v);
+        v
+    }
+
+    fn build_tree(&self, root: TreeRoot, q: &str, expanded: &[NodeKey], flat: bool, flattened: &[NodeKey]) -> TreeCache {
         let searching = !q.is_empty();
         let m = self.compile(q);
         // Masqués : invisibles partout, sauf si la recherche demande `is:hidden`.
@@ -622,6 +648,7 @@ impl Catalog {
             /// Samples à montrer (résultats de la recherche et / ou non masqués) ; `None` = tous.
             hits: Option<&'a [bool]>,
             expanded: HashSet<&'a str>,
+            flattened: HashSet<&'a str>,
             memo: HashMap<String, bool>,
             keys: Vec<NodeKey>,
             rows: Vec<RowRef>,
@@ -654,16 +681,31 @@ impl Catalog {
                             continue;
                         }
                     }
+                    // Aplati (hors recherche) : ouvert, avec toute sa sous-arborescence à plat.
+                    let flat =
+                        !searching && (n.key.starts_with("f:") || n.key.starts_with("v:")) && self.flattened.contains(n.key.as_str());
                     // Un raccourci ne se déplie jamais : il saute au dossier visé.
-                    let open = n.kind != NodeKind::Shortcut && (searching || self.expanded.contains(n.key.as_str()));
+                    let open = flat || (n.kind != NodeKind::Shortcut && (searching || self.expanded.contains(n.key.as_str())));
                     let child_key = n.key.clone();
                     self.rows.push(RowRef::Node {
                         info: Box::new(n),
                         parent: slot,
                         depth,
                         open,
+                        flat,
                     });
-                    if open {
+                    if flat {
+                        self.keys.push(child_key.clone());
+                        let s = (self.keys.len() - 1) as u32;
+                        let hits = self.hits;
+                        let idx = self.lib.flattened_idx(&child_key);
+                        self.rows
+                            .extend(idx.into_iter().filter(|&i| hits.is_none_or(|h| h[i])).map(|i| RowRef::Sample {
+                                idx: i,
+                                parent: s,
+                                depth: depth + 1,
+                            }));
+                    } else if open {
                         self.keys.push(child_key.clone());
                         let s = (self.keys.len() - 1) as u32;
                         self.walk(Some(&child_key), Some(s), depth + 1);
@@ -701,6 +743,7 @@ impl Catalog {
             reveal,
             hits: hits.as_deref(),
             expanded: expanded.iter().map(String::as_str).collect(),
+            flattened: flattened.iter().map(String::as_str).collect(),
             memo: HashMap::new(),
             keys: Vec::new(),
             rows: Vec::with_capacity(if searching { matches + 64 } else { 256 }),
@@ -723,6 +766,7 @@ impl Catalog {
             query: q.to_string(),
             expanded: expanded.to_vec(),
             flat,
+            flattened: flattened.to_vec(),
             keys: w.keys,
             rows: w.rows,
             matches: matches as u32,
@@ -754,7 +798,13 @@ impl Catalog {
 
     fn materialize(&self, c: &TreeCache, r: &RowRef, peaks: bool) -> TreeRow {
         match r {
-            RowRef::Node { info, parent, depth, open } => TreeRow::Node(FolderRow {
+            RowRef::Node {
+                info,
+                parent,
+                depth,
+                open,
+                flat,
+            } => TreeRow::Node(FolderRow {
                 tag: NodeTag::Node,
                 key: info.key.clone(),
                 parent: parent.map(|p| c.keys[p as usize].clone()),
@@ -765,6 +815,7 @@ impl Catalog {
                 offline: info.offline.then_some(true),
                 pinned: info.pinned.then_some(true),
                 hidden: info.hidden.then_some(true),
+                flattened: flat.then_some(true),
                 target: info.target.clone(),
             }),
             RowRef::Sample { idx, parent, depth } => {
@@ -910,10 +961,9 @@ impl Backend for Catalog {
         let t0 = Instant::now();
         let q = req.query.trim();
         let flat = req.flat && !q.is_empty();
-        let fresh =
-            matches!(&*self.cache.borrow(), Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat);
+        let fresh = matches!(&*self.cache.borrow(), Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat && c.flattened == req.flattened);
         if !fresh {
-            let built = self.build_tree(req.root, q, &req.expanded, flat);
+            let built = self.build_tree(req.root, q, &req.expanded, flat, &req.flattened);
             *self.cache.borrow_mut() = Some(built);
         }
         let cache = self.cache.borrow();

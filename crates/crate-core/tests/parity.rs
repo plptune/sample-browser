@@ -19,7 +19,9 @@ fn rows_of(page: &TreePage) -> Vec<String> {
                 if n.open { "open" } else { "closed" },
                 if n.offline == Some(true) { "|offline" } else { "" },
                 if n.pinned == Some(true) { "|pinned" } else { "" },
-                n.target.as_ref().map(|t| format!("|->{t}")).unwrap_or_default() + if n.hidden == Some(true) { "|hidden" } else { "" }
+                n.target.as_ref().map(|t| format!("|->{t}")).unwrap_or_default()
+                    + if n.hidden == Some(true) { "|hidden" } else { "" }
+                    + if n.flattened == Some(true) { "|flattened" } else { "" }
             ),
             TreeRow::Sample(s) => format!("{}|{}", s.depth, s.key),
         })
@@ -399,5 +401,34 @@ fn memes_formes_d_onde() {
         assert!((sum(&w.max) - c["maxSum"].as_f64().unwrap()).abs() < 1e-3, "max {id}/{buckets}");
         assert!((sum(&w.rms) - c["rmsSum"].as_f64().unwrap()).abs() < 1e-3, "rms {id}/{buckets}");
         assert!(w.min.iter().zip(&w.max).all(|(a, b)| *a <= *b));
+    }
+}
+
+#[test]
+fn memes_dossiers_aplatis() {
+    let fx = fixture();
+    let mut lib = MockLibrary::demo();
+    let cases = fx["flattenedTrees"].as_array().unwrap();
+    assert!(cases.len() >= 6);
+    for c in cases {
+        let root = if c["root"] == "virtual" {
+            TreeRoot::Virtual
+        } else {
+            TreeRoot::Library
+        };
+        let mut q = c["query"].as_str().unwrap().to_string();
+        let hide = q.strip_prefix("hidden:f:").map(|id| id.parse::<u32>().unwrap());
+        if let Some(id) = hide {
+            lib.set_folder_hidden(id, true);
+            q.clear();
+        }
+        let page = lib.tree(&TreeRequest {
+            flattened: strings(&c["flattened"]),
+            ..req(root, &q, strings(&c["expanded"]))
+        });
+        assert_eq!(rows_of(&page), strings(&c["rows"]), "aplati {:?} {:?}", c["flattened"], c["query"]);
+        if let Some(id) = hide {
+            lib.set_folder_hidden(id, false);
+        }
     }
 }

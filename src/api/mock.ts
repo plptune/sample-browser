@@ -185,6 +185,21 @@ function childSamples(key: NodeKey): Sample[] {
   return list.sort(byName);
 }
 
+/** Samples d'un dossier aplati : toute sa sous-arborescence (source ou virtuelle), une fois chacun, triés par nom. */
+function flattenedSamples(key: NodeKey): Sample[] {
+  let list: Sample[] = [];
+  if (key.startsWith("f:")) {
+    const visit = (f: FolderNode) => {
+      list.push(...childSamples(`f:${f.id}`));
+      for (const c of f.children) visit(c);
+    };
+    const f = folders.get(+key.slice(2));
+    if (f) visit(f);
+  } else if (key.startsWith("v:")) list = subtreeSamples(+key.slice(2));
+  else list = childSamples(key);
+  return list.sort(byName);
+}
+
 // ---------- Commit (« Créer un vrai dossier ») ----------
 
 /** Taille estimée d'un fichier PCM (en-tête de 44 octets compris). */
@@ -294,15 +309,23 @@ export const mockBackend: Backend = {
       for (const n of childNodes(req.root, key, searching)) {
         if (!reveal && /^[fp]:/.test(n.key) && folderHidden(+n.key.slice(2))) continue;
         if (searching && !hasMatch(n.key)) continue;
+        // Aplati (hors recherche) : ouvert, avec toute sa sous-arborescence à plat.
+        const flat = !searching && /^[fv]:/.test(n.key) && (req.flattened ?? []).includes(n.key);
         // Un raccourci ne se déplie jamais : il saute au dossier visé.
-        const open = n.kind !== "shortcut" && (searching || req.expanded.includes(n.key));
+        const open = flat || (n.kind !== "shortcut" && (searching || req.expanded.includes(n.key)));
         const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
+        if (flat) row.flattened = true;
         if (n.offline) row.offline = true;
         if (n.pinned) row.pinned = true;
         if (n.hidden) row.hidden = true;
         if (n.target) row.target = n.target;
         rows.push(row);
-        if (open) walk(n.key, depth + 1);
+        if (flat) {
+          for (const s of flattenedSamples(n.key)) {
+            if (!match(s)) continue;
+            rows.push({ type: "sample", key: `s:${s.id}@${n.key}`, parent: n.key, depth: depth + 1, sample: { ...s, peaks: req.peaks ? s.peaks : [] } });
+          }
+        } else if (open) walk(n.key, depth + 1);
       }
       if (key === null) return;
       for (const s of childSamples(key)) {

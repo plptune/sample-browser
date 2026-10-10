@@ -32,7 +32,7 @@ const samples = SAMPLES.map((s) => ({
 type Page = Awaited<ReturnType<typeof mockBackend.tree>>;
 const rowsOf = (page: Page) =>
   page.rows.map(
-    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") + (r.hidden ? "|hidden" : "") : ""}`,
+    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") + (r.hidden ? "|hidden" : "") + (r.flattened ? "|flattened" : "") : ""}`,
   );
 
 const trees = [];
@@ -96,6 +96,28 @@ for (const root of ["library", "virtual"] as const) {
     flat.push({ root, query, rows: rowsOf(page) });
   }
 }
+// Dossiers aplatis (filtre temporaire) : source profonde, dossier virtuel avec enfants, avec un dossier masqué, et
+// ignorés en recherche.
+const FLATTENED: { root: "library" | "virtual"; query: string; expanded: string[]; flattened: string[] }[] = [
+  { root: "library", query: "", expanded: [], flattened: ["f:10"] },
+  { root: "library", query: "", expanded: ["f:1"], flattened: ["f:2", "f:20"] },
+  { root: "library", query: "", expanded: ["f:10", "f:11"], flattened: ["f:11"] },
+  { root: "virtual", query: "", expanded: [], flattened: ["v:1", "v:4"] },
+  { root: "library", query: "kick", expanded: [], flattened: ["f:10"] },
+];
+const flattenedTrees: { root: string; query: string; expanded: string[]; flattened: string[]; rows: string[] }[] = [];
+for (const c of FLATTENED) {
+  const page = await mockBackend.tree({ root: c.root, query: c.query, expanded: c.expanded, offset: 0, limit: 100000, flattened: c.flattened });
+  flattenedTrees.push({ ...c, rows: rowsOf(page) });
+}
+// Masquer un sous-dossier : ses samples disparaissent aussi du dossier aplati.
+await mockBackend.setFolderHidden(12, true);
+{
+  const c = { root: "library" as const, query: "", expanded: [], flattened: ["f:10"] };
+  const page = await mockBackend.tree({ ...c, offset: 0, limit: 100000 });
+  flattenedTrees.push({ ...c, query: "hidden:f:12", rows: rowsOf(page) });
+}
+await mockBackend.setFolderHidden(12, false);
 // Forme d'onde détaillée du prototype (dérivée des pics) : somme arrondie, pour 3 samples et 2 largeurs.
 const waveforms: { id: number; buckets: number; len: number; maxSum: number; rmsSum: number }[] = [];
 for (const id of [SAMPLES[0].id, SAMPLES[57].id, SAMPLES[SAMPLES.length - 1].id]) {
@@ -131,6 +153,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, waveforms };
+const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, waveforms, flattenedTrees };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

@@ -154,6 +154,10 @@
   color: var(--cr-text-strong);
 }
 
+.cr-icon-btn[data-primary] {
+  color: var(--cr-primary);
+}
+
 .cr-icon-btn[data-accent][data-active] {
   color: var(--cr-accent);
 }
@@ -498,6 +502,11 @@
 .cr-node[data-kind="shortcut"] .cr-node__icon,
 .cr-node[data-kind="group"] .cr-node__icon {
   color: var(--cr-text-2);
+}
+
+/* Dossier aplati : son icône (à astérisque) en couleur primaire, pour signaler l'état inhabituel. */
+.cr-node[data-flattened] .cr-node__icon {
+  color: var(--cr-primary);
 }
 
 .cr-node[data-selected] .cr-node__icon {

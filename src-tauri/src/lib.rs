@@ -17,6 +17,9 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
 mod daw;
+mod wave_cache;
+
+use wave_cache::WaveCache;
 
 enum Inner {
     /// Données du prototype (CRATE_DEMO=1) : scénarios de démo.
@@ -251,39 +254,28 @@ fn peaks(lib: State<'_, Lib>, id: SampleId) -> Vec<f32> {
     lib.lock().peaks(id).into_iter().map(|x| x as f32).collect()
 }
 
-/// Formes d'onde détaillées déjà calculées (les dernières demandées) : (id, colonnes) → forme.
-#[derive(Default)]
-struct WaveCache(Mutex<std::collections::VecDeque<((SampleId, u32), Waveform)>>);
-
-/// Forme d'onde détaillée à la largeur affichée (tiroir, inspecteur). Vraie bibliothèque : le fichier est décodé
-/// hors du verrou de la bibliothèque, sur un fil à part ; prototype : dérivée des 256 pics.
+/// Forme d'onde détaillée à la largeur affichée (tiroir, inspecteur, voisins préchargés). Vraie bibliothèque : le
+/// fichier est décodé hors du verrou de la bibliothèque, sur un fil à part, une seule fois par (sample, colonnes) ;
+/// prototype : dérivée des 256 pics.
 #[tauri::command]
 #[specta::specta]
-async fn waveform(lib: State<'_, Lib>, cache: State<'_, WaveCache>, id: SampleId, buckets: u32) -> Result<Waveform, ()> {
-    const KEEP: usize = 8;
+async fn waveform(app: tauri::AppHandle, lib: State<'_, Lib>, id: SampleId, buckets: u32) -> Result<Waveform, ()> {
     let buckets = buckets.clamp(1, crate_core::audio::WAVEFORM_MAX_BUCKETS as u32);
-    if let Some((_, w)) = cache
-        .0
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .iter()
-        .find(|(k, _)| *k == (id, buckets))
-    {
-        return Ok(w.clone());
+    if let Some(w) = app.state::<WaveCache>().get((id, buckets)) {
+        return Ok(w);
     }
     let file = match &*lib.0.lock().unwrap_or_else(|e| e.into_inner()) {
         Inner::Real(l) => l.sample_file(id).map(|(p, _)| p),
         Inner::Demo(c) => return Ok(c.waveform(id, buckets)),
     };
     let Some(path) = file else { return Ok(Waveform::default()) };
-    let w = tauri::async_runtime::spawn_blocking(move || crate_core::audio::waveform(&path, buckets as usize))
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_default();
-    let mut c = cache.0.lock().unwrap_or_else(|e| e.into_inner());
-    c.push_front(((id, buckets), w.clone()));
-    c.truncate(KEEP);
+    let w = tauri::async_runtime::spawn_blocking(move || {
+        app.state::<WaveCache>().get_or_compute((id, buckets), || {
+            crate_core::audio::waveform(&path, buckets as usize).unwrap_or_default()
+        })
+    })
+    .await
+    .unwrap_or_default();
     Ok(w)
 }
 

@@ -142,6 +142,13 @@ function createAppState() {
   const searchLine = () => [...chips(), ...draft().split(/\s+/).filter((t) => t && !isChip(t))].join(" ");
   const searching = () => searchLine() !== "";
 
+  // Une recherche remet les filtres (dossiers aplatis) à zéro.
+  createEffect(
+    on(searching, (on) => {
+      if (on && flattened().length) setFlattened([]);
+    }),
+  );
+
   // --- arbre par pages
   const PAGE = 200;
   const keyIndex = new Map<string, number>(); // clé → position, pour les lignes chargées
@@ -157,7 +164,30 @@ function createAppState() {
     setFlatResultsSignal(v);
     if (searching()) void refresh();
   };
-  const baseRequest = () => ({ root: tab(), query: searchLine(), expanded: expanded(), peaks: density() === "wave", flat: flatResults() });
+  // Filtres temporaires : dossiers aplatis (clic droit › Flatten). Une recherche les remet à zéro.
+  const [flattened, setFlattened] = createSignal<NodeKey[]>([]);
+  const flattenedNames = new Map<NodeKey, string>(); // pour le menu des filtres, même si la ligne n'est plus chargée
+  function flatten(key: NodeKey, on = true) {
+    const cur = flattened();
+    if (on === cur.includes(key)) return;
+    const r = rowByKey(key);
+    if (on && r?.type === "node") flattenedNames.set(key, r.name);
+    setFlattened(on ? [...cur, key] : cur.filter((k) => k !== key));
+    void refresh();
+  }
+  function clearFilters() {
+    if (!flattened().length) return;
+    setFlattened([]);
+    void refresh();
+  }
+  const baseRequest = () => ({
+    root: tab(),
+    query: searchLine(),
+    expanded: expanded(),
+    peaks: density() === "wave",
+    flat: flatResults(),
+    flattened: flattened(),
+  });
 
   function place(arr: (TreeRow | undefined)[], offset: number, page: TreeRow[]) {
     page.forEach((r, i) => {
@@ -362,9 +392,37 @@ function createAppState() {
     on(
       () => current()?.id,
       (id) => {
-        if (id === undefined) return setCurrentPeaks([]);
+        setCurrentPeaks([]); // jamais les pics du sample précédent
+        if (id === undefined) return;
         void api.peaks(id).then((p) => current()?.id === id && setCurrentPeaks(p));
       },
+    ),
+  );
+
+  // Formes d'onde détaillées : la largeur demandée par le tiroir (ou l'inspecteur) sert aussi à précharger les
+  // voisins du curseur, pour que ↓ / ↑ en lecture auto les trouvent prêtes (cache côté Rust).
+  let waveBuckets = 0;
+  function waveformFor(id: SampleId, buckets: number) {
+    waveBuckets = buckets;
+    return api.waveform(id, buckets);
+  }
+  let prefetchTimer = 0;
+  createEffect(
+    on(
+      cursor,
+      (key) => {
+        clearTimeout(prefetchTimer);
+        if (!waveBuckets || key == null) return;
+        prefetchTimer = window.setTimeout(() => {
+          const i = indexOf(key);
+          if (i < 0) return;
+          for (const j of [i + 1, i - 1, i + 2]) {
+            const r = rows()[j];
+            if (r?.type === "sample" && !r.sample.missing) void api.waveform(r.sample.id, waveBuckets);
+          }
+        }, 60);
+      },
+      { defer: true },
     ),
   );
 
@@ -792,7 +850,9 @@ function createAppState() {
     if (key === "c:fav") return "Favorites";
     if (key.startsWith("c:")) return lib?.collections.find((c) => c.id === nodeId(key))?.name ?? "";
     if (key.startsWith("v:")) return lib?.virtualFolders.find((f) => f.id === nodeId(key))?.name ?? "";
-    return "";
+    // Dossier source : nom de sa ligne (chargée), sinon celui retenu à l'aplatissement.
+    const r = rowByKey(key);
+    return r?.type === "node" ? r.name : (flattenedNames.get(key) ?? "");
   };
 
   /** Ouvre l'onglet Virtuels avec ces nœuds dépliés, puis sélectionne `key` (et le renomme si demandé). */
@@ -1210,7 +1270,7 @@ function createAppState() {
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
     layout, toggleLayout, memberships, removeTag, addTag,
-    flatResults, setFlatResults, fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, returnToDaw,
+    flatResults, setFlatResults, waveformFor, flattened, flatten, clearFilters, fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, returnToDaw,
     tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
     library, rows, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,

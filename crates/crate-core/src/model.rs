@@ -150,6 +150,10 @@ pub struct FolderRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub hidden: Option<bool>,
+    /// Dossier aplati (voir `TreeRequest.flattened`) : affiché autrement (icône de dossier à astérisque).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub flattened: Option<bool>,
     /// Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
@@ -209,6 +213,12 @@ pub struct TreeRequest {
     #[serde(default)]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub flat: bool,
+    /// Dossiers aplatis (filtre temporaire, clic droit › Flatten) : sources `f:` ou virtuels `v:`. Un dossier aplati
+    /// est ouvert et liste tous les samples de sa sous-arborescence (une fois chacun, triés par nom), sans ses
+    /// sous-dossiers. Ignoré pendant une recherche.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub flattened: Vec<NodeKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

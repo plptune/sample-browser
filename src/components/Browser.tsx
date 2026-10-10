@@ -158,6 +158,7 @@ function NodeRowView(props: { row: FolderRow }) {
         open={props.row.open}
         title={props.row.target ? "Go to folder" : undefined}
         offline={props.row.offline ?? undefined}
+        flattened={props.row.flattened ?? undefined}
         hidden={props.row.hidden ?? undefined}
         marker={markerFor(props.row)}
         selected={app.cursor() === props.row.key}

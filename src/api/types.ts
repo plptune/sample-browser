@@ -76,6 +76,8 @@ export interface FolderRow {
   pinned?: boolean | null;
   /** Dossier masqué (n'apparaît qu'avec `is:hidden`). */
   hidden?: boolean | null;
+  /** Dossier aplati (`TreeRequest.flattened`). */
+  flattened?: boolean | null;
   /** Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
   target?: NodeKey | null;
 }
@@ -104,6 +106,8 @@ export interface TreeRequest {
   focus?: string | null;
   /** Résultats à plat : en recherche, seulement les samples trouvés (une fois chacun), profondeur 0, sans dossiers. */
   flat?: boolean;
+  /** Dossiers aplatis (filtre temporaire) : ouverts, toute leur sous-arborescence à plat. Ignoré en recherche. */
+  flattened?: NodeKey[];
 }
 
 /** Forme d'onde détaillée (tiroir, inspecteur) : par colonne, min, max (−1..1) et RMS (0..1), normalisés. */

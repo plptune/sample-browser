@@ -5,6 +5,8 @@ export function IconButton(props: {
   label: string;
   active?: boolean;
   accent?: boolean;
+  /** Couleur primaire (un filtre est actif). */
+  primary?: boolean;
   disabled?: boolean;
   onClick?: (e: MouseEvent) => void;
   ref?: (el: HTMLButtonElement) => void;
@@ -18,6 +20,7 @@ export function IconButton(props: {
       aria-pressed={props.active ?? undefined}
       data-active={props.active || undefined}
       data-accent={props.accent || undefined}
+      data-primary={props.primary || undefined}
       disabled={props.disabled}
       onClick={(e) => props.onClick?.(e)}
     >

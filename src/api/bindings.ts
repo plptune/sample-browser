@@ -34,8 +34,9 @@ export const commands = {
 	/**  Pics d'un sample (le tiroir) ; les lignes de l'arbre ne les transportent qu'en densité « waveform ». */
 	peaks: (id: number) => __TAURI_INVOKE<(number | null)[]>("peaks", { id }),
 	/**
-	 *  Forme d'onde détaillée à la largeur affichée (tiroir, inspecteur). Vraie bibliothèque : le fichier est décodé
-	 *  hors du verrou de la bibliothèque, sur un fil à part ; prototype : dérivée des 256 pics.
+	 *  Forme d'onde détaillée à la largeur affichée (tiroir, inspecteur, voisins préchargés). Vraie bibliothèque : le
+	 *  fichier est décodé hors du verrou de la bibliothèque, sur un fil à part, une seule fois par (sample, colonnes) ;
+	 *  prototype : dérivée des 256 pics.
 	 */
 	waveform: (id: number, buckets: number) => typedError<Waveform, null>(__TAURI_INVOKE("waveform", { id, buckets })),
 	/**  Avancement de l'analyse de fond (tempo, tonalité, boucle / one-shot). */
@@ -185,6 +186,8 @@ export type FolderRow_Deserialize = {
 	pinned?: boolean | null,
 	/**  Dossier masqué (invisible sauf avec `is:hidden`). */
 	hidden?: boolean | null,
+	/**  Dossier aplati (voir `TreeRequest.flattened`) : affiché autrement (icône de dossier à astérisque). */
+	flattened?: boolean | null,
 	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
 	target?: string | null,
 };
@@ -202,6 +205,8 @@ export type FolderRow_Serialize = {
 	pinned?: boolean | null,
 	/**  Dossier masqué (invisible sauf avec `is:hidden`). */
 	hidden?: boolean | null,
+	/**  Dossier aplati (voir `TreeRequest.flattened`) : affiché autrement (icône de dossier à astérisque). */
+	flattened?: boolean | null,
 	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
 	target?: string | null,
 };
@@ -388,6 +393,12 @@ export type TreeRequest_Deserialize = {
 	 *  la profondeur 0, chacun une seule fois, dans l'ordre de l'arbre. Sans effet hors recherche.
 	 */
 	flat?: boolean,
+	/**
+	 *  Dossiers aplatis (filtre temporaire, clic droit › Flatten) : sources `f:` ou virtuels `v:`. Un dossier aplati
+	 *  est ouvert et liste tous les samples de sa sous-arborescence (une fois chacun, triés par nom), sans ses
+	 *  sous-dossiers. Ignoré pendant une recherche.
+	 */
+	flattened?: string[],
 };
 
 export type TreeRequest_Serialize = {
@@ -406,6 +417,12 @@ export type TreeRequest_Serialize = {
 	 *  la profondeur 0, chacun une seule fois, dans l'ordre de l'arbre. Sans effet hors recherche.
 	 */
 	flat?: boolean,
+	/**
+	 *  Dossiers aplatis (filtre temporaire, clic droit › Flatten) : sources `f:` ou virtuels `v:`. Un dossier aplati
+	 *  est ouvert et liste tous les samples de sa sous-arborescence (une fois chacun, triés par nom), sans ses
+	 *  sous-dossiers. Ignoré pendant une recherche.
+	 */
+	flattened?: string[],
 };
 
 /**  Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels. */

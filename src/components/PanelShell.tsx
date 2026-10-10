@@ -7,7 +7,6 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { EmptyState } from "./EmptyState";
 import { IconButton } from "./IconButton";
 import { Inspector } from "./Inspector";
-import { api } from "../api";
 import { DEFAULT_COLORS } from "../lib/color";
 import { relativeFolder } from "../lib/format";
 import { PreviewDrawer } from "./PreviewDrawer";
@@ -65,6 +64,11 @@ const pinItem = (key: string, pinned: boolean | null | undefined): MenuItem => (
   action: () => app.togglePin(key),
 });
 
+/** Aplatir un dossier (filtre temporaire) : tous ses samples, sans sous-dossiers. Pas pendant une recherche. */
+const flattenItem = (row: { key: string; flattened?: boolean | null }): MenuItem =>
+  row.flattened
+    ? { label: "Unflatten", action: () => app.flatten(row.key, false) }
+    : { label: "Flatten", disabled: app.searching(), action: () => app.flatten(row.key) };
 const commitItem = (key: string): MenuItem => ({ label: "Create a real folder…", action: () => app.openCommit(key) });
 
 /** Entrées du menu contextuel selon la ligne visée ("root" : fond de l'onglet Virtuels). */
@@ -118,6 +122,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       if (row.parent === null && app.tab() === "library") {
         return [
           toggle,
+          flattenItem(row),
           { label: "Refresh", action: () => app.refreshSource(+row.key.slice(2)) },
           { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key), disabled: !!row.offline },
           { type: "separator" },
@@ -127,6 +132,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       const pinned = app.library()?.pinnedFolders.includes(+row.key.slice(2));
       return [
         toggle,
+        flattenItem(row),
         { label: pinned ? "Remove from Library" : "Pin to Library", action: () => app.togglePin(row.key) },
         { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
         { type: "separator" },
@@ -158,6 +164,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       ];
       return [
         toggle,
+        flattenItem(row),
         { label: "New virtual folder inside", action: () => app.newVirtualFolder(row.key) },
         { label: "Rename", action: () => app.setRenamingKey(row.key) },
         pinItem(row.key, row.pinned),
@@ -331,7 +338,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
                 playing={app.playingId() !== null && app.playingId() === app.current()?.id}
                 progress={app.progress()}
                 looping={app.looping()}
-                loadDetail={(b) => (app.current() ? api.waveform(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
+                loadDetail={(b) => (app.current() ? app.waveformFor(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
                 themeKey={app.theme()}
                 selectionCount={app.selectedSamples().length}
                 memberships={app.memberships()}
@@ -355,7 +362,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
               autoPlay={app.autoPlay()}
               looping={app.looping()}
               folder={app.current() ? relativeFolder(app.current()!.path, app.sources()) : ""}
-              loadDetail={(b) => (app.current() ? api.waveform(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
+              loadDetail={(b) => (app.current() ? app.waveformFor(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
               knownTags={app.library()?.tags.map((t) => ({ label: t.name, count: t.count })) ?? []}
               onTogglePlay={() => app.togglePlay()}
               onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}

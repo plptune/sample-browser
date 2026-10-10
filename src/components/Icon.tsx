@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "expand" | "collapse" | "folder" | "sample" | "midi" | "autoplay" | "options" | "library" | "layers";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "expand" | "collapse" | "folder" | "sample" | "midi" | "autoplay" | "filter" | "gear" | "folder-flat" | "library" | "layers";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -40,8 +40,22 @@ const PATHS: Record<IconName, () => JSX.Element> = {
       <path d="M5.5 9V2.2l4 1.3v2" />
     </>
   ),
-  // Options de recherche : un entonnoir (filtrer, présenter les résultats).
-  options: () => <path d="M1.8 2.4h8.4L7 6.2v3.1L5 10.2V6.2z" />,
+  // Filtres actifs (dossiers aplatis…) : un entonnoir.
+  filter: () => <path d="M1.8 2.4h8.4L7 6.2v3.1L5 10.2V6.2z" />,
+  // Options de recherche : un engrenage (distinct des curseurs des Réglages de l'app).
+  gear: () => (
+    <>
+      <circle cx="6" cy="6" r="1.6" />
+      <path d="M6 1.4v1.4M6 9.2v1.4M1.4 6h1.4M9.2 6h1.4M2.75 2.75l1 1M8.25 8.25l1 1M2.75 9.25l1-1M8.25 3.75l1-1" />
+    </>
+  ),
+  // Dossier aplati (filtre temporaire) : un dossier marqué d'un astérisque.
+  "folder-flat": () => (
+    <>
+      <path d="M1.6 3.2h3.1l1 1.2h1.6M10.4 6.4v3.2H1.6V3.2" />
+      <path d="M9.2 1.6v3M7.9 2.35l2.6 1.5M7.9 3.85l2.6-1.5" />
+    </>
+  ),
   // Onglets : Bibliothèque (étagère de sources) et Virtuels (calques : rangements qui se superposent aux dossiers).
   library: () => <path d="M2 2.2v7.6M4.6 2.2v7.6M7.2 2.8l2.6 7M1.4 9.8h9.2" />,
   layers: () => <path d="M6 1.8 10.4 4 6 6.2 1.6 4zM1.6 6.2 6 8.4l4.4-2.2M1.6 8.2 6 10.4l4.4-2.2" />,

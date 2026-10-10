@@ -172,6 +172,13 @@ Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crat
 - [ ] Recherche : ↓ ne s'arrête que sur des samples ; menu à droite du champ → « Flat results » : liste à plat,
       retrouvée après relance.
 
+## 6 septies. Dossiers aplatis, waveform
+
+- [ ] ↓ rapide en lecture auto : la waveform apparaît directement nette (un court vide, jamais de bâtons ni de flou).
+- [ ] Clic droit sur un gros dossier › Flatten : tous ses samples, sans sous-dossiers ; icône à astérisque ;
+      l'entonnoir passe en bleu ; son menu le liste et le retire ; une recherche le retire aussi.
+- [ ] L'engrenage à droite du champ ouvre « Search options » (Flat results).
+
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).

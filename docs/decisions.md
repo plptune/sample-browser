@@ -188,6 +188,15 @@ sont le même signal (lu 160).
 | **Réglages en onglets** : Sources, Apparence, Lecture, Recherche. | Demandé : la liste devenait longue. |
 | **Test de contraste** automatique (`tests/e2e/contraste.spec.ts`, WCAG ≥ 4,5:1) sur le texte des lignes (sélectionnées ou non), du tiroir et de l'inspecteur, dans les deux thèmes et les deux modes. Les tags des lignes passent de `text-3` à `text-2` (2,9:1 → 5,6:1). | Signalé à l'essai : tags illisibles sur la ligne sélectionnée en mode grand. Le test empêche que ça revienne. |
 
+## Dossiers aplatis et waveform sans étapes (10 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Waveform du tiroir et de l'inspecteur** : rien n'est dessiné tant que la forme détaillée du sample affiché n'est pas arrivée (plus de barres de pics ni de forme approchée). Demande immédiate au changement de sample ; colonnes arrondies au multiple de 128 (une seule demande pendant la mise en page) ; voisins du curseur préchargés ; cache Rust de 32 formes, un seul décodage pour deux demandes identiques. | Signalé : bâtons, puis flou, puis forme réelle. Choix de l'utilisateur : un petit temps de chargement plutôt que des états intermédiaires. |
+| **Aplatir un dossier** (clic droit › Flatten, sur un dossier source ou virtuel) : filtre temporaire, le dossier liste tous les samples de sa sous-arborescence (une fois chacun, triés par nom), sans sous-dossiers. Icône de dossier à astérisque, en couleur primaire. `TreeRequest.flattened`, même calcul en Rust et en TS (parité). | Demandé : parcourir un pack entier sans déplier. |
+| Les filtres actifs sont dans le menu de l'**entonnoir** (à droite du champ de recherche), qui passe en couleur primaire tant qu'un filtre est actif ; un clic sur un filtre le retire. Une **recherche remet les filtres à zéro**. Non mémorisés entre deux lancements. | Demandé : l'entonnoir est réservé aux filtres ; un état temporaire doit se voir et s'enlever facilement. |
+| Les **options de recherche** (« Flat results ») passent sous un **engrenage**. | Demandé : une icône de réglages ; l'engrenage la distingue des curseurs des Réglages de l'app. |
+
 ## Retours n° 2 (10 oct. 2026)
 
 | Décision | Raison |

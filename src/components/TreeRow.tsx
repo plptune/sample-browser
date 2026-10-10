@@ -38,6 +38,8 @@ export function TreeRow(props: {
   progress?: number;
   missing?: boolean;
   offline?: boolean;
+  /** Dossier aplati (filtre temporaire) : icône de dossier à astérisque, en couleur primaire. */
+  flattened?: boolean;
   /** Masqué (visible seulement avec « is:hidden ») : atténué. */
   hidden?: boolean;
   marker?: TreeRowMarker;
@@ -73,7 +75,8 @@ export function TreeRow(props: {
   const isSample = () => props.kind === "sample";
   // Un raccourci ne se déplie pas (il saute au dossier visé) : pas de chevron.
   const folds = () => !isSample() && props.kind !== "shortcut";
-  const kindIcon = (): IconName => (props.kind === "sample" ? (props.midi ? "midi" : "sample") : KIND_ICON[props.kind]);
+  const kindIcon = (): IconName =>
+    props.kind === "sample" ? (props.midi ? "midi" : "sample") : props.flattened ? "folder-flat" : KIND_ICON[props.kind];
   return (
     <div
       ref={props.ref}
@@ -88,6 +91,7 @@ export function TreeRow(props: {
       data-playing={props.playing || undefined}
       data-missing={props.missing || undefined}
       data-hidden={props.hidden || undefined}
+      data-flattened={props.flattened || undefined}
       data-offline={props.offline || undefined}
       data-drop-target={props.dropTarget || undefined}
       data-dragging={props.dragging || undefined}

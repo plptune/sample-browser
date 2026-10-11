@@ -2,9 +2,8 @@
 // comme depuis le Finder. Dans la fenêtre elle-même, le dépôt (collection, dossier virtuel, onglet) est retrouvé
 // à partir des événements de dépôt de Tauri. Dans le navigateur, le glisser HTML reste utilisé.
 import { app } from "../state/app";
+import { endHover, hoverAt } from "./dragHover";
 
-let springTimer = 0;
-let springTab: string | null = null;
 /** Dernier glisser natif : gardé un instant après sa fin, l'événement de dépôt de Tauri arrivant après coup. */
 let last: { key: string; files: string[]; target: string | null; endedAt: number | null; dropped: boolean } | null = null;
 
@@ -33,11 +32,10 @@ export async function startNativeDrag(rowKey: string) {
   const { startDrag } = await import("@crabnebula/tauri-plugin-drag");
   await startDrag({ item: files, icon: dragIcon() }, (e) => {
     // Fin du glisser (dans le DAW, le Finder ou ici) : le dépôt dans la fenêtre, s'il y en a un, suit.
-    clearTimeout(springTimer);
+    endHover();
     const drag = last;
     if (drag) drag.endedAt = performance.now();
     app.setDraggingKey(null);
-    app.setDropTarget(null);
     // Déposé ailleurs que dans Crate (le DAW) : si l'on était venu du DAW par son raccourci, on lui rend la main.
     // L'événement de dépôt de Tauri arrive après coup : on lui laisse un instant pour marquer un dépôt ici.
     if (e.result === "Dropped") setTimeout(() => drag && !drag.dropped && void app.returnToDaw(), 300);
@@ -46,36 +44,24 @@ export async function startNativeDrag(rowKey: string) {
 
 /** Le glisser natif survole la fenêtre (coordonnées logiques) : cible de dépôt et onglet à ouvrir. */
 export function nativeDragOver(x: number, y: number) {
-  const el = document.elementFromPoint(x, y);
-  const tab = el?.closest<HTMLElement>("[data-tab]")?.dataset.tab ?? null;
-  if (tab !== springTab) {
-    clearTimeout(springTimer);
-    springTab = tab;
-    if (tab && tab !== app.tab()) springTimer = window.setTimeout(() => app.switchTab(tab as "library" | "virtual"), 500);
-  }
-  const row = el?.closest<HTMLElement>("[data-key]")?.dataset.key;
-  const target = row ?? (el?.closest(".cr-tree") ? "root" : null);
-  const ok = target && app.canDrop(target) ? target : null;
-  if (last) last.target = ok;
-  app.setDropTarget(ok);
+  hoverAt(x, y, (target) => {
+    if (last) last.target = target;
+  });
 }
 
 /** Lâché dans la fenêtre : même effet qu'un dépôt HTML. */
 export function nativeDrop() {
-  clearTimeout(springTimer);
-  springTab = null;
+  endHover();
   // Tauri peut livrer le même dépôt deux fois : le second est ignoré (et ne passe pas pour un dossier du Finder).
   const d = last;
   if (!d || d.dropped) return;
   d.dropped = true;
-  if (!d.target) return app.setDropTarget(null);
+  if (!d.target) return;
   // dropOn s'appuie sur la ligne glissée : on la remet le temps du dépôt.
   app.setDraggingKey(d.key);
   void app.dropOn(d.target);
 }
 
 export function nativeDragLeave() {
-  clearTimeout(springTimer);
-  springTab = null;
-  app.setDropTarget(null);
+  endHover();
 }

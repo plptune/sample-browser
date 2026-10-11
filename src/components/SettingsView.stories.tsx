@@ -47,7 +47,7 @@ export const CouleurModifiee: StoryObj<typeof meta> = {
 export const Lecture: StoryObj<typeof meta> = {
   args: {
     initialTab: "playback",
-    dawShortcut: { enabled: true, shortcut: "Cmd+KeyF", apps: ["com.ableton.live", "com.bitwig.studio"] },
+    dawShortcut: { enabled: true, shortcut: "Cmd+KeyF", apps: ["com.ableton.live", "com.bitwig.studio"], keepDawActive: true },
   },
 };
 export const Recherche: StoryObj<typeof meta> = { args: { initialTab: "search" } };

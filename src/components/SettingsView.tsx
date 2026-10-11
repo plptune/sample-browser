@@ -287,6 +287,9 @@ export function SettingsView(props: {
             return (
               <section class="cr-settings__section">
                 <h3 class="cr-settings__h">From the DAW</h3>
+                <Row label="Keep the DAW in front" hint="Plug-in windows stay open while you use Crate">
+                  <Toggle label="Keep the DAW in front" checked={d().keepDawActive ?? true} onChange={(v) => set({ keepDawActive: v })} />
+                </Row>
                 <Row label="Search from the DAW" hint="In the DAW, the shortcut opens Crate's search; Esc goes back">
                   <Toggle label="Search from the DAW" checked={d().enabled} onChange={(v) => set({ enabled: v })} />
                 </Row>

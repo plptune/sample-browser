@@ -131,6 +131,7 @@ test("Réglages › Lecture : recherche depuis le DAW (raccourci capturé, DAW c
   const errors = await scenario(page, "3");
   await page.keyboard.press("Control+,");
   await page.getByRole("radio", { name: "Playback", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Keep the DAW in front" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Search from the DAW" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Ableton Live" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Bitwig Studio" })).toHaveAttribute("aria-checked", "true");

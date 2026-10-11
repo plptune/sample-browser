@@ -238,6 +238,13 @@ sont le même signal (lu 160).
 | **⌘⌥← / ⌘⌥→ calent la fenêtre** contre le bord gauche / droit de son écran, sur toute la hauteur utile (sans barre des menus ni Dock), largeur gardée ; agrandie, elle revient d'abord en colonne. Raccourci de l'app (pas global). | Demandé : ranger Crate à côté du DAW d'une touche. |
 | **Recherche depuis le DAW, Bitwig** : identifiant réel `com.bitwig.studio` (et non `com.bitwig.BitwigStudio`), corrigé aussi dans les réglages enregistrés. Traces avec `CRATE_TRACE=1` (app active, raccourci enregistré / relâché, appui, retour). | Signalé : ⌘F ne marchait pas dans Bitwig ; vérifié sur Mac avec Live 12 et Bitwig en marche. |
 
+## Panneau non activant (11 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **La fenêtre est un `NSPanel` non activant** (Réglages › Lecture › From the DAW › « Keep the DAW in front », activé par défaut) : clics et clavier arrivent dans Crate, mais le DAW reste l'app active. Classe de la fenêtre de tao remplacée au démarrage (`panel.rs`, technique de `tauri-nspanel`) ; `acceptFirstMouse` pour glisser dès le premier clic. Réglage coupé : fenêtre ordinaire. Avec `CRATE_TRACE=1`, les exceptions ObjC sont journalisées avant d'être levées (un plantage vu une fois au lancement, jamais reproduit). | Signalé : Bitwig masque les fenêtres de plugins (Serum) dès qu'il n'est plus actif ; un clic dans Crate les faisait disparaître avant le glisser. Vérifié avec Bitwig et Serum. |
+| Avec le panneau, **le clavier revient à l'app au premier plan après tout dépôt hors de Crate** (et Échap dans la recherche vide), même sans être venu par ⌘F. ⌘F met le panneau devant sans activer Crate ; ⌘O active Crate (sélecteur de dossier). | Choix de l'utilisateur : Espace relance le transport du DAW juste après le dépôt. |
+
 ## Fichiers MIDI (10 oct. 2026)
 
 | Décision | Raison |

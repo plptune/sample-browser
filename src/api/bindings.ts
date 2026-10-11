@@ -76,7 +76,10 @@ export const commands = {
 	demoSetMissing: (ids: number[]) => __TAURI_INVOKE<void>("demo_set_missing", { ids }),
 	/**  Réglages venus de l'interface. Erreur (en clair) si le raccourci est illisible ; rien n'est changé alors. */
 	setDawShortcut: (config: DawShortcutConfig) => typedError<null, string>(__TAURI_INVOKE("set_daw_shortcut", { config })),
-	/**  Rend la main à l'app d'où l'on a sauté dans Crate (Échap, glisser terminé). Faux s'il n'y en a pas. */
+	/**
+	 *  Rend la main à l'app d'où l'on a sauté dans Crate (Échap, glisser terminé). Faux s'il n'y en a pas.
+	 *  Avec `keep_daw_active`, à défaut d'app d'origine : l'app au premier plan, si ce n'est pas Crate.
+	 */
 	returnToDaw: () => __TAURI_INVOKE<boolean>("return_to_daw"),
 };
 
@@ -166,6 +169,11 @@ export type DawShortcutConfig = {
 	shortcut: string,
 	/**  Identifiants des apps (bundle id) où le raccourci est pris. */
 	apps: string[],
+	/**
+	 *  Fenêtre en panneau non activant : le DAW reste actif, ses fenêtres de plugins restent ouvertes. Indépendant de
+	 *  `enabled`. Absent des réglages enregistrés avant lui : activé.
+	 */
+	keepDawActive?: boolean,
 };
 
 /**  Le raccourci a été pressé dans le DAW : l'interface focalise le champ de recherche. */

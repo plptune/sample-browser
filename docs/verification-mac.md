@@ -71,6 +71,17 @@ lui donner [`agent-mac.md`](agent-mac.md).
       du Finder (pas de source ajoutée par erreur).
 - [ ] Glisser un dossier virtuel sur un autre (glisser HTML, pas natif) : il s'y déplace. À vérifier parce que Tauri
       intercepte les dépôts de fichiers sur la fenêtre.
+- [x] **Panneau non activant** (« Keep the DAW in front », activé), Bitwig avec Serum ouvert : glisser un sample sur
+      Serum le charge, Serum reste affiché ; taper dans la recherche aussi ; juste après le dépôt, Espace lance le
+      transport de Bitwig. (Vérifié le 11 oct. 2026.)
+- [ ] Même réglage : la barre des menus reste celle de Bitwig ; pas de clignotement gênant de Crate quand le clavier
+      revient au DAW. Si Crate plante au lancement, relancer avec `CRATE_TRACE=1` : l'exception ObjC est journalisée.
+- [ ] Même réglage : ⌘F dans Bitwig met le curseur dans la recherche, Serum reste là ; Échap dans la recherche vide rend
+      le clavier à Bitwig. Échap ne ferme jamais la fenêtre de Crate.
+- [ ] Dans la recherche, panneau actif : ⌘C / ⌘V / ⌘A / ⌘Z, accents (é, ê par touche morte). ⌘O ouvre le sélecteur
+      avec le focus (Crate s'active alors, normal).
+- [ ] Feux macOS, déplacement par la barre titre, ⌘⇧F, ⌘⌥← / →, « Toujours au premier plan », Bitwig en plein écran.
+- [ ] Réglage décoché : comportement d'avant (Crate s'active au clic, Serum disparaît). Même parcours rapide dans Live 12.
 
 ## 5. Tags, collections, masquer, clavier (phase 5)
 

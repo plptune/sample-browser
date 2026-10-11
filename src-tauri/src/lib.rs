@@ -17,6 +17,7 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
 mod daw;
+mod panel;
 mod wave_cache;
 
 use wave_cache::WaveCache;
@@ -394,6 +395,8 @@ fn refresh_source(lib: State<'_, Lib>, id: u32) {
 #[tauri::command]
 #[specta::specta]
 async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    // Depuis le panneau non activant, Crate n'est pas actif : le sélecteur n'aurait pas le focus.
+    panel::activate_app(&app);
     let (tx, rx) = std::sync::mpsc::channel();
     app.dialog().file().set_title("Add a sample folder").pick_folder(move |p| {
         let _ = tx.send(p);
@@ -509,6 +512,7 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             daw::setup(app);
+            panel::setup(app);
             let inner = if std::env::var_os("CRATE_DEMO").is_some() {
                 Inner::Demo(Catalog::demo())
             } else {

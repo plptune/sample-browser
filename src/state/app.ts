@@ -1217,7 +1217,7 @@ function createAppState() {
       if (p.colors && typeof p.colors === "object") setColorOverrides(p.colors);
       if (typeof p.flatResults === "boolean") setFlatResultsSignal(p.flatResults);
       const d = p.dawShortcut;
-      if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut({ ...d, apps: migrateDawApps(d.apps) });
+      if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut({ ...DEFAULT_DAW_SHORTCUT, ...d, apps: migrateDawApps(d.apps) });
     });
   }
   function savePrefs() {

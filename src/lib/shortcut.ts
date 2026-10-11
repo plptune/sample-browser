@@ -15,6 +15,7 @@ export const DEFAULT_DAW_SHORTCUT: DawShortcutConfig = {
   enabled: true,
   shortcut: "Cmd+KeyF",
   apps: ["com.ableton.live", "com.bitwig.studio"],
+  keepDawActive: true,
 };
 
 /** Identifiants erronés des premières versions, encore dans des réglages enregistrés → identifiant réel. */

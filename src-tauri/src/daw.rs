@@ -7,6 +7,10 @@
 //! À l'appui : Crate passe devant, l'interface focalise la recherche (`FocusSearchEvent`). On garde l'app d'où l'on
 //! vient : Échap dans la recherche vide, ou un glisser terminé, lui rend la main (`return_to_daw`). Si une autre
 //! app passe devant entre-temps, on l'oublie.
+//!
+//! Avec « Keep the DAW in front » (`keep_daw_active`, voir `panel`), Crate ne devient jamais l'app active : le
+//! raccourci reste donc pris pendant qu'on tape dans Crate, où il refocalise la recherche comme son ⌘F. Le clavier
+//! revient alors à l'app au premier plan après tout glisser déposé ailleurs, même sans être venu par le raccourci.
 
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -16,7 +20,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_specta::Event;
 
-use crate::trace;
+use crate::{panel, trace};
 
 /// Réglages (Réglages › Lecture), mémorisés côté interface et transmis au démarrage puis à chaque changement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -27,6 +31,14 @@ pub struct DawShortcutConfig {
     pub shortcut: String,
     /// Identifiants des apps (bundle id) où le raccourci est pris.
     pub apps: Vec<String>,
+    /// Fenêtre en panneau non activant : le DAW reste actif, ses fenêtres de plugins restent ouvertes. Indépendant de
+    /// `enabled`. Absent des réglages enregistrés avant lui : activé.
+    #[serde(default = "yes")]
+    pub keep_daw_active: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Default for DawShortcutConfig {
@@ -35,6 +47,7 @@ impl Default for DawShortcutConfig {
             enabled: true,
             shortcut: "Cmd+KeyF".into(),
             apps: vec!["com.ableton.live".into(), "com.bitwig.studio".into()],
+            keep_daw_active: true,
         }
     }
 }
@@ -133,13 +146,17 @@ pub fn on_activate<R: Runtime>(app: &AppHandle<R>, front: Frontmost) {
 
 /// Le raccourci a été pressé : Crate passe devant, la recherche prend le focus.
 fn on_pressed<R: Runtime>(app: &AppHandle<R>) {
-    {
+    let keep = {
         let state = app.state::<DawShortcut>();
         let mut g = state.lock();
         g.origin = g.frontmost.as_ref().map(|f| f.pid);
         trace(|| format!("daw : raccourci pressé, origine {:?}", g.origin));
-    }
-    if let Some(w) = app.get_webview_window("main") {
+        g.cfg.keep_daw_active
+    };
+    if keep {
+        // Devant avec le clavier, sans activer Crate : les plugins du DAW restent affichés.
+        panel::focus(app);
+    } else if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
@@ -158,6 +175,11 @@ pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
         .build()
 }
 
+/// App à qui rendre la main : celle d'origine, sinon (panneau non activant) l'app au premier plan si ce n'est pas Crate.
+fn return_target(origin: Option<i32>, frontmost: Option<&Frontmost>, keep_daw_active: bool, own: i32) -> Option<i32> {
+    origin.or_else(|| keep_daw_active.then(|| frontmost.map(|f| f.pid)).flatten().filter(|&pid| pid != own))
+}
+
 /// Démarrage : état, observateur de l'app active, fenêtre qui suit l'espace actif.
 pub fn setup<R: Runtime>(app: &tauri::App<R>) {
     app.manage(DawShortcut::default());
@@ -173,20 +195,33 @@ pub fn set_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, config: D
         parse_shortcut(&config.shortcut)?;
     }
     trace(|| format!("daw : réglages {config:?}"));
+    panel::set_non_activating(&app, config.keep_daw_active);
     state.lock().cfg = config;
     sync(&app);
     Ok(())
 }
 
 /// Rend la main à l'app d'où l'on a sauté dans Crate (Échap, glisser terminé). Faux s'il n'y en a pas.
+/// Avec `keep_daw_active`, à défaut d'app d'origine : l'app au premier plan, si ce n'est pas Crate.
 #[tauri::command]
 #[specta::specta]
-pub fn return_to_daw(state: State<'_, DawShortcut>) -> bool {
-    let Some(pid) = state.lock().origin.take() else {
+pub fn return_to_daw(app: AppHandle, state: State<'_, DawShortcut>) -> bool {
+    let (target, keep) = {
+        let mut g = state.lock();
+        let origin = g.origin.take();
+        let keep = g.cfg.keep_daw_active;
+        (return_target(origin, g.frontmost.as_ref(), keep, std::process::id() as i32), keep)
+    };
+    let Some(pid) = target else {
         trace(|| "daw : pas d'app d'origine, on reste".into());
         return false;
     };
     trace(|| format!("daw : retour au pid {pid}"));
+    if keep {
+        // Le DAW est resté actif : seul le clavier est à lui rendre.
+        panel::give_back_keyboard(&app, pid);
+        return true;
+    }
     #[cfg(target_os = "macos")]
     return macos::activate(pid);
     #[cfg(not(target_os = "macos"))]
@@ -292,6 +327,27 @@ mod tests {
         };
         assert!(desired(&logic, Some(&front("com.apple.logic10"))).is_some(), "liste modifiable");
         assert!(desired(&logic, Some(&front("com.ableton.live"))).is_none());
+    }
+
+    #[test]
+    fn panneau_par_defaut() {
+        assert!(DawShortcutConfig::default().keep_daw_active);
+        let old: DawShortcutConfig =
+            serde_json::from_str(r#"{"enabled":true,"shortcut":"Cmd+KeyF","apps":[]}"#).expect("réglages d'avant");
+        assert!(old.keep_daw_active, "absent des réglages enregistrés : activé");
+        let off: DawShortcutConfig =
+            serde_json::from_str(r#"{"enabled":true,"shortcut":"Cmd+KeyF","apps":[],"keepDawActive":false}"#).unwrap();
+        assert!(!off.keep_daw_active);
+    }
+
+    #[test]
+    fn retour_apres_glisser() {
+        let daw = front("com.bitwig.studio");
+        assert_eq!(return_target(Some(7), Some(&daw), false, 1), Some(7), "app d'origine d'abord");
+        assert_eq!(return_target(None, Some(&daw), false, 1), None, "fenêtre ordinaire : seulement après le raccourci");
+        assert_eq!(return_target(None, Some(&daw), true, 1), Some(42), "panneau : l'app au premier plan");
+        assert_eq!(return_target(None, Some(&daw), true, 42), None, "pas à Crate lui-même");
+        assert_eq!(return_target(None, None, true, 1), None);
     }
 
     #[test]

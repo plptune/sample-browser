@@ -20,7 +20,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_specta::Event;
 
-use crate::{panel, trace};
+use crate::{panel, tile, trace};
 
 /// Réglages (Réglages › Lecture), mémorisés côté interface et transmis au démarrage puis à chaque changement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -35,6 +35,10 @@ pub struct DawShortcutConfig {
     /// `enabled`. Absent des réglages enregistrés avant lui : activé.
     #[serde(default = "yes")]
     pub keep_daw_active: bool,
+    /// Tirer la frontière entre Crate et le DAW redimensionne les deux (voir `tile`). Demande l'autorisation
+    /// Accessibilité : coupé par défaut.
+    #[serde(default)]
+    pub resize_together: bool,
 }
 
 fn yes() -> bool {
@@ -48,6 +52,7 @@ impl Default for DawShortcutConfig {
             shortcut: "Cmd+KeyF".into(),
             apps: vec!["com.ableton.live".into(), "com.bitwig.studio".into()],
             keep_daw_active: true,
+            resize_together: false,
         }
     }
 }
@@ -71,6 +76,8 @@ struct Inner {
     active: Option<Shortcut>,
     /// App d'où l'on a sauté dans Crate, à qui rendre la main.
     origin: Option<i32>,
+    /// Dernier DAW de la liste passé au premier plan : celui dont les fenêtres suivent Crate (`tile`).
+    last_daw: Option<i32>,
 }
 
 #[derive(Default)]
@@ -97,6 +104,11 @@ pub fn desired(cfg: &DawShortcutConfig, frontmost: Option<&Frontmost>) -> Option
 impl DawShortcut {
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Réglage « Keep the DAW in front » (panneau non activant, en colonne seulement).
+    pub fn keep_daw_active(&self) -> bool {
+        self.lock().cfg.keep_daw_active
     }
 }
 
@@ -139,7 +151,15 @@ pub fn on_activate<R: Runtime>(app: &AppHandle<R>, front: Frontmost) {
             g.origin = None;
         }
         trace(|| format!("daw : app active {:?} (pid {})", front.bundle, front.pid));
+        let is_daw = front.bundle.as_deref().is_some_and(|b| g.cfg.apps.iter().any(|a| a.eq_ignore_ascii_case(b)));
+        let new_daw = is_daw && g.last_daw != Some(front.pid);
+        if new_daw {
+            g.last_daw = Some(front.pid);
+        }
         g.frontmost = Some(front);
+        if new_daw {
+            tile::configure(app, g.cfg.resize_together, g.last_daw);
+        }
     }
     sync(app);
 }
@@ -151,7 +171,8 @@ fn on_pressed<R: Runtime>(app: &AppHandle<R>) {
         let mut g = state.lock();
         g.origin = g.frontmost.as_ref().map(|f| f.pid);
         trace(|| format!("daw : raccourci pressé, origine {:?}", g.origin));
-        g.cfg.keep_daw_active
+        // Fenêtre bibliothèque : une fenêtre ordinaire, Crate passe devant.
+        g.cfg.keep_daw_active && !crate::mode::is_full()
     };
     if keep {
         // Devant avec le clavier, sans activer Crate : les plugins du DAW restent affichés.
@@ -195,8 +216,12 @@ pub fn set_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, config: D
         parse_shortcut(&config.shortcut)?;
     }
     trace(|| format!("daw : réglages {config:?}"));
-    panel::set_non_activating(&app, config.keep_daw_active);
-    state.lock().cfg = config;
+    panel::set_non_activating(&app, config.keep_daw_active && !crate::mode::is_full());
+    {
+        let mut g = state.lock();
+        tile::configure(&app, config.resize_together, g.last_daw);
+        g.cfg = config;
+    }
     sync(&app);
     Ok(())
 }
@@ -338,6 +363,8 @@ mod tests {
         let off: DawShortcutConfig =
             serde_json::from_str(r#"{"enabled":true,"shortcut":"Cmd+KeyF","apps":[],"keepDawActive":false}"#).unwrap();
         assert!(!off.keep_daw_active);
+        assert!(!DawShortcutConfig::default().resize_together, "autorisation Accessibilité : coupé par défaut");
+        assert!(!old.resize_together);
     }
 
     #[test]

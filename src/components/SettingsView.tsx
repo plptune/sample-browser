@@ -62,6 +62,10 @@ export function SettingsView(props: {
   /** Recherche depuis le DAW : raccourci pris seulement quand un DAW de la liste est devant (macOS). */
   dawShortcut?: DawShortcutConfig;
   onDawShortcut?: (c: DawShortcutConfig) => void;
+  /** Autorisation Accessibilité (redimensionner le DAW avec Crate) : faux affiche le lien vers les Réglages Système. */
+  accessibility?: boolean | null;
+  onRequestAccessibility?: () => void;
+  onOpenAccessibility?: () => void;
   /** Onglet affiché à l'ouverture (stories, tests) ; sinon le dernier ouvert. */
   initialTab?: SettingsTab;
   fontSize?: FontSize;
@@ -290,6 +294,23 @@ export function SettingsView(props: {
                 <Row label="Keep the DAW in front" hint="Plug-in windows stay open while you use Crate">
                   <Toggle label="Keep the DAW in front" checked={d().keepDawActive ?? true} onChange={(v) => set({ keepDawActive: v })} />
                 </Row>
+                <Row label="Resize the DAW with Crate" hint="Drag the edge between them: one grows, the other shrinks">
+                  <Toggle
+                    label="Resize the DAW with Crate"
+                    checked={d().resizeTogether ?? false}
+                    onChange={(v) => {
+                      set({ resizeTogether: v });
+                      if (v) props.onRequestAccessibility?.();
+                    }}
+                  />
+                </Row>
+                <Show when={d().resizeTogether && props.accessibility === false}>
+                  <Row label="Accessibility" hint="Allow Crate in Privacy & Security › Accessibility">
+                    <button class="cr-settings__add" onClick={() => props.onOpenAccessibility?.()}>
+                      Open settings
+                    </button>
+                  </Row>
+                </Show>
                 <Row label="Search from the DAW" hint="In the DAW, the shortcut opens Crate's search; Esc goes back">
                   <Toggle label="Search from the DAW" checked={d().enabled} onChange={(v) => set({ enabled: v })} />
                 </Row>

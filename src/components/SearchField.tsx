@@ -1,11 +1,30 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { app } from "../state/app";
 import { Autocomplete, type AcItem } from "./Autocomplete";
-import { ContextMenu } from "./ContextMenu";
+import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { IconButton } from "./IconButton";
 import { QueryChip } from "./QueryChip";
 
-const KEY_SUGGESTIONS = ["Am", "C", "Cm", "D", "Dm", "Em", "F", "Fm", "F#m", "G", "Gm", "Bb", "Bm"];
+const KEY_SUGGESTIONS = ["Am", "C", "Cm", "D", "Dm", "Em", "F", "Fm", "F#m", "G", "Gm", "Bb", "Bm", "minor", "major"];
+
+/** Filtres rapides de l'entonnoir : chacun pose (ou retire) une chip de recherche ; certains s'excluent. */
+const QUICK_FILTERS: { label: string; chip: string; exclusive?: string[] }[][] = [
+  [
+    { label: "Favorites", chip: "is:fav" },
+    { label: "In a collection", chip: "is:collection" },
+  ],
+  [
+    { label: "Loops", chip: "type:loop", exclusive: ["type:oneshot"] },
+    { label: "One-shots", chip: "type:oneshot", exclusive: ["type:loop"] },
+  ],
+  [
+    { label: "Minor", chip: "key:minor", exclusive: ["key:major"] },
+    { label: "Major", chip: "key:major", exclusive: ["key:minor"] },
+  ],
+];
+
+/** Chip d'une collection : son nom complet entre guillemets. */
+const collectionChip = (name: string) => `in:"${name}"`;
 
 /** Valeurs proposées selon le token en cours de frappe. */
 function suggestionsFor(token: string): { prefix: string; items: AcItem[] } | null {
@@ -39,13 +58,46 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
   const [focused, setFocused] = createSignal(false);
   const [acIndex, setAcIndex] = createSignal(0);
   const [acDismissed, setAcDismissed] = createSignal(false);
-  // Menu des options de recherche (à droite du champ) ; le bouton l'ouvre et le ferme.
-  const [optsOpen, setOptsOpen] = createSignal(false);
-  let opts: HTMLDivElement | undefined;
-  let optsButton: HTMLElement | undefined;
+  let root: HTMLDivElement | undefined;
   // Menu des filtres actifs (entonnoir) : un clic sur un filtre le retire.
   const [filtersOpen, setFiltersOpen] = createSignal(false);
   let filtersButton: HTMLElement | undefined;
+
+  // Chips posables depuis l'entonnoir (filtres rapides et collections manuelles).
+  const quickChips = () => [
+    ...QUICK_FILTERS.flat().map((f) => f.chip),
+    ...(app.library()?.collections ?? []).filter((c) => c.kind === "manual").map((c) => collectionChip(c.name)),
+  ];
+  // Dossiers aplatis : seulement dans l'arbre de la colonne (la liste du mode grand est toujours à plat).
+  const flattened = () => (app.layout() === "full" ? [] : app.flattened());
+  const activeFilters = () => app.chips().filter((c) => quickChips().includes(c)).length + flattened().length;
+  const filterItems = (): MenuItem[] => {
+    const check = (label: string, chip: string, exclusive: string[] = []): MenuItem => ({
+      label,
+      checked: app.hasChip(chip),
+      keepOpen: true,
+      action: () => app.toggleChip(chip, exclusive),
+    });
+    const collections = (app.library()?.collections ?? []).filter((c) => c.kind === "manual");
+    const items: MenuItem[] = [{ type: "header", label: "Filters" }];
+    QUICK_FILTERS.forEach((group, i) => {
+      if (i > 0) items.push({ type: "separator" });
+      items.push(...group.map((f) => check(f.label, f.chip, f.exclusive)));
+      // Après « In a collection » : chaque collection manuelle.
+      if (i === 0 && collections.length) {
+        items.push({ type: "header", label: "Collections" }, ...collections.map((c) => check(c.name, collectionChip(c.name))));
+      }
+    });
+    if (flattened().length) {
+      items.push(
+        { type: "separator" },
+        { type: "header", label: "Flattened folders" },
+        ...flattened().map((k) => ({ label: `Flattened: ${app.nodeName(k)}`, shortcut: "×", action: () => app.flatten(k, false) })),
+        { label: "Clear flattened folders", action: () => app.clearFilters() },
+      );
+    }
+    return items;
+  };
 
   const current = () => app.draft().split(/\s+/).pop() ?? "";
   const ac = createMemo(() => {
@@ -100,14 +152,13 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
     }
     if (e.key === "ArrowDown" || e.key === "Enter") {
       e.preventDefault();
-      const list = document.querySelector<HTMLElement>(".cr-tree");
-      list?.focus();
+      app.focusList("list");
       if (app.cursor() === null) app.move(0);
     }
   }
 
   return (
-    <div class="cr-panel__search" ref={opts}>
+    <div class="cr-panel__search" ref={root}>
       <div class="cr-search" data-focused={focused() || undefined} onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); input.focus(); } }}>
         <div class="cr-search__chips">
           <For each={app.chips()}>{(raw, i) => <QueryChip raw={raw} onClick={() => { app.editChip(i()); input.focus(); }} />}</For>
@@ -135,51 +186,41 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
         <Show when={app.queryLine()}>
           <IconButton icon="close" label="Clear search" onClick={() => app.clearQuery()} />
         </Show>
-        {/* Filtres actifs (dossiers aplatis) : l'entonnoir passe en couleur primaire. */}
+        {/* Filtres actifs (filtres rapides, dossiers aplatis) : l'entonnoir passe en couleur primaire. */}
         <IconButton
           icon="filter"
-          label={app.flattened().length ? `Filters (${app.flattened().length} active)` : "Filters"}
+          label={activeFilters() ? `Filters (${activeFilters()} active)` : "Filters"}
           active={filtersOpen()}
-          primary={app.flattened().length > 0}
+          primary={activeFilters() > 0}
           ref={(el) => (filtersButton = el)}
           onClick={() => setFiltersOpen(!filtersOpen())}
         />
-        <IconButton
-          icon="gear"
-          label="Search options"
-          active={optsOpen() || app.flatResults()}
-          ref={(el) => (optsButton = el)}
-          onClick={() => setOptsOpen(!optsOpen())}
-        />
       </div>
+      {/* En recherche, en colonne : Flatten (résultats à plat, en couleur primaire quand il est actif), puis Shuffle.
+          La liste du mode grand est toujours à plat, triée par ses colonnes. */}
+      <Show when={app.searching() && app.layout() !== "full"}>
+        <div class="cr-search__options">
+          <button
+            class="cr-search__toggle"
+            aria-pressed={app.flatResults()}
+            data-active={app.flatResults() || undefined}
+            title="Flat results: samples only, no folders"
+            onClick={() => app.setFlatResults(!app.flatResults())}
+          >
+            Flatten
+          </button>
+          <Show when={app.flatResults()}>
+            <IconButton icon="shuffle" label="Shuffle results" onClick={() => app.reshuffle()} />
+          </Show>
+        </div>
+      </Show>
       <Show when={filtersOpen()}>
         <ContextMenu
           x={10_000}
-          y={opts?.offsetHeight ?? 0}
-          items={[
-            { type: "header", label: "Active filters" },
-            ...(app.flattened().length
-              ? [
-                  ...app.flattened().map((k) => ({ label: `Flattened: ${app.nodeName(k)}`, shortcut: "×", action: () => app.flatten(k, false) })),
-                  { type: "separator" as const },
-                  { label: "Clear filters", action: () => app.clearFilters() },
-                ]
-              : [{ label: "No active filters", disabled: true }]),
-          ]}
+          y={root?.offsetHeight ?? 0}
+          items={filterItems()}
           anchor={() => filtersButton}
           onClose={() => setFiltersOpen(false)}
-        />
-      </Show>
-      <Show when={optsOpen()}>
-        <ContextMenu
-          x={10_000}
-          y={opts?.offsetHeight ?? 0}
-          items={[
-            { type: "header", label: "Search options" },
-            { label: "Flat results", checked: app.flatResults(), action: () => app.setFlatResults(!app.flatResults()) },
-          ]}
-          anchor={() => optsButton}
-          onClose={() => setOptsOpen(false)}
         />
       </Show>
       <Show when={ac()}>{(s) => <Autocomplete items={s().items} active={acIndex()} onPick={pick} />}</Show>

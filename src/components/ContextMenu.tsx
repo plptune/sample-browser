@@ -8,8 +8,10 @@ export interface ActionItem {
   shortcut?: string;
   danger?: boolean;
   disabled?: boolean;
-  /** Option cochable (menu des options de recherche) : coche à droite. */
+  /** Option cochable (filtres de l'entonnoir) : coche à droite. */
   checked?: boolean;
+  /** Le menu reste ouvert après l'action (cocher plusieurs filtres d'affilée). */
+  keepOpen?: boolean;
   action?: () => void;
 }
 
@@ -31,7 +33,7 @@ export function ContextMenu(props: {
   const run = (i: number) => {
     const it = props.items[i];
     if (it.type === "separator" || it.type === "header" || it.disabled) return;
-    props.onClose?.();
+    if (!it.keepOpen) props.onClose?.();
     it.action?.();
   };
 

@@ -16,8 +16,10 @@
         "title": "Crate",
         "width": 320,
         "height": 760,
-        "minWidth": 260,
-        "minHeight": 420,
+        "minWidth": 180,
+        "minHeight": 320,
+        "maxWidth": 600,
+        "maximizable": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "acceptFirstMouse": true

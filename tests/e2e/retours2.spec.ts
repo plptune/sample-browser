@@ -45,9 +45,9 @@ test("explorer en colonne : icône + nom.ext, rien d'autre ; lignes de parenté"
   const deep = page.locator('.cr-node[aria-level="4"]').first();
   const w = await deep.evaluate((e) => getComputedStyle(e, "::before").width);
   expect(w).toBe("36px");
-  // En mode grand, les colonnes reviennent.
+  // En mode grand, les colonnes sont celles de la liste.
   await page.keyboard.press("Control+Shift+F");
-  await expect(page.locator(".cr-node .cr-col-bpm").first()).toHaveCSS("width", "32px");
+  await expect(page.locator(".cr-table__row .cr-col-bpm").first()).toHaveCSS("width", "40px");
 });
 
 test("← ferme et remonte au parent, → ouvre sans entrer", async ({ page }) => {
@@ -77,14 +77,12 @@ test("recherche : ↓ ne s'arrête que sur des samples ; résultats à plat", as
     await expect(page.locator(".cr-node[data-selected]")).toHaveAttribute("data-kind", "sample");
     await page.keyboard.press("ArrowDown");
   }
-  // Menu d'options → résultats à plat : plus aucune ligne dossier, tout au premier niveau.
-  await page.getByRole("button", { name: "Search options" }).click();
-  await page.getByRole("menuitemcheckbox", { name: "Flat results" }).click();
+  // Flatten (sous le champ) → résultats à plat : plus aucune ligne dossier, tout au premier niveau.
+  await page.getByRole("button", { name: "Flatten" }).click();
   await expect(page.locator('.cr-node[data-kind="folder"]')).toHaveCount(0);
   await expect(page.locator(".cr-node").first()).toHaveAttribute("aria-level", "1");
   await expect(page.locator('.cr-node[data-kind="sample"]').first()).toBeVisible();
-  await page.getByRole("button", { name: "Search options" }).click();
-  await expect(page.getByRole("menuitemcheckbox", { name: "Flat results" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("button", { name: "Flatten" })).toHaveAttribute("aria-pressed", "true");
   expect(errors).toEqual([]);
 });
 

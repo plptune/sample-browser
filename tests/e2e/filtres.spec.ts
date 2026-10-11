@@ -38,7 +38,8 @@ test("clic droit › Flatten : tous les samples du dossier, sans sous-dossiers ;
   await expect(folder(page, "Drums")).not.toHaveAttribute("data-flattened", "true");
   await expect(filters).not.toHaveAttribute("data-primary", "true");
   await filters.click();
-  await expect(page.getByRole("menuitem", { name: "No active filters" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /Flattened:/ })).toHaveCount(0);
+  await expect(page.getByRole("menuitemcheckbox", { name: "Favorites" })).toHaveAttribute("aria-checked", "false");
   expect(errors).toEqual([]);
 });
 
@@ -58,14 +59,16 @@ test("une recherche remet les filtres à zéro ; Unflatten depuis le clic droit"
   await expect(page.locator(".cr-node[data-flattened]")).toHaveCount(0);
 });
 
-test("barre de recherche : engrenage pour les options, entonnoir pour les filtres", async ({ page }) => {
+test("barre de recherche : entonnoir pour les filtres, plus d'engrenage ; Flatten et Shuffle sous le champ", async ({ page }) => {
   await scenario(page, "3");
-  const gear = await page.getByRole("button", { name: "Search options" }).locator("svg").innerHTML();
+  await expect(page.getByRole("button", { name: "Search options" })).toHaveCount(0);
+  await page.keyboard.press("Control+f");
+  await page.keyboard.type("kick ");
+  await page.getByRole("button", { name: "Flatten" }).click();
+  const shuffle = await page.getByRole("button", { name: "Shuffle results" }).locator("svg").innerHTML();
   const funnel = await page.getByRole("button", { name: "Filters" }).locator("svg").innerHTML();
   const settings = await page.getByRole("button", { name: "Settings (⌘,)" }).locator("svg").innerHTML();
-  expect(new Set([gear, funnel, settings]).size).toBe(3);
-  await page.getByRole("button", { name: "Search options" }).click();
-  await expect(page.getByRole("menuitemcheckbox", { name: "Flat results" })).toBeVisible();
+  expect(new Set([shuffle, funnel, settings]).size).toBe(3);
 });
 
 test("waveform du tiroir : jamais de barres ni de forme intermédiaire au changement de sample", async ({ page }) => {

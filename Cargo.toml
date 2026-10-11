@@ -12,9 +12,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 
-# Binaire livré sans symboles : Crate.app passe de 15,9 à ~11,5 Mo (budget 15 Mo).
+# Binaire livré sans symboles : Crate.app passe de 15,9 à ~11,5 Mo. Avec le modèle de tags (tract), LTO et une
+# seule unité de compilation retirent le code inutilisé (mesures dans docs/decisions.md).
 [profile.release]
 strip = true
+lto = "fat"
+codegen-units = 1
 
 # Décodage et analyse audio : trop lents sans optimisation, même en développement et dans les tests.
 # (Seulement ces paquets : le reste de l'app compile vite en développement.)
@@ -53,3 +56,27 @@ opt-level = 2
 
 [profile.dev.package.crate-core]
 opt-level = 2
+
+# Modèle de tags (tract) : l'inférence est très lente sans optimisation (tests compris).
+[profile.dev.package.tract-core]
+opt-level = 3
+
+[profile.dev.package.tract-linalg]
+opt-level = 3
+
+[profile.dev.package.tract-data]
+opt-level = 3
+
+[profile.dev.package.tract-nnef]
+opt-level = 3
+
+# En release, le code de tract qui ne calcule pas (graphe, optimiseur, chargement NNEF) est optimisé pour la taille ;
+# ses noyaux de calcul (tract-linalg) restent optimisés pour la vitesse.
+[profile.release.package.tract-core]
+opt-level = "s"
+
+[profile.release.package.tract-nnef]
+opt-level = "s"
+
+[profile.release.package.tract-data]
+opt-level = "s"

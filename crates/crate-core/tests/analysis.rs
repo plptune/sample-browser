@@ -713,3 +713,62 @@ fn vrai_dossier_compare_aux_noms() {
         t0.elapsed().as_secs_f64()
     );
 }
+
+/// Réverbe synthétique : le son, plus une queue de bruit à décroissance exponentielle (temps caractéristique `tau`).
+fn reverb(x: &[f32], rate: f32, tau: f32, rng: &mut Rng) -> Vec<f32> {
+    let len = x.len().max((rate * tau * 7.0) as usize);
+    let mut y = vec![0f32; len];
+    add(&mut y, 0, x, 1.0);
+    let mut lp = 0.0;
+    for (i, v) in y.iter_mut().enumerate() {
+        let t = i as f32 / rate;
+        lp = 0.7 * lp + 0.3 * rng.noise();
+        *v += 0.35 * lp * (-t / tau).exp();
+    }
+    y
+}
+
+/// `wet` / `dry` d'après la queue d'un one-shot : sec (queue courte), mouillé (queue longue et diffuse), sinon rien ;
+/// une note qui sonne longtemps n'est pas une réverbe.
+#[test]
+fn espace_wet_dry() {
+    let dir = tmp("space");
+    let rate = 44_100f32;
+    let mut rng = Rng(7);
+    let dry: Vec<(&str, Vec<f32>)> = vec![
+        ("kick", kick(rate)),
+        ("snare", snare(rate, &mut rng)),
+        ("hat", hat(rate, &mut rng)),
+        ("clap", clap(rate, &mut rng)),
+    ];
+    let space = |name: &str, x: &[f32]| {
+        let p = dir.join(format!("{name}.wav"));
+        write_wav(&p, rate as u32, 2, x, None);
+        let a = analyze(&p).unwrap();
+        assert_eq!(a.kind, SampleKind::Oneshot, "{name}");
+        a.tags.into_iter().find(|t| t == "wet" || t == "dry")
+    };
+    for (i, (what, x)) in dry.iter().enumerate() {
+        let got = space(&format!("d{i}"), x);
+        assert_ne!(got.as_deref(), Some("wet"), "{what} sec");
+        if *what == "hat" {
+            assert_eq!(got.as_deref(), Some("dry"), "charleston sèche");
+        }
+        // Une longue queue de bruit (3,5 s) reste un one-shot : elle s'éteint.
+        for tau in [0.25, 0.5] {
+            let wet = reverb(x, rate, tau, &mut rng);
+            assert_eq!(
+                space(&format!("w{i}{}", (tau * 100.0) as u32), &wet).as_deref(),
+                Some("wet"),
+                "{what} réverbéré ({tau} s)"
+            );
+        }
+    }
+    // Une note qui sonne longtemps (son tonal) n'est pas une réverbe.
+    let long = note(rate, 45.0, 3.0, 1.2, 0.6);
+    assert_ne!(space("note", &long).as_deref(), Some("wet"), "note tenue");
+    // Le nom l'emporte.
+    let p = dir.join("Clap Dry.wav");
+    write_wav(&p, rate as u32, 2, &reverb(&dry[3].1, rate, 0.25, &mut rng), None);
+    assert!(analyze(&p).unwrap().tags.contains(&"dry".to_string()));
+}

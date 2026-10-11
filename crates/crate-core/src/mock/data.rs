@@ -36,6 +36,26 @@ impl Rng {
 
 pub const SEED: u32 = 0xc4a7e;
 
+/// Tags automatiques de la démo, par catégorie (fixes, sans tirage : la graine ne bouge pas). Miroir de `AUTO_TAGS`
+/// dans `src/mock/generate.ts`.
+fn auto_tags_for(category: &str) -> &'static [&'static str] {
+    match category {
+        "Kick" => &["kick"],
+        "Snare" => &["snare"],
+        "Clap" => &["clap"],
+        "HiHat" | "Top_Loop" => &["hat"],
+        "OpenHat" => &["openhat"],
+        "Perc" => &["perc"],
+        "Bass" | "Bass_Loop" => &["bass"],
+        "Keys_Loop" => &["keys"],
+        "Pad" => &["pad", "wet"],
+        "Texture" | "Riser" => &["fx"],
+        "Vox_Chop" => &["vocal"],
+        "Ambience" => &["wet"],
+        _ => &[],
+    }
+}
+
 pub const TAGS: [&str; 12] = [
     "warm", "dark", "bright", "punchy", "lofi", "vinyl", "airy", "gritty", "clean", "analog", "tape", "wide",
 ];
@@ -412,6 +432,7 @@ pub fn samples() -> Vec<Sample> {
             key: Some(key.into()),
             kind,
             tags: tags.iter().map(|t| t.to_string()).collect(),
+            auto_tags: vec![],
             missing: false,
             fav: false,
             hidden: false,
@@ -476,6 +497,12 @@ fn audio_samples() -> Vec<Sample> {
             if adj_tag != "deep" && TAGS.contains(&adj_tag.as_str()) && tag_count > 0 && !tags.contains(&adj_tag) {
                 tags.push(adj_tag);
             }
+            let auto_tags: Vec<String> = auto_tags_for(cat.name).iter().map(|t| t.to_string()).collect();
+            for t in &auto_tags {
+                if !tags.contains(t) {
+                    tags.push(t.clone());
+                }
+            }
             tags.sort();
             let ext = if rng.next_f64() < 0.85 { "wav" } else { "aif" };
             let sample_rate = if rng.next_f64() < 0.75 { 44100 } else { 48000 };
@@ -496,6 +523,7 @@ fn audio_samples() -> Vec<Sample> {
                 key,
                 kind: cat.kind,
                 tags,
+                auto_tags,
                 missing: false,
                 // Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
                 fav: id % 11 == 0,

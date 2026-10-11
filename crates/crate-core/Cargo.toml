@@ -16,6 +16,8 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { workspace = true }
 specta = { workspace = true, optional = true }
 symphonia = { version = "0.6.1", default-features = false, features = ["wav", "aiff", "flac", "mp3", "ogg", "vorbis", "pcm", "adpcm"] }
+# Modèle de tags (EfficientAT mn04_as, format NNEF) : inférence en pur Rust, sans le parseur ONNX (binaire plus léger).
+tract-nnef = "=0.23.8"
 
 [dev-dependencies]
 serde_json = { workspace = true }

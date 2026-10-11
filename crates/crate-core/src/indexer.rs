@@ -53,6 +53,8 @@ pub struct AnalysisUpdate {
     pub bpm: Option<f64>,
     pub key: Option<String>,
     pub kind: SampleKind,
+    /// Tags automatiques retenus en base (sans les tags retirés à la main ni ceux de l'utilisateur).
+    pub auto_tags: Vec<String>,
 }
 
 enum Msg {
@@ -121,6 +123,27 @@ pub fn check_analysis_version(conn: &rusqlite::Connection) -> rusqlite::Result<(
     Ok(())
 }
 
+/// Remplace les tags automatiques d'un fichier. Un tag retiré à la main (`rejected`) ou déjà posé par l'utilisateur
+/// n'est pas écrit. Renvoie les tags retenus, triés. Les rejets sont lus ici, dans la transaction d'écriture.
+fn write_auto_tags(tx: &rusqlite::Transaction, id: u32, tags: &[String]) -> rusqlite::Result<Vec<String>> {
+    tx.execute("DELETE FROM file_auto_tags WHERE file_id = ?1 AND rejected = 0", [id])?;
+    for t in tags {
+        tx.execute("INSERT OR IGNORE INTO tags (name) VALUES (?1)", [t])?;
+        tx.execute(
+            "INSERT OR IGNORE INTO file_auto_tags (file_id, tag_id)
+             SELECT ?1, t.id FROM tags t WHERE t.name = ?2
+               AND NOT EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = ?1 AND ft.tag_id = t.id)",
+            rusqlite::params![id, t],
+        )?;
+    }
+    tx.prepare(
+        "SELECT t.name FROM file_auto_tags fa JOIN tags t ON t.id = fa.tag_id
+         WHERE fa.file_id = ?1 AND fa.rejected = 0 ORDER BY t.name",
+    )?
+    .query_map([id], |r| r.get(0))?
+    .collect()
+}
+
 /// Analyse un lot de fichiers (en parallèle sur `pool`) et écrit les résultats. Un fichier illisible est marqué
 /// analysé sans résultat (pas de nouvel essai avant qu'il change). Renvoie (fichiers traités, résultats).
 pub fn analysis_batch(conn: &rusqlite::Connection, pool: &rayon::ThreadPool) -> rusqlite::Result<(usize, Vec<AnalysisUpdate>)> {
@@ -148,11 +171,13 @@ pub fn analysis_batch(conn: &rusqlite::Connection, pool: &rayon::ThreadPool) -> 
                     "UPDATE files SET bpm = ?2, musical_key = ?3, kind = ?4, analyzed_at = ?5 WHERE id = ?1",
                     rusqlite::params![id, a.bpm, a.key, kind, now],
                 )?;
+                let auto_tags = write_auto_tags(&tx, *id, &a.tags)?;
                 updates.push(AnalysisUpdate {
                     id: *id,
                     bpm: a.bpm,
                     key: a.key.clone(),
                     kind: a.kind,
+                    auto_tags,
                 });
             }
             None => {

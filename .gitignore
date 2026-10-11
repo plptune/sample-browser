@@ -10,3 +10,7 @@ src-tauri/gen/schemas
 rapport-verification-mac.md
 test-results/
 playwright-report/
+
+# Modèle de tags : ONNX intermédiaire (seul le NNEF est embarqué) et build de l'outil de conversion
+crates/crate-core/models/*.onnx
+scripts/model/onnx2nnef/target

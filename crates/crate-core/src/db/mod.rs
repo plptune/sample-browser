@@ -9,7 +9,7 @@ use crate::catalog::{Catalog, FolderNode};
 use crate::model::*;
 use crate::natural;
 
-const MIGRATIONS: &[&str] = &[include_str!("schema.sql"), include_str!("schema2.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("schema.sql"), include_str!("schema2.sql"), include_str!("schema3.sql")];
 
 pub type DbResult<T> = Result<T, rusqlite::Error>;
 
@@ -95,6 +95,17 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
         let (id, name) = r?;
         tags_of.entry(id).or_default().push(name);
     }
+    // Tags automatiques (retenus, puis retirés à la main).
+    let mut auto_of: HashMap<u32, Vec<String>> = HashMap::new();
+    let mut stmt = conn.prepare("SELECT fa.file_id, t.name, fa.rejected FROM file_auto_tags fa JOIN tags t ON t.id = fa.tag_id")?;
+    for r in stmt.query_map([], |r| Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?, r.get::<_, bool>(2)?)))? {
+        let (id, name, rejected) = r?;
+        if rejected {
+            c.rejected.insert((id, name));
+        } else {
+            auto_of.entry(id).or_default().push(name);
+        }
+    }
     c.known_tags = conn
         .prepare("SELECT name FROM tags ORDER BY id")?
         .query_map([], |r| r.get(0))?
@@ -124,6 +135,7 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
                 key: r.get(10)?,
                 kind: kind_of(r.get(11)?),
                 tags: vec![],
+                auto_tags: vec![],
                 missing: r.get(13)?,
                 fav: r.get(12)?,
                 hidden: r.get(15)?,
@@ -135,10 +147,13 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
     c.samples = samples
         .into_iter()
         .map(|mut s| {
-            if let Some(mut t) = tags_of.remove(&s.id) {
-                t.sort();
-                s.tags = t;
-            }
+            let user = tags_of.remove(&s.id).unwrap_or_default();
+            let mut auto = auto_of.remove(&s.id).unwrap_or_default();
+            auto.retain(|t| !user.contains(t));
+            auto.sort();
+            s.tags = user.into_iter().chain(auto.iter().cloned()).collect();
+            s.tags.sort();
+            s.auto_tags = auto;
             s
         })
         .collect();

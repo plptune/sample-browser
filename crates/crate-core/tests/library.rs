@@ -455,10 +455,10 @@ fn migrations_idempotentes() {
     let tmp = Tmp::new("migr");
     let path = tmp.join("crate.db");
     let conn = crate_core::db::open(&path).unwrap();
-    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 2);
+    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 3);
     drop(conn);
     let conn = crate_core::db::open(&path).unwrap();
-    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 2);
+    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 3);
 }
 
 /// Attend qu'une condition devienne vraie (les scans tournent sur le thread de l'indexeur).
@@ -867,4 +867,77 @@ fn analyse_de_fond_et_reprise() {
     lib.connection().execute("UPDATE files SET analyzed_at = NULL", []).unwrap();
     assert_eq!(lib.analyze_pending(), 4);
     assert_eq!(sample(&lib, "groove").bpm, Some(120.0));
+}
+
+/// Tags automatiques : posés par l'analyse (nom, dossier parent), retirés pour toujours par ×, promus quand
+/// l'utilisateur les ajoute lui-même ; ils ne retiennent pas un fichier disparu.
+#[test]
+fn tags_automatiques() {
+    let tmp = Tmp::new("autotags");
+    let root = tmp.join("Samples");
+    half_second(&root.join("Kicks/Hit 1.wav"));
+    half_second(&root.join("Snare Dry.wav"));
+    half_second(&root.join("Clap.wav"));
+    half_second(&root.join("Thing.wav"));
+    let db = tmp.join("crate.db");
+    let mut lib = library_at(&db);
+    let src = lib.add_source(&root.to_string_lossy()).unwrap();
+    assert_eq!(lib.analyze_pending(), 4);
+    let tags = |lib: &SqliteLibrary, name: &str| {
+        let s = sample(lib, name);
+        (s.tags.clone(), s.auto_tags.clone())
+    };
+    let v = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    assert_eq!(tags(&lib, "Hit 1"), (v(&["kick"]), v(&["kick"])), "dossier parent");
+    assert_eq!(tags(&lib, "Snare Dry"), (v(&["dry", "snare"]), v(&["dry", "snare"])));
+    assert_eq!(tags(&lib, "Clap"), (v(&["clap"]), v(&["clap"])));
+    assert_eq!(tags(&lib, "Thing"), (v(&[]), v(&[])));
+    let found = |lib: &SqliteLibrary, q: &str| {
+        lib.tree(&TreeRequest {
+            query: q.into(),
+            ..req(&[])
+        })
+        .matches
+    };
+    assert_eq!(found(&lib, "#kick"), 1);
+    assert_eq!(found(&lib, "#oneshot"), 4, "le type se cherche comme un tag");
+    assert_eq!(found(&lib, "#loop"), 0);
+    let names: Vec<String> = lib.library().tags.iter().map(|t| t.name.clone()).collect();
+    assert!(names.contains(&"kick".to_string()) && names.contains(&"oneshot".to_string()));
+    assert!(!names.contains(&"808".to_string()), "vocabulaire inutilisé : pas proposé");
+
+    // × : retiré, et jamais reposé (réanalyse, puis rechargement depuis la base).
+    let clap = sample_id(&lib, "Clap");
+    lib.remove_tag(&[clap], "clap");
+    assert_eq!(tags(&lib, "Clap"), (v(&[]), v(&[])));
+    lib.connection().execute("UPDATE files SET analyzed_at = NULL", []).unwrap();
+    assert_eq!(lib.analyze_pending(), 4);
+    assert_eq!(tags(&lib, "Clap"), (v(&[]), v(&[])), "pas reposé par la réanalyse");
+    drop(lib);
+    let mut lib = library_at(&db);
+    assert_eq!(tags(&lib, "Clap"), (v(&[]), v(&[])), "ni au rechargement");
+
+    // Ajouté par l'utilisateur (en majuscules) : il devient le sien, n'est plus atténué, et se cherche en minuscules.
+    let snare = sample_id(&lib, "Snare Dry");
+    lib.add_tag(&[snare], "Snare");
+    assert_eq!(tags(&lib, "Snare Dry"), (v(&["dry", "snare"]), v(&["dry"])));
+    lib.connection().execute("UPDATE files SET analyzed_at = NULL", []).unwrap();
+    lib.analyze_pending();
+    assert_eq!(
+        tags(&lib, "Snare Dry"),
+        (v(&["dry", "snare"]), v(&["dry"])),
+        "reste à l'utilisateur"
+    );
+    assert_eq!(found(&lib, "#snare"), 1);
+    // Réservés : le type vient de l'analyse.
+    lib.add_tag(&[snare], "Loop");
+    assert!(!sample(&lib, "Snare Dry").tags.contains(&"loop".to_string()));
+    // Retiré puis rajouté à la main : la réanalyse peut de nouveau le proposer… il est déjà à l'utilisateur.
+    lib.add_tag(&[clap], "clap");
+    assert_eq!(tags(&lib, "Clap"), (v(&["clap"]), v(&[])));
+
+    // Un fichier disparu qui n'a que des tags automatiques n'est pas gardé comme introuvable.
+    fs::remove_file(root.join("Kicks/Hit 1.wav")).unwrap();
+    lib.scan_inline(src.id).unwrap();
+    assert!(lib.catalog().samples().iter().all(|s| s.name != "Hit 1"));
 }

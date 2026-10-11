@@ -3,6 +3,12 @@
 
 const BASE: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
+/** `key:minor` → true, `key:major` → false, sinon null (une tonalité écrite). */
+export function modeOnly(want: string): boolean | null {
+  const w = want.trim().toLowerCase();
+  return w === "minor" || w === "min" ? true : w === "major" || w === "maj" ? false : null;
+}
+
 /** [classe de hauteur, mineur, mode écrit] ou null. */
 function parse(s: string): [number, boolean, boolean] | null {
   const t = s.trim();
@@ -21,10 +27,20 @@ function parse(s: string): [number, boolean, boolean] | null {
   return [(((base + shift) % 12) + 12) % 12, minor, mode !== ""];
 }
 
-/** `key:` — une note seule couvre majeur et mineur ; les enharmonies se valent (A# = Bb). */
+/** `key:` — une note seule couvre majeur et mineur ; les enharmonies se valent (A# = Bb) ; `key:minor` /
+ *  `key:major` (ou `min` / `maj`) : le mode seul, quelle que soit la tonique. */
 export function keyMatches(have: string, want: string): boolean {
+  const mode = modeOnly(want);
+  if (mode !== null) return parse(have)?.[1] === mode;
   const h = parse(have);
   const w = parse(want);
   if (!h || !w) return false;
   return h[0] === w[0] && (!w[2] || h[1] === w[1]);
+}
+
+/** Rang d'une tonalité pour le tri de la liste : classe de hauteur (do d'abord), majeur avant mineur ; null si
+ *  illisible. Même rang que `key_rank` (crates/crate-core/src/catalog.rs). */
+export function keyRank(key: string | null | undefined): number | null {
+  const k = key ? parse(key) : null;
+  return k ? k[0] * 2 + (k[1] ? 1 : 0) : null;
 }

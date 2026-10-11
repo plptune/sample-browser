@@ -12,6 +12,9 @@
 //!
 //! Un fichier MIDI se lit directement : tempo du fichier, tonalité des notes jouées (`decide_midi`).
 //!
+//! Tags automatiques (`autotag`) : instrument et `wet` / `dry` lus dans le nom (ou le dossier parent) ; pour un
+//! one-shot, `wet` / `dry` viennent sinon de la queue du son (`space`).
+//!
 //! Le nom l'emporte sur le chunk, qui l'emporte sur l'audio. Le BPM n'est gardé que pour les boucles
 //! (ou s'il est écrit dans le nom) : le tempo d'un one-shot n'a pas de sens.
 
@@ -20,10 +23,11 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::audio::Decoder;
+use crate::dsp::fft;
 use crate::model::SampleKind;
 
 /// Version de l'analyse : la changer fait tout réanalyser au lancement suivant.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// Résultat de l'analyse, prêt à écrire en base.
 #[derive(Debug, Clone, PartialEq)]
@@ -31,6 +35,8 @@ pub struct Analysis {
     pub bpm: Option<f64>,
     pub key: Option<String>,
     pub kind: SampleKind,
+    /// Tags automatiques (vocabulaire fermé de `autotag`).
+    pub tags: Vec<String>,
 }
 
 /// Indices lus dans le nom du fichier.
@@ -209,6 +215,9 @@ struct Signal {
     seconds: f64,
     /// Le fichier dure plus que ce qui a été analysé.
     truncated: bool,
+    /// Mono à la fréquence du fichier, 10 premières secondes : l'entrée du modèle de tags (`ml`).
+    native: Vec<f32>,
+    native_rate: u32,
 }
 
 fn decode_mono(path: &Path) -> Option<Signal> {
@@ -216,6 +225,8 @@ fn decode_mono(path: &Path) -> Option<Signal> {
     let factor = ((d.rate as f32 / TARGET_RATE as f32).round() as usize).max(1);
     let max_frames = (MAX_SECONDS * d.rate as f64) as usize;
     let (mut x, mut acc, mut n_acc, mut frames) = (Vec::new(), 0f32, 0usize, 0usize);
+    let max_native = (crate::ml::MAX_SECONDS * d.rate as f64) as usize;
+    let mut native = Vec::new();
     let mut tmp = Vec::new();
     let mut truncated = false;
     'outer: while let Some(ch) = d.next_chunk(&mut tmp) {
@@ -224,7 +235,11 @@ fn decode_mono(path: &Path) -> Option<Signal> {
                 truncated = true;
                 break 'outer;
             }
-            acc += fr.iter().sum::<f32>() / ch as f32;
+            let mono = fr.iter().sum::<f32>() / ch as f32;
+            if native.len() < max_native {
+                native.push(mono);
+            }
+            acc += mono;
             n_acc += 1;
             frames += 1;
             if n_acc == factor {
@@ -239,43 +254,9 @@ fn decode_mono(path: &Path) -> Option<Signal> {
         rate: d.rate as f32 / factor as f32,
         seconds: frames as f64 / d.rate as f64,
         truncated,
+        native,
+        native_rate: d.rate,
     })
-}
-
-/// FFT complexe en place (radix 2, taille puissance de deux).
-fn fft(re: &mut [f32], im: &mut [f32]) {
-    let n = re.len();
-    let mut j = 0;
-    for i in 1..n {
-        let mut bit = n >> 1;
-        while j & bit != 0 {
-            j ^= bit;
-            bit >>= 1;
-        }
-        j |= bit;
-        if i < j {
-            re.swap(i, j);
-            im.swap(i, j);
-        }
-    }
-    let mut len = 2;
-    while len <= n {
-        let ang = -2.0 * std::f32::consts::PI / len as f32;
-        let (wr, wi) = (ang.cos(), ang.sin());
-        for start in (0..n).step_by(len) {
-            let (mut cr, mut ci) = (1f32, 0f32);
-            for k in 0..len / 2 {
-                let (a, b) = (start + k, start + k + len / 2);
-                let (tr, ti) = (re[b] * cr - im[b] * ci, re[b] * ci + im[b] * cr);
-                re[b] = re[a] - tr;
-                im[b] = im[a] - ti;
-                re[a] += tr;
-                im[a] += ti;
-                (cr, ci) = (cr * wr - ci * wi, cr * wi + ci * wr);
-            }
-        }
-        len <<= 1;
-    }
 }
 
 /// Spectre d'amplitude de chaque trame (fenêtre de Hann), `n/2` valeurs par trame.
@@ -510,6 +491,18 @@ fn onset_count(o: &[f32]) -> usize {
     n
 }
 
+/// Le son s'éteint : sa seconde moitié (silence final retiré) a au moins 13 dB de moins que la première. C'est un
+/// one-shot qui résonne (queue de réverbe), pas une boucle, même si sa queue a des remous.
+fn fades_out(x: &[f32]) -> bool {
+    let max = x.iter().fold(0f32, |m, v| m.max(v.abs()));
+    let Some(last) = x.iter().rposition(|v| v.abs() > max * 0.003) else {
+        return false;
+    };
+    let (a, b) = x[..=last].split_at(last / 2);
+    let e = |s: &[f32]| s.iter().map(|v| v * v).sum::<f32>();
+    e(b) < e(a) * 0.05
+}
+
 /// Énergie de la fin (dernier dixième) rapportée à la trame la plus forte : ~0 pour un son qui s'éteint.
 fn sustain(x: &[f32], rate: f32) -> f32 {
     let w = ((rate * 0.05) as usize).max(1);
@@ -710,12 +703,186 @@ const FIRST_BASS_WEIGHT: f32 = 0.1;
 pub fn analyze(path: &Path) -> Option<Analysis> {
     let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let names = parse_name(&stem);
-    if crate::midi::is_midi(path) {
-        return Some(decide_midi(&names, &crate::midi::Midi::open(path)?));
+    let (mut a, sig) = if crate::midi::is_midi(path) {
+        (decide_midi(&names, &crate::midi::Midi::open(path)?), None)
+    } else {
+        let acid = read_acid(path);
+        let sig = decode_mono(path)?;
+        (decide(&names, acid, &sig, &stem), Some(sig))
+    };
+    a.tags = name_tags(path, &stem, a.kind);
+    // Instrument : le nom (ou le dossier) d'abord ; sinon le modèle de tags, sur l'audio.
+    if !a.tags.iter().any(|t| crate::autotag::INSTRUMENTS.contains(&t.as_str())) {
+        if let Some(sig) = &sig {
+            if let Some(scores) = model_scores_of(sig) {
+                a.tags.extend(model_instruments(&scores, a.kind, sig).into_iter().map(String::from));
+                a.tags.sort();
+            }
+        }
     }
-    let acid = read_acid(path);
-    let sig = decode_mono(path)?;
-    Some(decide(&names, acid, &sig, &stem))
+    // Espace : écrit dans le nom, sinon (one-shot entier seulement) la queue du son.
+    if !a.tags.iter().any(|t| crate::autotag::SPACE.contains(&t.as_str())) && a.kind == SampleKind::Oneshot {
+        if let Some(t) = sig.as_ref().filter(|s| !s.truncated).and_then(space) {
+            a.tags.push(t.to_string());
+            a.tags.sort();
+        }
+    }
+    Some(a)
+}
+
+/// Scores du modèle de tags (`ml`) pour un signal décodé : 10 premières secondes, rééchantillonnées à 32 kHz.
+fn model_scores_of(sig: &Signal) -> Option<Vec<(&'static str, f32)>> {
+    let x = crate::dsp::resample(&sig.native, sig.native_rate, crate::dsp::ML_RATE);
+    crate::ml::classify(&x).map(|p| crate::ml::tag_scores(&p))
+}
+
+/// Scores du modèle pour un fichier (outil de calibrage des seuils, tests).
+pub fn model_scores(path: &Path) -> Option<Vec<(&'static str, f32)>> {
+    model_scores_of(&decode_mono(path)?)
+}
+
+/// Seuil de probabilité par tag au-delà duquel le modèle est cru, choisi pour une précision d'au moins 85 % sur
+/// une vraie bibliothèque (~43 000 samples, 4 000 évalués : les noms des packs servent d'annotation ; voir
+/// `calibrer_les_seuils` dans `tests/ml.rs`). Les tags absents (kick, snare, rim, clap, snap, perc, synth, keys,
+/// fx) ne sont pas crus : appris sur des extraits de 10 s, le modèle ne reconnaît pas les one-shots de batterie et
+/// confond synthés, claviers et effets. Ils ne viennent que du nom.
+pub const MODEL_THRESHOLDS: &[(&str, f32)] = &[
+    ("vocal", 0.1),   // précision 89 %, rappel 57 %
+    ("cymbal", 0.1),  // 95 %, 26 %
+    ("string", 0.15), // 91 %, 39 %
+    ("piano", 0.2),   // 89 %, 29 %
+    ("bass", 0.2),    // 88 %, 3 %
+    ("hat", 0.1),     // 100 %, 1 %
+    ("shaker", 0.4),  // 100 %, 16 % (peu d'exemples)
+    ("brass", 0.5),   // 100 %, 7 % (peu d'exemples)
+];
+
+/// Instrument retenu d'après le modèle : le tag le plus probable, s'il passe son seuil (sinon rien, même si un
+/// autre tag passe le sien : c'est ainsi que les seuils ont été calibrés). Une charleston qui sonne longtemps est
+/// ouverte (`openhat`).
+pub fn decide_model(scores: &[(&'static str, f32)], is_loop: bool, long_decay: bool) -> Vec<&'static str> {
+    let Some(&(best, score)) = scores.iter().max_by(|a, b| a.1.total_cmp(&b.1)) else {
+        return vec![];
+    };
+    if !MODEL_THRESHOLDS.iter().any(|&(t, th)| t == best && score >= th) {
+        return vec![];
+    }
+    vec![if best == "hat" && !is_loop && long_decay { "openhat" } else { best }]
+}
+
+fn model_instruments(scores: &[(&'static str, f32)], kind: SampleKind, sig: &Signal) -> Vec<&'static str> {
+    decide_model(scores, kind == SampleKind::Loop, decay_seconds(sig, 40.0) > OPEN_HAT_DECAY_S)
+}
+
+/// Une charleston dont le son met plus longtemps à descendre de 40 dB est ouverte.
+const OPEN_HAT_DECAY_S: f32 = 0.25;
+
+/// Temps (s) entre le pic et la première trame (10 ms) à `db` décibels sous lui ; jusqu'à la fin s'il n'y descend pas.
+fn decay_seconds(sig: &Signal, db: f32) -> f32 {
+    let hop = ((sig.rate * 0.01) as usize).max(1);
+    let env: Vec<f32> = sig
+        .x
+        .chunks(hop)
+        .map(|c| (c.iter().map(|v| v * v).sum::<f32>() / c.len() as f32).sqrt())
+        .collect();
+    let (p, peak) = env
+        .iter()
+        .copied()
+        .enumerate()
+        .fold((0, 0f32), |m, (i, v)| if v > m.1 { (i, v) } else { m });
+    let th = peak * 10f32.powf(-db / 20.0);
+    let end = env[p..].iter().position(|&v| v < th).map_or(env.len(), |k| p + k);
+    (end - p) as f32 * 0.01
+}
+
+/// Queue (après −20 dB) plus courte : `dry`.
+const DRY_TAIL_S: f32 = 0.08;
+/// Queue (−20 → −50 dB) au moins aussi longue, et diffuse : `wet` (réverbération).
+const WET_TAIL_S: f32 = 0.3;
+/// Platitude spectrale de la queue à partir de laquelle elle est diffuse (bruit de réverbe), et non une note tenue.
+const WET_FLATNESS: f32 = 0.1;
+
+/// `wet` / `dry` d'un one-shot, d'après sa queue : courte, il est sec ; longue et diffuse (une réverbe, pas une note
+/// qui sonne), il est mouillé ; entre les deux, rien. Enveloppe RMS par trames de 10 ms.
+fn space(sig: &Signal) -> Option<&'static str> {
+    let hop = (sig.rate * 0.01) as usize;
+    if hop == 0 || sig.x.len() < hop * 3 {
+        return None;
+    }
+    let env: Vec<f32> = sig
+        .x
+        .chunks(hop)
+        .map(|c| (c.iter().map(|v| v * v).sum::<f32>() / c.len() as f32).sqrt())
+        .collect();
+    let (p, peak) = env
+        .iter()
+        .copied()
+        .enumerate()
+        .fold((0, 0f32), |m, (i, v)| if v > m.1 { (i, v) } else { m });
+    if peak < 1e-4 {
+        return None;
+    }
+    // −20 dB après le pic (sinon le son tient jusqu'au bout : on ne juge pas), puis −50 dB ou la fin.
+    let i20 = p + env[p..].iter().position(|&v| v < peak * 0.1)?;
+    let i50 = env[i20..].iter().position(|&v| v < peak * 0.003_16).map_or(env.len(), |k| i20 + k);
+    let tail = (i50 - i20) as f32 * 0.01;
+    if tail <= DRY_TAIL_S {
+        return Some("dry");
+    }
+    if tail < WET_TAIL_S {
+        return None;
+    }
+    (flatness(&sig.x[i20 * hop..(i50 * hop).min(sig.x.len())]) >= WET_FLATNESS).then_some("wet")
+}
+
+/// Platitude spectrale moyenne (moyenne géométrique / arithmétique de la puissance, trames de 512) : proche de 1
+/// pour un bruit, de 0 pour un son tonal.
+fn flatness(x: &[f32]) -> f32 {
+    const N: usize = 512;
+    if x.len() < N {
+        return 0.0;
+    }
+    let win: Vec<f32> = (0..N)
+        .map(|i| 0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / N as f32).cos())
+        .collect();
+    let mut acc = vec![0f64; N / 2];
+    let mut frames = 0;
+    for start in (0..=x.len() - N).step_by(N / 2) {
+        let mut re: Vec<f32> = x[start..start + N].iter().zip(&win).map(|(v, w)| v * w).collect();
+        let mut im = vec![0f32; N];
+        fft(&mut re, &mut im);
+        for (k, a) in acc.iter_mut().enumerate() {
+            *a += (re[k] * re[k] + im[k] * im[k]) as f64;
+        }
+        frames += 1;
+    }
+    let bins = &acc[2..];
+    let mean = bins.iter().sum::<f64>() / bins.len() as f64 / frames as f64;
+    let geo = (bins.iter().map(|p| (p / frames as f64 + 1e-12).ln()).sum::<f64>() / bins.len() as f64).exp();
+    if mean <= 0.0 {
+        0.0
+    } else {
+        (geo / mean) as f32
+    }
+}
+
+/// Tags lus dans le nom, sinon dans les deux dossiers les plus proches (le premier qui n'est pas générique).
+fn name_tags(path: &Path, stem: &str, kind: SampleKind) -> Vec<String> {
+    let parents: Vec<String> = path
+        .ancestors()
+        .skip(1)
+        .take(2)
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .collect();
+    let parents: Vec<&str> = parents.iter().map(String::as_str).collect();
+    let n = crate::autotag::from_name(stem, &parents);
+    let mut tags: Vec<String> = crate::autotag::pick(&n.instruments, kind == SampleKind::Loop)
+        .into_iter()
+        .chain(n.space)
+        .map(String::from)
+        .collect();
+    tags.sort();
+    tags
 }
 
 /// Premier accord d'un MIDI : sa fondamentale (note la plus grave des premières attaques) et son mode (tierce
@@ -800,6 +967,7 @@ fn decide_midi(names: &NameHints, m: &crate::midi::Midi) -> Analysis {
         bpm,
         key: key.map(|(pc, minor)| key_name(pc, minor)),
         kind,
+        tags: vec![],
     }
 }
 
@@ -812,7 +980,11 @@ fn decide(names: &NameHints, acid: Option<Acid>, sig: &Signal, label: &str) -> A
     let t = tempo(&r, sig, onsets, circular);
 
     // Boucle ou one-shot.
-    let audio_loop = sig.seconds >= 1.2 && onsets >= 4 && t.as_ref().is_some_and(|t| t.fits_bars || t.periodicity >= 0.3 || sus >= 0.05);
+    // Un son qui s'éteint (queue de réverbe) n'est pas une boucle, même si sa queue a des remous.
+    let audio_loop = sig.seconds >= 1.2
+        && onsets >= 4
+        && !fades_out(&sig.x)
+        && t.as_ref().is_some_and(|t| t.fits_bars || t.periodicity >= 0.3 || sus >= 0.05);
     let kind = names
         .kind
         .or(acid.map(|a| if a.oneshot { SampleKind::Oneshot } else { SampleKind::Loop }))
@@ -860,6 +1032,7 @@ fn decide(names: &NameHints, acid: Option<Acid>, sig: &Signal, label: &str) -> A
         bpm,
         key: key.map(|(pc, minor)| key_name(pc, minor)),
         kind,
+        tags: vec![],
     }
 }
 

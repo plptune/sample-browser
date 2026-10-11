@@ -5,11 +5,14 @@
 
 pub mod analysis;
 pub mod audio;
+pub mod autotag;
 pub mod catalog;
 pub mod db;
+pub mod dsp;
 pub mod indexer;
 pub mod library;
 pub mod midi;
+pub mod ml;
 pub mod mock;
 pub mod model;
 pub mod natural;

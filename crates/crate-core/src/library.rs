@@ -310,6 +310,10 @@ impl Backend for SqliteLibrary {
         page
     }
 
+    fn list(&self, req: &ListRequest) -> TreePage {
+        self.cat.list(req)
+    }
+
     fn set_favorite(&mut self, ids: &[SampleId], fav: bool) {
         self.cat.set_favorite(ids, fav);
         let r = (|| {
@@ -323,10 +327,8 @@ impl Backend for SqliteLibrary {
     }
 
     fn add_tag(&mut self, ids: &[SampleId], tag: &str) {
-        let tag = tag.trim();
-        if tag.is_empty() {
-            return;
-        }
+        let Some(tag) = crate::autotag::normalize(tag) else { return };
+        let tag = tag.as_str();
         self.cat.add_tag(ids, tag);
         if !self.cat.known_tags.iter().any(|t| t == tag) {
             self.cat.known_tags.push(tag.to_string());
@@ -340,6 +342,8 @@ impl Backend for SqliteLibrary {
                     "INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?1, ?2)",
                     params![id, tag_id],
                 )?;
+                // Posé par l'analyse (ou retiré avant) : c'est maintenant un tag de l'utilisateur.
+                tx.execute("DELETE FROM file_auto_tags WHERE file_id = ?1 AND tag_id = ?2", params![id, tag_id])?;
             }
             tx.commit()
         })();
@@ -355,6 +359,15 @@ impl Backend for SqliteLibrary {
                     "DELETE FROM file_tags WHERE file_id = ?1 AND tag_id = (SELECT id FROM tags WHERE name = ?2)",
                     params![id, tag],
                 )?;
+                // Un tag du vocabulaire automatique retiré à la main : l'analyse ne le reposera plus.
+                if crate::autotag::is_vocabulary(tag) {
+                    tx.execute(
+                        "INSERT INTO file_auto_tags (file_id, tag_id, rejected)
+                         SELECT ?1, id, 1 FROM tags WHERE name = ?2
+                         ON CONFLICT (file_id, tag_id) DO UPDATE SET rejected = 1",
+                        params![id, tag],
+                    )?;
+                }
             }
             tx.commit()
         })();

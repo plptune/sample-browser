@@ -126,6 +126,26 @@ interface Category {
   shape: "hit" | "loop" | "swell" | "noise";
 }
 
+/** Tags automatiques de la démo, par catégorie (fixes, sans tirage : la graine ne bouge pas). Miroir de
+ *  `auto_tags_for` dans `crates/crate-core/src/mock/data.rs`. */
+const AUTO_TAGS: Record<string, string[]> = {
+  Kick: ["kick"],
+  Snare: ["snare"],
+  Clap: ["clap"],
+  HiHat: ["hat"],
+  Top_Loop: ["hat"],
+  OpenHat: ["openhat"],
+  Perc: ["perc"],
+  Bass: ["bass"],
+  Bass_Loop: ["bass"],
+  Keys_Loop: ["keys"],
+  Pad: ["pad", "wet"],
+  Texture: ["fx"],
+  Riser: ["fx"],
+  Vox_Chop: ["vocal"],
+  Ambience: ["wet"],
+};
+
 const CATEGORIES: Category[] = [
   { name: "Kick", kind: "oneshot", folders: [12, 12, 3], count: 46, dur: [180, 720], tags: ["punchy", "dark", "warm", "tape", "analog", "clean"], shape: "hit" },
   { name: "Snare", kind: "oneshot", folders: [13, 13, 3], count: 38, dur: [140, 520], tags: ["punchy", "bright", "gritty", "vinyl", "tape"], shape: "hit" },
@@ -206,6 +226,8 @@ function makeSamples(): Sample[] {
       if (adj.toLowerCase() !== "deep" && (TAGS as readonly string[]).includes(adj.toLowerCase()) && tagCount > 0) {
         tags.add(adj.toLowerCase());
       }
+      const autoTags = AUTO_TAGS[cat.name] ?? [];
+      for (const t of autoTags) tags.add(t);
       const ext = rand() < 0.85 ? "wav" : "aif";
       samples.push({
         id: id++,
@@ -221,6 +243,7 @@ function makeSamples(): Sample[] {
         key,
         kind: cat.kind,
         tags: [...tags].sort(),
+        autoTags: [...autoTags],
         missing: false,
         fav: false,
         hidden: false,
@@ -269,6 +292,7 @@ function makeMidi(first: number): Sample[] {
       key,
       kind,
       tags,
+      autoTags: [],
       missing: false,
       fav: false,
       hidden: false,

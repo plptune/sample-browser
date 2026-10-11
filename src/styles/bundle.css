@@ -179,6 +179,41 @@
   color: var(--cr-text-3);
 }
 
+/* En recherche : bande sous le champ (Flatten, Shuffle), alignée sur les libellés. */
+.cr-search__options {
+  height: var(--cr-search-options-h);
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  padding: 0 var(--cr-space-1) var(--cr-space-1) var(--cr-label-x);
+}
+
+/* Bouton Flatten : une pastille comme un tag ; actif, en couleur primaire. */
+.cr-search__toggle {
+  height: var(--cr-chip-h);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--cr-space-2);
+  border: 0;
+  border-radius: var(--cr-radius);
+  background: none;
+  box-shadow: inset 0 0 0 var(--cr-border) var(--cr-line-soft);
+  font: inherit;
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-2);
+  cursor: pointer;
+}
+
+.cr-search__toggle:hover {
+  color: var(--cr-text);
+  box-shadow: inset 0 0 0 var(--cr-border) var(--cr-text-3);
+}
+
+.cr-search__toggle[data-active] {
+  color: var(--cr-accent);
+  box-shadow: inset 0 0 0 var(--cr-border) var(--cr-accent);
+}
+
 /* Pas de contour au focus : le curseur dans le champ suffit. */
 .cr-root .cr-search__input:focus-visible {
   outline: none;
@@ -557,6 +592,36 @@
   box-shadow: inset 0 0 0 var(--cr-border) var(--cr-accent);
 }
 
+/* Glisser d'un dossier virtuel (au pointeur) : pastille qui suit le pointeur, curseur de prise. */
+.cr-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--cr-z-pop);
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  max-width: 200px;
+  padding: 2px var(--cr-space-2);
+  background: var(--cr-surface-raised);
+  border-radius: var(--cr-radius-lg);
+  box-shadow: var(--cr-shadow-pop);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.cr-drag-ghost > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.cr-dragging-folder,
+html.cr-dragging-folder * {
+  cursor: grabbing !important;
+}
+
 .cr-node__meta {
   color: var(--cr-text-2);
 }
@@ -567,27 +632,6 @@
 
 .cr-node__warn {
   color: var(--cr-danger);
-}
-
-.cr-col-bpm,
-.cr-col-key {
-  flex: none;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.cr-col-bpm { width: var(--cr-col-bpm); }
-.cr-col-key { width: var(--cr-col-key); }
-
-/* En colonne, pas de tonalité pour l'instant : la place va au nom. */
-.cr-panel:not([data-layout="full"]) .cr-col-key {
-  display: none;
-}
-
-@container panel (max-width: 279px) {
-  .cr-col-bpm {
-    display: none;
-  }
 }
 
 /* ---------- Waveform ---------- */
@@ -760,6 +804,19 @@
   box-shadow: none;
 }
 
+/* Tag posé par l'analyse : en italique, contour en pointillés (même couleur de texte : contraste inchangé). */
+.cr-tag[data-auto] {
+  font-style: italic;
+  box-shadow: none;
+  border: var(--cr-border) dashed var(--cr-line-soft);
+}
+
+/* Type du sample (loop / oneshot) : affiché comme un tag, non retirable, sans contour. */
+.cr-tag[data-kind-tag] {
+  box-shadow: none;
+  color: var(--cr-text-2);
+}
+
 .cr-tag[data-variant="add"] {
   color: var(--cr-text-2);
   box-shadow: inset 0 0 0 var(--cr-border) var(--cr-line-soft);
@@ -911,6 +968,11 @@
 }
 
 /* ---------- TagPopover ---------- */
+
+/* En recherche, l'en-tête est plus haut (bande Flatten / Shuffle) : le popover descend d'autant. */
+.cr-panel[data-searching] .cr-popover {
+  top: calc(var(--cr-titlebar-h) + var(--cr-search-h) + var(--cr-search-options-h) + var(--cr-space-2));
+}
 
 .cr-popover {
   position: absolute;
@@ -1083,6 +1145,13 @@
 
 .cr-seg__item:hover {
   color: var(--cr-text);
+}
+
+/* Icône seule (mode d'affichage). */
+.cr-seg__item[data-icon] {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--cr-space-1);
 }
 
 .cr-seg__item[data-active] {
@@ -1325,58 +1394,14 @@
 }
 
 
-/* ---------- Deux modes : colonne (défaut) et grande fenêtre ---------- */
+/* ---------- Deux modes : colonne (défaut) et fenêtre bibliothèque ---------- */
 
-/* L'arbre (et, en mode grand, l'inspecteur à sa droite). */
-.cr-split {
+/* Colonne : l'arbre (et l'overlay de mesures), entre la recherche et le tiroir. */
+.cr-side {
   flex: 1;
   min-height: 0;
   display: flex;
-}
-
-.cr-split__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
   flex-direction: column;
-}
-
-/* Colonnes du mode grand, alignées à droite comme BPM et clé. */
-.cr-col-dur,
-.cr-col-fmt,
-.cr-col-tags {
-  flex: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-variant-numeric: tabular-nums;
-}
-
-.cr-col-dur { width: var(--cr-col-dur); text-align: right; }
-.cr-col-fmt { width: var(--cr-col-fmt); padding-left: var(--cr-space-3); }
-.cr-col-tags { width: var(--cr-col-tags); color: var(--cr-text-2); }
-/* Sur la ligne sélectionnée (fond bleu), tout le texte passe en clair : contraste ≥ 4,5:1 (tests/e2e/contraste.spec.ts). */
-.cr-node[data-selected] .cr-col-tags { color: var(--cr-on-row-selected); }
-
-.cr-colhead {
-  flex: none;
-  height: var(--cr-row-h);
-  display: flex;
-  align-items: center;
-  gap: var(--cr-space-1);
-  padding: 0 var(--cr-space-2) 0 var(--cr-label-x);
-  border-bottom: var(--cr-border) solid var(--cr-line);
-  font-size: var(--cr-fs-xs);
-  color: var(--cr-text-3);
-  white-space: nowrap;
-}
-
-.cr-colhead__name {
-  flex: 1;
-}
-
-.cr-colhead .cr-col-bpm,
-.cr-colhead .cr-col-key {
-  text-align: right;
 }
 
 /* Réglages et « Créer un vrai dossier » : centrés, largeur de lecture. */
@@ -1385,35 +1410,246 @@
   margin-inline: auto;
 }
 
-/* ---------- Inspecteur (mode grand) ---------- */
-
-.cr-inspector {
-  flex: none;
-  width: var(--cr-inspector-w);
+/* Fenêtre bibliothèque : l'explorer (dossiers) à gauche, à droite la preview, la recherche et la liste. */
+.cr-full {
+  flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--cr-space-2);
-  padding: var(--cr-space-2) var(--cr-space-3) var(--cr-space-3);
-  background: var(--cr-surface);
-  border-left: var(--cr-border) solid var(--cr-line);
+  display: grid;
+  --cr-explorer-col: clamp(var(--cr-explorer-min), var(--cr-explorer-w), var(--cr-explorer-max));
+  grid-template-columns: var(--cr-explorer-col) minmax(0, 1fr);
 }
 
-.cr-inspector__empty {
-  margin: auto;
-  font-size: var(--cr-fs-md);
+.cr-explorer {
+  position: relative; /* ancre du séparateur */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: var(--cr-border) solid var(--cr-line);
+}
+
+/* Séparateur explorer | liste : une zone de saisie large, posée sur la bordure ; trait d'accent au survol et pendant
+   le glisser. */
+.cr-splitter {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--cr-splitter-hit) / -2);
+  width: var(--cr-splitter-hit);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.cr-splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - var(--cr-border));
+  width: calc(var(--cr-border) * 2);
+  background: transparent;
+  transition: background var(--cr-dur-fast);
+}
+
+.cr-splitter:hover::after,
+.cr-splitter[data-dragging]::after,
+.cr-splitter:focus-visible::after {
+  background: var(--cr-accent);
+}
+
+.cr-root .cr-splitter:focus-visible {
+  outline: none;
+}
+
+/* La portée de la liste, quand le curseur de l'explorer est ailleurs : un trait d'accent à gauche. */
+.cr-node[data-scoped]:not([data-selected]) {
+  box-shadow: inset calc(var(--cr-border) * 2) 0 0 var(--cr-accent);
+}
+
+.cr-full__main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-full__list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Barre de portée : « All samples · 407 samples », ou le dossier choisi dans l'explorer (× pour revenir à tout). */
+.cr-scopebar {
+  flex: none;
+  height: var(--cr-row-h);
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  padding: 0 var(--cr-space-1) 0 var(--cr-gutter);
+  background: var(--cr-bg);
+  font-size: var(--cr-fs-sm);
+  color: var(--cr-text-2);
+}
+
+.cr-scopebar > .cr-icon {
+  flex: none;
   color: var(--cr-text-3);
 }
 
-.cr-inspector__head {
+.cr-scopebar__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cr-text-strong);
+}
+
+.cr-scopebar__count {
+  flex: 1;
+  color: var(--cr-text-3);
+  white-space: nowrap;
+}
+
+/* ---------- Liste du mode grand : colonnes triables ---------- */
+
+.cr-table {
+  --cr-table-cols: minmax(var(--cr-tcol-name-min), 1fr) var(--cr-tcol-bpm) var(--cr-tcol-key) var(--cr-tcol-dur)
+    var(--cr-tcol-fmt) var(--cr-tcol-tags);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-table__head,
+.cr-table__row {
+  display: grid;
+  grid-template-columns: var(--cr-table-cols);
+  column-gap: var(--cr-space-3);
+}
+
+.cr-table__head {
+  flex: none;
+  height: var(--cr-row-h);
+  align-items: stretch;
+  padding: 0 var(--cr-space-2) 0 var(--cr-gutter);
+  border-top: var(--cr-border) solid var(--cr-line);
+  border-bottom: var(--cr-border) solid var(--cr-line);
+  background: var(--cr-bg);
+}
+
+.cr-table__th {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-0);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cr-table__th:hover {
+  color: var(--cr-text);
+}
+
+.cr-table__th[data-active] {
+  color: var(--cr-text-strong);
+}
+
+.cr-table__th.cr-col-bpm,
+.cr-table__th.cr-col-key,
+.cr-table__th.cr-col-dur {
+  justify-content: flex-end;
+}
+
+/* Sens du tri : chevron vers le haut (croissant) ou vers le bas (décroissant). */
+.cr-table__dir {
+  display: inline-flex;
+}
+
+.cr-table__dir .cr-chevron {
+  transform: rotate(-90deg);
+}
+
+.cr-table__dir[data-desc] .cr-chevron {
+  transform: rotate(90deg);
+}
+
+.cr-table__row {
+  padding: 0 var(--cr-space-2) 0 var(--cr-gutter);
+  align-items: center;
+}
+
+.cr-table__row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cr-col-name {
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);
 }
 
-.cr-inspector__title {
-  flex: 1;
+.cr-col-bpm,
+.cr-col-key,
+.cr-col-dur {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-col-fmt {
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-col-tags {
+  color: var(--cr-text-2);
+}
+
+/* Séparateur « · » entre le type et les tags ; tags de l'analyse en italique. */
+.cr-col-tags > span + span::before { content: " · "; font-style: normal; }
+.cr-col-tags__tag[data-auto] { font-style: italic; }
+/* Sur la ligne sélectionnée (inversée), tout le texte suit : contraste ≥ 4,5:1 (tests/e2e/contraste.spec.ts). */
+.cr-node[data-selected] .cr-col-tags { color: var(--cr-on-row-selected); }
+
+/* ---------- Preview (mode grand) ---------- */
+
+/* Toujours la même hauteur : la liste ne saute pas d'un sample à l'autre. */
+.cr-preview {
+  flex: none;
+  height: var(--cr-preview-h);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cr-space-1);
+  padding: var(--cr-space-1) var(--cr-space-2) var(--cr-space-2) var(--cr-space-1);
+  background: var(--cr-surface);
+  border-bottom: var(--cr-border) solid var(--cr-line);
+}
+
+.cr-preview__empty {
+  margin: auto;
+  font-size: var(--cr-fs-md);
+  color: var(--cr-text-3);
+}
+
+.cr-preview__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  min-width: 0;
+}
+
+.cr-preview__title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1422,64 +1658,116 @@
   color: var(--cr-text-strong);
 }
 
-.cr-inspector__note {
-  font-size: var(--cr-fs-xs);
+.cr-preview__time {
+  flex: none;
+  font-size: var(--cr-fs-sm);
   color: var(--cr-text-2);
 }
 
-.cr-inspector__wave {
-  height: var(--cr-inspector-wave-h);
+.cr-preview__meta {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: var(--cr-space-1);
+  margin: 0 0 0 auto;
+  font-size: var(--cr-fs-sm);
+  white-space: nowrap;
+}
+
+.cr-preview__meta dt {
+  color: var(--cr-text-3);
+}
+
+.cr-preview__meta dd {
+  margin: 0 var(--cr-space-2) 0 0;
+  color: var(--cr-text);
+}
+
+.cr-preview__meta dd:last-child {
+  margin-right: 0;
+}
+
+.cr-preview__wave {
+  flex: 1;
+  min-height: 0;
+  margin-left: var(--cr-space-1);
   background: var(--cr-bg);
   border-radius: var(--cr-radius);
 }
 
-.cr-inspector__transport {
+.cr-preview__foot,
+.cr-preview__where {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: var(--cr-space-1);
+  gap: var(--cr-space-2);
+  min-width: 0;
+  padding-left: var(--cr-space-1);
 }
 
-.cr-inspector__time {
+.cr-preview__foot .cr-drawer__tags {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Suggestions de tags sous le champ (la preview est en haut de la fenêtre). */
+.cr-preview .cr-drawer__ac .cr-ac {
+  top: calc(100% + var(--cr-space-1));
+  bottom: auto;
+}
+
+.cr-preview__note {
+  flex: none;
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-2);
+}
+
+.cr-preview__where {
   font-size: var(--cr-fs-sm);
   color: var(--cr-text-2);
 }
 
-.cr-inspector__meta {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--cr-space-1) var(--cr-space-3);
-  margin: 0;
-  font-size: var(--cr-fs-sm);
-}
-
-.cr-inspector__meta dt {
-  color: var(--cr-text-3);
-}
-
-.cr-inspector__meta dd {
-  margin: 0;
-  color: var(--cr-text);
-}
-
-.cr-inspector__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cr-space-1);
-}
-
-.cr-inspector__h {
-  margin: 0;
+.cr-preview__label {
+  flex: none;
   font-size: var(--cr-fs-xs);
-  font-weight: 500;
+  color: var(--cr-text-2);
+}
+
+.cr-preview__link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--cr-text);
+  cursor: pointer;
+}
+
+.cr-preview__link:hover {
+  color: var(--cr-text-strong);
+  text-decoration: underline;
+}
+
+.cr-preview__link svg {
   color: var(--cr-text-3);
 }
 
-.cr-inspector__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cr-space-1);
+.cr-preview__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* la fin du chemin (dossier, fichier) reste visible */
+  text-align: left;
+  font-family: var(--cr-font-mono);
+  font-size: var(--cr-fs-xs);
 }
 
+/* Tags retirables (tiroir, preview). */
 .cr-tag--removable {
   gap: 2px;
   padding-right: 0;
@@ -1505,45 +1793,4 @@
 .cr-tag__remove svg {
   width: 8px;
   height: 8px;
-}
-
-.cr-inspector__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cr-inspector__link {
-  display: flex;
-  align-items: center;
-  gap: var(--cr-space-1);
-  height: var(--cr-row-h);
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--cr-fs-sm);
-  color: var(--cr-text);
-  cursor: pointer;
-}
-
-.cr-inspector__link:hover {
-  color: var(--cr-text-strong);
-  text-decoration: underline;
-}
-
-.cr-inspector__link svg {
-  color: var(--cr-text-3);
-}
-
-.cr-inspector__none {
-  font-size: var(--cr-fs-sm);
-  color: var(--cr-text-3);
-}
-
-.cr-inspector__path {
-  font-family: var(--cr-font-mono);
-  font-size: var(--cr-fs-xs);
-  color: var(--cr-text-2);
-  overflow-wrap: anywhere;
 }

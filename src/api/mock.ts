@@ -1,8 +1,9 @@
 // Backend factice : navigateur, Storybook et prototype en ligne. Filtre naïf en JS sur les mocks.
 // La fenêtre Tauri utilise src/api/tauri.ts ; crates/crate-core/src/mock en est le port Rust exact (test de parité).
 
+import { KIND_TAGS, isVocabulary, normalizeTag } from "../lib/autotag";
 import { naturalCompare } from "../lib/natural";
-import { keyMatches } from "../lib/keys";
+import { keyMatches, keyRank } from "../lib/keys";
 import { parseLine, type QueryToken } from "../lib/query";
 import { DEFAULT_SYNONYMS, expandSynonym, normalizeSynonyms } from "../lib/synonyms";
 import {
@@ -10,7 +11,7 @@ import {
   type FolderNode,
 } from "../mock/generate";
 import type {
-  Backend, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
+  Backend, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, ListRequest, ListSort, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
   SampleRow, TreeRow,
   VirtualFolder, Waveform,
 } from "./types";
@@ -32,6 +33,17 @@ function parseRange(v: string, unit = ""): (n: number) => boolean {
 
 let SYNONYMS = DEFAULT_SYNONYMS.map((g) => [...g]);
 
+/** Générateur pseudo-aléatoire mulberry32 : nombres de [0, 1), même suite que `mulberry32` dans catalog.rs. */
+function mulberry32(seed: number): () => number {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function matchToken(s: Sample, t: QueryToken): boolean {
   switch (t.kind) {
     case "text":
@@ -42,6 +54,8 @@ function matchToken(s: Sample, t: QueryToken): boolean {
       return words.some((w) => hay.includes(w));
     }
     case "tag":
+      // `#loop` / `#oneshot` : le type du sample, affiché comme un tag.
+      if (t.value === "loop" || t.value === "oneshot") return s.kind === t.value;
       return s.tags.includes(t.value);
     case "filter":
       switch (t.key) {
@@ -57,14 +71,22 @@ function matchToken(s: Sample, t: QueryToken): boolean {
         case "is":
           if (t.value === "fav") return s.fav;
           if (t.value === "hidden") return hiddenEff(s);
+          // Au moins une collection manuelle (ni les smart, qui sont des recherches, ni les favoris : is:fav).
+          if (t.value === "collection")
+            return COLLECTIONS.some((c) => c.kind === "manual" && (COLLECTION_ITEMS[c.id] ?? []).includes(s.id));
           return t.value === "untagged" ? s.tags.length === 0 : false;
         case "in": {
           const v = t.value.toLowerCase();
-          // Collection, sinon dossier virtuel (avec ses sous-dossiers), sinon chemin.
-          const c = COLLECTIONS.find((c) => c.name.toLowerCase().startsWith(v));
-          if (c) return collectionSamples(c.id).some((x) => x.id === s.id);
-          const vf = VIRTUAL_FOLDERS.find((f) => f.name.toLowerCase().startsWith(v));
-          if (vf) return subtreeSamples(vf.id).some((x) => x.id === s.id);
+          // Collection, sinon dossier virtuel (avec ses sous-dossiers), sinon chemin. Le nom exact d'abord
+          // (« Drums » n'est pas « Drums 2 »), puis le début du nom.
+          const exact = (n: string) => n.toLowerCase() === v;
+          const prefix = (n: string) => n.toLowerCase().startsWith(v);
+          const c = COLLECTIONS.find((c) => exact(c.name));
+          const vf = c ? undefined : VIRTUAL_FOLDERS.find((f) => exact(f.name));
+          const c2 = c || vf ? undefined : COLLECTIONS.find((c) => prefix(c.name));
+          const vf2 = c || vf || c2 ? undefined : VIRTUAL_FOLDERS.find((f) => prefix(f.name));
+          if (c ?? c2) return collectionSamples((c ?? c2)!.id).some((x) => x.id === s.id);
+          if (vf ?? vf2) return subtreeSamples((vf ?? vf2)!.id).some((x) => x.id === s.id);
           return s.path.toLowerCase().includes(v);
         }
       }
@@ -200,6 +222,82 @@ function flattenedSamples(key: NodeKey): Sample[] {
   return list.sort(byName);
 }
 
+// ---------- Liste du mode grand ----------
+
+/** Samples d'une portée (toute sa sous-arborescence) avec leur conteneur réel, chacun une fois (le premier conteneur
+ *  rencontré l'emporte). `null` : toute la bibliothèque. Même parcours que `scope_rows` (catalog.rs). */
+function scopeSamples(scope: NodeKey | null | undefined): { s: Sample; parent: NodeKey }[] {
+  const seen = new Set<number>();
+  const out: { s: Sample; parent: NodeKey }[] = [];
+  const push = (list: Sample[], parent: NodeKey) => {
+    for (const s of list) if (!seen.has(s.id)) (seen.add(s.id), out.push({ s, parent }));
+  };
+  // Dans l'ordre des ids, comme un filtre sur la liste complète.
+  const byIdOrder = (list: Sample[]) => [...list].sort((a, b) => a.id - b.id);
+  if (scope == null) for (const s of SAMPLES) push([s], `f:${s.folderId}`);
+  else if (/^[fp]:/.test(scope)) {
+    const visit = (f: FolderNode) => {
+      push(byIdOrder(SAMPLES.filter((s) => s.folderId === f.id)), `f:${f.id}`);
+      for (const c of f.children) visit(c);
+    };
+    const f = folders.get(+scope.slice(2));
+    if (f) visit(f);
+  } else if (scope.startsWith("v:")) {
+    const visit = (fid: number) => {
+      push(ownSamples(fid), `v:${fid}`);
+      for (const c of vfChildren(fid)) visit(c.id);
+    };
+    if (vfById(+scope.slice(2))) visit(+scope.slice(2));
+  } else if (scope === "g:collections") for (const c of COLLECTIONS) push(collectionSamples(c.id), `c:${c.id}`);
+  else if (scope === "c:fav") push(SAMPLES.filter((s) => s.fav), "c:fav");
+  else if (scope.startsWith("c:")) push(collectionSamples(+scope.slice(2)), scope);
+  return out;
+}
+
+/** Rang de chaque sample dans l'ordre naturel des noms (à égalité : des ids), comme `name_rank` côté Rust. */
+const nameRank = new Map(
+  [...SAMPLES].sort((a, b) => naturalCompare(a.name, b.name) || a.id - b.id).map((s, i) => [s.id, i] as const),
+);
+
+/** Valeurs absentes à la fin, quel que soit le sens. */
+function optCmp(a: number | null, b: number | null, desc: boolean): number {
+  if (a !== null && b !== null) return desc ? b - a : a - b;
+  return a !== null ? -1 : b !== null ? 1 : 0;
+}
+
+const isMidiExt = (s: Sample) => s.ext === "mid" || s.ext === "midi";
+
+/** La colonne, puis le nom (croissant) pour départager. Miroir de `sort_rows` (catalog.rs). */
+function listCompare(sort: ListSort | undefined): (a: Sample, b: Sample) => number {
+  const column = sort?.column ?? "name";
+  const desc = !!sort?.desc;
+  const dir = (x: number) => (desc ? -x : x);
+  const name = (a: Sample, b: Sample) => nameRank.get(a.id)! - nameRank.get(b.id)!;
+  const sign = (x: number) => Math.sign(x);
+  switch (column) {
+    case "name":
+      return (a, b) => dir(name(a, b));
+    case "bpm":
+      return (a, b) => sign(optCmp(a.bpm, b.bpm, desc)) || name(a, b);
+    case "duration":
+      return (a, b) => dir(sign(a.durationMs - b.durationMs)) || name(a, b);
+    case "key":
+      return (a, b) => sign(optCmp(keyRank(a.key), keyRank(b.key), desc)) || name(a, b);
+    case "format":
+      return (a, b) =>
+        dir(
+          Number(isMidiExt(a)) - Number(isMidiExt(b)) ||
+            naturalCompare(a.ext, b.ext) ||
+            sign(a.sampleRate - b.sampleRate) ||
+            sign(a.bitDepth - b.bitDepth),
+        ) || name(a, b);
+    case "tags": {
+      const text = (s: Sample) => `${s.kind === "loop" ? "loop" : "oneshot"} ${s.tags.join(" ")}`;
+      return (a, b) => dir(naturalCompare(text(a), text(b))) || name(a, b);
+    }
+  }
+}
+
 // ---------- Commit (« Créer un vrai dossier ») ----------
 
 /** Taille estimée d'un fichier PCM (en-tête de 44 octets compris). */
@@ -271,9 +369,16 @@ function stopVoice() {
 export const mockBackend: Backend = {
   async library(): Promise<Library> {
     const names = [...new Set<string>([...TAGS, ...SAMPLES.flatMap((s) => s.tags)])];
-    const tags = names.map((name) => ({ name, count: SAMPLES.filter((s) => s.tags.includes(name)).length })).sort(
-      (a, b) => b.count - a.count,
-    );
+    const tags = names
+      .map((name) => ({ name, count: SAMPLES.filter((s) => s.tags.includes(name)).length }))
+      // Le vocabulaire automatique n'est proposé que s'il sert.
+      .filter((t) => t.count > 0 || !isVocabulary(t.name));
+    // Le type (boucle / one-shot), proposé comme un tag : `#loop` ≡ `type:loop`.
+    for (const kind of KIND_TAGS) {
+      const count = SAMPLES.filter((s) => s.kind === kind).length;
+      if (count) tags.push({ name: kind, count });
+    }
+    tags.sort((a, b) => b.count - a.count);
     return {
       total: SAMPLES.length,
       tags,
@@ -292,9 +397,11 @@ export const mockBackend: Backend = {
   async tree(req: TreeRequest): Promise<TreePage> {
     const t0 = performance.now();
     const q = req.query.trim();
-    const searching = q !== "";
+    const foldersOnly = !!req.foldersOnly;
+    // Dossiers seuls : la recherche ne sert qu'à révéler les dossiers masqués (`is:hidden`).
+    const searching = q !== "" && !foldersOnly;
     // Masqués : invisibles partout, sauf si la recherche demande `is:hidden`.
-    const reveal = searching && parseLine(q).some((t) => t.kind === "filter" && t.key === "is" && t.value === "hidden" && !t.negated);
+    const reveal = (searching || foldersOnly) && parseLine(q).some((t) => t.kind === "filter" && t.key === "is" && t.value === "hidden" && !t.negated);
     const match = (s: Sample) => (reveal || !hiddenEff(s)) && (!searching || matchLine(s, q));
 
     // Un nœud reste visible en recherche s'il contient au moins un résultat (mémoïsé par requête).
@@ -310,10 +417,17 @@ export const mockBackend: Backend = {
         if (!reveal && /^[fp]:/.test(n.key) && folderHidden(+n.key.slice(2))) continue;
         if (searching && !hasMatch(n.key)) continue;
         // Aplati (hors recherche) : ouvert, avec toute sa sous-arborescence à plat.
-        const flat = !searching && /^[fv]:/.test(n.key) && (req.flattened ?? []).includes(n.key);
+        const flat = !searching && !foldersOnly && /^[fv]:/.test(n.key) && (req.flattened ?? []).includes(n.key);
+        // Dossiers seuls : un nœud sans sous-dossier visible n'a pas de chevron.
+        const leaf =
+          foldersOnly &&
+          n.kind !== "shortcut" &&
+          !childNodes(req.root, n.key, false).some((c) => reveal || !(c.key.startsWith("f:") && folderHidden(+c.key.slice(2))));
         // Un raccourci ne se déplie jamais : il saute au dossier visé. En recherche, tout est ouvert sauf ce qu'on a refermé.
-        const open = flat || (n.kind !== "shortcut" && (searching ? !(req.collapsed ?? []).includes(n.key) : req.expanded.includes(n.key)));
+        const open =
+          !leaf && (flat || (n.kind !== "shortcut" && (searching ? !(req.collapsed ?? []).includes(n.key) : req.expanded.includes(n.key))));
         const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
+        if (leaf) row.leaf = true;
         if (flat) row.flattened = true;
         if (n.offline) row.offline = true;
         if (n.pinned) row.pinned = true;
@@ -327,7 +441,7 @@ export const mockBackend: Backend = {
           }
         } else if (open) walk(n.key, depth + 1);
       }
-      if (key === null) return;
+      if (key === null || foldersOnly) return;
       for (const s of childSamples(key)) {
         if (!match(s)) continue;
         // copies : l'UI reçoit des valeurs, comme à travers l'IPC Tauri ; pics seulement si demandés
@@ -340,6 +454,14 @@ export const mockBackend: Backend = {
       const seen = new Set<number>();
       const flat = rows.filter((r): r is SampleRow => r.type === "sample" && !seen.has(r.sample.id) && !!seen.add(r.sample.id));
       rows.splice(0, rows.length, ...flat.map((r) => ({ ...r, depth: 0 })));
+      // Shuffle : ordre aléatoire tiré de la graine (Fisher–Yates), identique au catalogue Rust.
+      if (req.shuffle != null) {
+        const rng = mulberry32(req.shuffle);
+        for (let i = rows.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          [rows[i], rows[j]] = [rows[j], rows[i]];
+        }
+      }
     }
 
     const focus = req.focus ? rows.findIndex((r) => r.key === req.focus) : -1;
@@ -352,6 +474,28 @@ export const mockBackend: Backend = {
     };
   },
 
+  async list(req: ListRequest): Promise<TreePage> {
+    const t0 = performance.now();
+    const q = req.query.trim();
+    const searching = q !== "";
+    const reveal = searching && parseLine(q).some((t) => t.kind === "filter" && t.key === "is" && t.value === "hidden" && !t.negated);
+    const match = (s: Sample) => (reveal || !hiddenEff(s)) && (!searching || matchLine(s, q));
+    const cmp = listCompare(req.sort);
+    const rows: SampleRow[] = scopeSamples(req.scope)
+      .filter((x) => match(x.s))
+      .sort((a, b) => cmp(a.s, b.s))
+      .map(({ s, parent }) => ({ type: "sample", key: `s:${s.id}@${parent}`, parent, depth: 0, sample: { ...s, peaks: [] } }));
+    const f = req.focus ?? null;
+    const focus = f === null ? -1 : rows.findIndex((r) => (f.includes("@") ? r.key === f : r.sample.id === +f.slice(2)));
+    return {
+      rows: rows.slice(req.offset, req.offset + req.limit),
+      totalRows: rows.length,
+      matches: rows.length,
+      ...(focus >= 0 ? { focusIndex: focus } : {}),
+      micros: Math.round((performance.now() - t0) * 1000),
+    };
+  },
+
   async setFavorite(ids, fav) {
     for (const id of ids) {
       const s = byId.get(id);
@@ -359,17 +503,24 @@ export const mockBackend: Backend = {
     }
   },
 
-  async addTag(ids, tag) {
+  async addTag(ids, raw) {
+    const tag = normalizeTag(raw);
+    if (!tag) return;
     for (const id of ids) {
       const s = byId.get(id);
-      if (s && !s.tags.includes(tag)) s.tags = [...s.tags, tag].sort();
+      if (!s) continue;
+      // Déjà posé par l'analyse : il devient un tag de l'utilisateur (plus atténué).
+      s.autoTags = s.autoTags.filter((t) => t !== tag);
+      if (!s.tags.includes(tag)) s.tags = [...s.tags, tag].sort();
     }
   },
 
   async removeTag(ids, tag) {
     for (const id of ids) {
       const s = byId.get(id);
-      if (s) s.tags = s.tags.filter((t) => t !== tag);
+      if (!s) continue;
+      s.tags = s.tags.filter((t) => t !== tag);
+      s.autoTags = s.autoTags.filter((t) => t !== tag);
     }
   },
 

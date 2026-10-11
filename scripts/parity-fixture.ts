@@ -12,6 +12,10 @@ const QUERIES = [
   // Enharmonies et modes écrits.
   "key:A#", "key:a#m", "key:Gb", "key:F#maj", "key:bbm", "key:Hm",
   "type:midi", "-type:midi lofi", "type:midi type:loop",
+  // Tags automatiques et type affiché comme un tag.
+  "#kick", "#wet", "#loop", "#oneshot", "#loop #bass", "-#oneshot vocal",
+  // Filtres rapides de l'entonnoir : collections, mode de la tonalité, valeurs entre guillemets.
+  "is:collection", "-is:collection kick", "key:minor", "key:major", "key:min type:loop", 'in:"Vocal chops"', '-in:"Go-to kicks" kick',
 ];
 const EXPANDED = {
   library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5", "p:3"]],
@@ -25,14 +29,14 @@ const round = (x: number) => Math.round(x * 1e9) / 1e9;
 const samples = SAMPLES.map((s) => ({
   id: s.id, name: s.name, ext: s.ext, path: s.path, folderId: s.folderId, durationMs: s.durationMs,
   sampleRate: s.sampleRate, bitDepth: s.bitDepth, channels: s.channels, bpm: s.bpm, key: s.key, kind: s.kind,
-  tags: s.tags, fav: s.fav,
+  tags: s.tags, autoTags: s.autoTags, fav: s.fav,
   peaksSum: round(s.peaks.reduce((a, b) => a + b, 0)), peaksFirst: round(s.peaks[0]), peaksLast: round(s.peaks[255]),
 }));
 
 type Page = Awaited<ReturnType<typeof mockBackend.tree>>;
 const rowsOf = (page: Page) =>
   page.rows.map(
-    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") + (r.hidden ? "|hidden" : "") + (r.flattened ? "|flattened" : "") : ""}`,
+    (r) => `${r.depth}|${r.key}${r.type === "node" ? (r.open ? "|open" : "|closed") + (r.offline ? "|offline" : "") + (r.pinned ? "|pinned" : "") + (r.target ? `|->${r.target}` : "") + (r.hidden ? "|hidden" : "") + (r.flattened ? "|flattened" : "") + (r.leaf ? "|leaf" : "") : ""}`,
   );
 
 const trees = [];
@@ -96,6 +100,16 @@ for (const root of ["library", "virtual"] as const) {
     flat.push({ root, query, rows: rowsOf(page) });
   }
 }
+// Résultats à plat mélangés (Shuffle) : deux graines fixes, mêmes ordres attendus côté Rust.
+const shuffled: { root: string; query: string; seed: number; rows: string[] }[] = [];
+for (const root of ["library", "virtual"] as const) {
+  for (const query of ["kick", "#warm", "vocal -kick"]) {
+    for (const seed of [42, 3_000_000_007]) {
+      const page = await mockBackend.tree({ root, query, expanded: [], offset: 0, limit: 100000, flat: true, shuffle: seed });
+      shuffled.push({ root, query, seed, rows: rowsOf(page) });
+    }
+  }
+}
 // Dossiers aplatis (filtre temporaire) : source profonde, dossier virtuel avec enfants, avec un dossier masqué, et
 // ignorés en recherche.
 const FLATTENED: { root: "library" | "virtual"; query: string; expanded: string[]; flattened: string[] }[] = [
@@ -142,6 +156,43 @@ for (const id of [SAMPLES[0].id, SAMPLES[57].id, SAMPLES[SAMPLES.length - 1].id]
 }
 const ancestors = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (k) => [k, await mockBackend.ancestors(k)])));
 
+// Liste du mode grand : portées × recherches (tri par nom), puis chaque colonne dans les deux sens, et positions.
+const LIST_SCOPES = [null, "f:1", "f:10", "f:12", "p:3", "v:1", "v:3", "v:4", "c:fav", "c:1", "c:2", "c:3", "c:4", "g:collections", "f:999"];
+const LIST_QUERIES = ["", "kick", "#warm", "type:midi", "in:go", "-kick bpm:>100"];
+const COLUMNS = ["name", "bpm", "key", "duration", "format", "tags"] as const;
+const lists: { scope: string | null; query: string; column: string; desc: boolean; totalRows: number; rows: string[] }[] = [];
+const listRows = async (scope: string | null, query: string, column: (typeof COLUMNS)[number], desc: boolean) => {
+  const page = await mockBackend.list({ scope, query, sort: { column, desc }, offset: 0, limit: 100000 });
+  lists.push({ scope, query, column, desc, totalRows: page.totalRows, rows: rowsOf(page) });
+};
+for (const scope of LIST_SCOPES) for (const query of LIST_QUERIES) await listRows(scope, query, "name", false);
+for (const scope of [null, "f:1", "v:3"]) for (const column of COLUMNS) for (const desc of [false, true]) await listRows(scope, "", column, desc);
+const LIST_FOCUS = [
+  { scope: null, query: "kick", focus: "s:5" },
+  { scope: "v:3", query: "", focus: "s:5" },
+  { scope: "f:1", query: "", focus: "s:999999" },
+];
+const listFocus = [];
+for (const f of LIST_FOCUS) {
+  const page = await mockBackend.list({ scope: f.scope, query: f.query, sort: { column: "bpm", desc: true }, offset: 0, limit: 0, focus: f.focus });
+  listFocus.push({ ...f, focusIndex: page.focusIndex ?? null });
+}
+// Masqués : absents de la liste, sauf avec is:hidden.
+await mockBackend.setHidden([1, 2, 3, 5, 11], true);
+await mockBackend.setFolderHidden(12, true);
+for (const query of ["", "is:hidden", "kick"]) await listRows("f:10", query, "name", false);
+await mockBackend.setHidden([1, 2, 3, 5, 11], false);
+await mockBackend.setFolderHidden(12, false);
+
+// Explorer du mode grand : dossiers seuls (chevron absent sur les feuilles).
+const explorers = [];
+for (const root of ["library", "virtual"] as const) {
+  for (const expanded of EXPANDED[root]) {
+    const page = await mockBackend.tree({ root, query: "", expanded: [...expanded], offset: 0, limit: 100000, foldersOnly: true });
+    explorers.push({ root, expanded, rows: rowsOf(page) });
+  }
+}
+
 // Raccourcis : épingler un sous-dossier, refuser une source, retirer, puis revenir à l'état initial.
 const pinTree = async () => rowsOf(await mockBackend.tree({ root: "library", query: "", expanded: [], offset: 0, limit: 100000 }));
 const pins = [];
@@ -166,6 +217,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, waveforms, flattenedTrees, collapsedTrees };
+const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, shuffled, waveforms, flattenedTrees, collapsedTrees, lists, listFocus, explorers };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

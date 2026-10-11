@@ -31,7 +31,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Ajout de dossiers sources (drag & drop dans l'app, ⌘O) | Oui | Scan en arrière-plan, l'app reste utilisable |
 | Arbre unique sources → dossiers → samples | Oui | Dossiers puis samples à chaque niveau, même retrait |
 | Recherche unifiée (texte + `#tag` + filtres) | Oui | Élague l'arbre aux dossiers qui ont des résultats, ouverts (repliables) |
-| Tags (popover T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers |
+| Tags (popover T sur la sélection, création à la volée) | Oui | Stockés en base, jamais dans les fichiers ; tags automatiques (instrument, `fx`, `wet` / `dry`) posés par l'analyse, retirables pour toujours ; `loop` / `oneshot` affichés comme tags |
 | Collections (à plat) manuelles et smart | Oui | Regroupements de samples, sans sous-dossier. Smart = recherche sauvegardée (⌘S). Ajout par drag & drop ou menu contextuel |
 | Dossiers virtuels (arborescence) | Oui | Samples + sous-dossiers virtuels, sans limite de profondeur. Glisser un dossier sur un autre le déplace. Un dossier n'affiche que son contenu propre (`in:` couvre ses descendants) |
 | Onglets Bibliothèque / Virtuels + épinglage | Oui | ⌘1 / ⌘2. Favoris, collections et dossiers virtuels épinglés apparaissent à la racine de Bibliothèque avec un repère (dossier en pointillés, liste, étoile) |
@@ -88,15 +88,17 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 - **Grille** : icônes (chevron, ▶, !, coche) à 8 px, libellés à 24 px, +16 px par niveau d'arbre.
 - **Recherche** : chips pour les tokens reconnus ; les tokens en cours de frappe (`#ta`) ne filtrent pas ; une recherche masque les collections (sinon doublons) et ouvre tous les dossiers qui ont des résultats.
 - **Tiroir** : ▶ / ■, nom, temps / durée, étoile favori grise, waveform. Rien d'autre (ni tags ni méta).
-- **Deux modes d'affichage** (v1.4) : la **colonne** ci-dessus, à côté du DAW, et la **grande fenêtre** (bouton ⤢ de la
-  barre titre ou ⌘⇧F, qui agrandit la fenêtre à l'écran sans plein écran macOS). En grand : le même arbre avec les
-  colonnes Durée, Format et Tags (et leurs en-têtes), et à droite un **inspecteur** à la place du tiroir (grande
-  waveform, lecture, métadonnées, tags modifiables, collections et dossiers virtuels qui contiennent le sample, chemin et
-  « Afficher dans le Finder »). Le mode suit l'état agrandi de la fenêtre et est retrouvé au lancement.
+- **Deux modes séparés** (v2.0) : la **colonne** ci-dessus, à côté du DAW, et la **fenêtre bibliothèque** (bouton de
+  la barre titre ou ⌘⇧F, seuls passages ; la fenêtre remplit la zone utile de l'écran, sans plein écran macOS). À
+  gauche l'**explorer** (dossiers seuls, deux onglets) ; à droite la **preview** (grande waveform, lecture,
+  métadonnées, tags, « In: », chemin), la **recherche**, la **portée** puis la **liste à plat** triable (Nom, BPM,
+  Key, Length, Format, Tags). La sélection de l'explorer est la portée de la liste ; rien de sélectionné : toute la
+  bibliothèque. Chaque mode impose ses contraintes à la fenêtre (colonne 180–600 pt, bibliothèque fixe) ; le mode et
+  le cadre de la colonne sont retrouvés au lancement.
 - **Surcouches** (une seule à la fois, Échap ferme) : autocomplétion, popover de tags, enregistrement ⌘S, menu contextuel.
 - **Réglages** (⌘,) et **Créer un vrai dossier** : remplacent l'arbre ; ‹ ou Échap pour revenir.
 - **Historique** : chaque saut (onglet, chip ajoutée ou retirée, raccourci, recherche enregistrée) mémorise l'arbre tel qu'on le quitte ; ⌥← / ⌥→ (ou ⌘[ / ⌘], ou les boutons de la souris) y reviennent. Ouvrir un dossier n'est pas un saut.
-- **Glisser-déposer** : samples → collection manuelle, dossier virtuel ou Favoris ; dossier virtuel → dossier virtuel (déplacement) ou fond de l'onglet (racine). Survoler l'onglet « Virtuels » pendant un glisser l'ouvre.
+- **Glisser-déposer** : samples → collection manuelle, dossier virtuel ou Favoris ; dossier virtuel → dossier virtuel (déplacement) ou fond de l'onglet (racine). Survoler l'onglet « Virtuels » pendant un glisser l'ouvre ; près du bord haut ou bas de l'arbre, il défile.
 
 ### Clavier
 
@@ -124,7 +126,8 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘L | Boucle |
 | ⌘⇧Espace | Lire un sample au hasard |
 | ⌘, | Réglages |
-| ⌘⇧F | Grande fenêtre / retour en colonne |
+| ⌘⇧F | Fenêtre bibliothèque / retour en colonne |
+| Tab | Fenêtre bibliothèque : de l'explorer à la liste, et retour |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
 ## Langage de recherche
@@ -135,16 +138,16 @@ Une seule ligne, tokens séparés par des espaces, AND par défaut. Le parser Ru
 | --- | --- | --- |
 | mot libre | `kick dark` | Contenu dans nom + chemin + tags ; un mot d'un groupe de **synonymes** trouve aussi les autres (`kick` → `bd`, `bassdrum`) |
 | `"…"` | `"vinyl crackle"` | Phrase exacte |
-| `#tag` | `#warm` | A ce tag |
+| `#tag` | `#warm`, `#kick`, `#loop` | A ce tag (les tags automatiques comptent ; `#loop` / `#oneshot` = `type:`) |
 | `-` devant | `-loop`, `-#bright` | Exclusion |
 | `bpm:` | `bpm:120-128`, `bpm:>140` | Plage ou comparaison |
-| `key:` | `key:Am`, `key:C`, `key:A#` | Tonalité (note seule = majeur + mineur ; enharmonies équivalentes : `A#` = `Bb`) |
+| `key:` | `key:Am`, `key:C`, `key:A#`, `key:minor` | Tonalité (note seule = majeur + mineur ; enharmonies équivalentes : `A#` = `Bb`) ; `key:minor` / `key:major` (ou `min` / `maj`) : le mode seul |
 | `dur:` | `dur:<2s`, `dur:1-4s` | Durée |
-| `in:` | `in:Drums` | Collection, sinon dossier virtuel (et ses sous-dossiers), sinon chemin |
+| `in:` | `in:Drums`, `in:"Vocal chops"` | Collection, sinon dossier virtuel (et ses sous-dossiers), sinon chemin ; guillemets pour un nom avec des espaces |
 | `type:` | `type:loop`, `type:oneshot`, `type:midi` | Loop / one-shot ; fichiers MIDI |
-| `is:` | `is:fav`, `is:untagged`, `is:hidden` | Raccourcis ; `is:hidden` montre les éléments masqués (sinon jamais affichés) |
+| `is:` | `is:fav`, `is:collection`, `is:untagged`, `is:hidden` | Raccourcis ; `is:collection` : dans au moins une collection manuelle ; `is:hidden` montre les éléments masqués (sinon jamais affichés) |
 
-Autocomplétion après `#`, `key:` et `in:`. ⌘S enregistre la ligne brute comme collection smart.
+Autocomplétion après `#`, `key:` et `in:`. L'entonnoir pose ces filtres en un clic (Favorites, In a collection et chaque collection, Loops / One-shots, Minor / Major) : ce sont des chips comme les autres. ⌘S enregistre la ligne brute comme collection smart.
 
 ## Budgets de performance
 
@@ -160,7 +163,7 @@ Mesurés en build Release sur 100 000 fichiers, Mac Apple Silicon de base.
 | Indexation rapide (métadonnées) | > 2 000 fichiers / s |
 | Analyse complète (BPM, tonalité, waveform) | En fond, sans toucher l'UI |
 | Mémoire au repos | < 150 Mo |
-| Taille de l'app | < 15 Mo |
+| Taille de l'app | < 21 Mo (modèle de tags compris ; 15 Mo avant) |
 
 Règles : `tree()` paginé (offset / limit) avec le total séparé ; pas de pics de waveform dans les lignes en densité compacte ; debounce 30 ms + annulation de la requête précédente ; waveforms précalculées (256 pics) ; scan incrémental (mtime + taille) puis FSEvents.
 
@@ -370,7 +373,7 @@ paramétrée et la liste des tokens reconnus.
 
 ## Budgets (build release, 100 000 fichiers)
 frappe → arbre élagué affiché < 16 ms (requête + lignes < 10 ms) · ouverture d'un dossier de 5 000 samples < 16 ms ·
-scroll 120 fps · sélection → son < 30 ms · indexation > 2 000 fichiers/s · RAM au repos < 150 Mo · app < 15 Mo.
+scroll 120 fps · sélection → son < 30 ms · indexation > 2 000 fichiers/s · RAM au repos < 150 Mo · app < 21 Mo.
 Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 
 ## Méthode
@@ -404,6 +407,7 @@ Ajoute un overlay de debug (⌥⌘D) qui affiche ces mesures en direct.
 | v1.2 | Phase 6 : analyse de fond (nom, chunk acid, audio) ; `key:` avec enharmonies ; avancement dans les Réglages |
 | v1.3 | Fichiers MIDI : index, préécoute au piano synthétique, tempo et tonalité lus dans les notes, `type:midi`, repère « MIDI » |
 | v1.4 | Deux modes d'affichage : colonne et grande fenêtre (arbre large + inspecteur), ⌘⇧F |
+| v2.0 | Deux modes séparés : colonne et fenêtre bibliothèque (explorer de dossiers, preview, liste triable, portée) ; le mode ne suit plus l'état agrandi |
 | v1.9 | Une seule couleur (ambre) ; sélection en inversion |
 | v1.8 | Dossiers aplatis (clic droit › Flatten, menu des filtres), engrenage des options de recherche, waveform sans état intermédiaire |
 | v1.7 | Retours n° 2 : interface en anglais, tiroir réorganisé, waveform HD et tête fluide, fondus (plus de clic), explorer épuré (nom.ext, lignes de parenté), ← / →, recherche à plat, glisser sans pastille |

@@ -34,7 +34,11 @@ pub struct Sample {
     pub bpm: Option<f64>,
     pub key: Option<String>,
     pub kind: SampleKind,
+    /// Tous les tags, triés : ceux de l'utilisateur et ceux posés par l'analyse.
     pub tags: Vec<String>,
+    /// Ceux de `tags` posés par l'analyse (vocabulaire fermé, `autotag`), affichés atténués. Un tag que
+    /// l'utilisateur ajoute lui-même n'y est pas.
+    pub auto_tags: Vec<String>,
     pub missing: bool,
     pub fav: bool,
     /// Masqué par l'utilisateur (lui-même, pas via son dossier) : invisible sauf avec `is:hidden`.
@@ -154,6 +158,10 @@ pub struct FolderRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub flattened: Option<bool>,
+    /// Arbre de dossiers seuls (`TreeRequest.foldersOnly`) : nœud sans sous-dossier visible, donc sans chevron.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub leaf: Option<bool>,
     /// Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
@@ -225,6 +233,64 @@ pub struct TreeRequest {
     #[serde(default)]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub collapsed: Vec<NodeKey>,
+    /// Résultats à plat mélangés (bouton Shuffle) : graine de l'ordre aléatoire, le même pour une même graine. Sans
+    /// effet hors recherche ou sans `flat`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub shuffle: Option<u32>,
+    /// Dossiers seuls (explorer du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
+    /// sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`).
+    #[serde(default, rename = "foldersOnly")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub folders_only: bool,
+}
+
+/// Colonne de tri de la liste du mode grand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "lowercase")]
+pub enum SortColumn {
+    #[default]
+    Name,
+    Bpm,
+    Key,
+    Duration,
+    Format,
+    Tags,
+}
+
+/// Tri de la liste : une colonne, croissant ou décroissant. Les valeurs absentes (BPM, tonalité) restent à la fin
+/// dans les deux sens ; à égalité, l'ordre des noms (puis des ids).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ListSort {
+    pub column: SortColumn,
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub desc: bool,
+}
+
+/// Liste à plat du mode grand : les samples d'une portée (toute sa sous-arborescence), filtrés par la recherche et
+/// triés. Les lignes sont des `SampleRow` de profondeur 0 dont le parent est le conteneur réel du sample.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ListRequest {
+    /// Nœud de l'explorer : dossier source "f:" (ou raccourci "p:"), dossier virtuel "v:", "c:fav", collection
+    /// "c:<id>", groupe "g:collections". Absent : toute la bibliothèque.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub scope: Option<NodeKey>,
+    /// Ligne de recherche brute (vide : tous les samples de la portée).
+    pub query: String,
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub sort: ListSort,
+    pub offset: u32,
+    pub limit: u32,
+    /// Ligne dont on veut la position : "s:<id>@<parent>", ou "s:<id>" (le sample, quel que soit son parent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub focus: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -374,6 +440,8 @@ pub trait Backend {
     fn library(&self) -> Library;
     fn sources(&self) -> Vec<Source>;
     fn tree(&self, req: &TreeRequest) -> TreePage;
+    /// Liste à plat du mode grand (portée, recherche, tri).
+    fn list(&self, req: &ListRequest) -> TreePage;
     fn set_favorite(&mut self, ids: &[SampleId], fav: bool);
     fn add_tag(&mut self, ids: &[SampleId], tag: &str);
     fn remove_tag(&mut self, ids: &[SampleId], tag: &str);

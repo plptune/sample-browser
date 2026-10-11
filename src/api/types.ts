@@ -19,7 +19,8 @@ export interface Sample {
   bpm: number | null;
   key: string | null; // "Am", "F#"…
   kind: SampleKind;
-  tags: string[];
+  tags: string[]; // tous les tags, triés (ceux de l'utilisateur et ceux de l'analyse)
+  autoTags: string[]; // ceux de `tags` posés par l'analyse (vocabulaire fermé), affichés atténués
   missing: boolean;
   fav: boolean;
   hidden: boolean; // masqué lui-même (pas via son dossier) : invisible sauf avec `is:hidden`
@@ -78,6 +79,8 @@ export interface FolderRow {
   hidden?: boolean | null;
   /** Dossier aplati (`TreeRequest.flattened`). */
   flattened?: boolean | null;
+  /** Arbre de dossiers seuls (`TreeRequest.foldersOnly`) : aucun sous-dossier visible, donc pas de chevron. */
+  leaf?: boolean | null;
   /** Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
   target?: NodeKey | null;
 }
@@ -110,6 +113,33 @@ export interface TreeRequest {
   flattened?: NodeKey[];
   /** En recherche : nœuds refermés à la main (les autres restent ouverts). Ignoré hors recherche. */
   collapsed?: NodeKey[];
+  /** Résultats à plat mélangés (Shuffle) : graine de l'ordre aléatoire. Sans effet hors recherche ou sans `flat`. */
+  shuffle?: number | null;
+  /** Dossiers seuls (explorer du mode grand) : aucun sample, pas d'aplatissement ; `leaf` marque les nœuds sans
+   *  sous-dossier. La recherche ne sert qu'à révéler les dossiers masqués (`is:hidden`). */
+  foldersOnly?: boolean;
+}
+
+/** Colonne de tri de la liste du mode grand. */
+export type SortColumn = "name" | "bpm" | "key" | "duration" | "format" | "tags";
+
+/** Tri : valeurs absentes (BPM, tonalité) à la fin dans les deux sens ; à égalité, par nom croissant. */
+export interface ListSort {
+  column: SortColumn;
+  desc?: boolean;
+}
+
+/** Liste à plat du mode grand : samples d'une portée (toute sa sous-arborescence), filtrés et triés. Lignes :
+ *  `SampleRow` de profondeur 0, le parent étant le conteneur réel du sample. */
+export interface ListRequest {
+  /** Nœud de l'explorer ("f:", "p:", "v:", "c:fav", "c:<id>", "g:collections") ; absent : toute la bibliothèque. */
+  scope?: NodeKey | null;
+  query: string;
+  sort?: ListSort;
+  offset: number;
+  limit: number;
+  /** "s:<id>@<parent>", ou "s:<id>" (ce sample quel que soit son conteneur). */
+  focus?: string | null;
 }
 
 /** Forme d'onde détaillée (tiroir, inspecteur) : par colonne, min, max (−1..1) et RMS (0..1), normalisés. */
@@ -203,6 +233,7 @@ export interface Backend {
   library(): Promise<Library>;
   sources(): Promise<Source[]>;
   tree(req: TreeRequest): Promise<TreePage>;
+  list(req: ListRequest): Promise<TreePage>;
   setFavorite(ids: SampleId[], fav: boolean): Promise<void>;
   addTag(ids: SampleId[], tag: string): Promise<void>;
   removeTag(ids: SampleId[], tag: string): Promise<void>;

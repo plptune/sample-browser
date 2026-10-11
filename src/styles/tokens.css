@@ -116,6 +116,7 @@
   --cr-titlebar-h: 28px;
   --cr-traffic-w: 72px;   /* réserve des feux macOS (titleBarStyle Overlay) */
   --cr-search-h: 30px;   /* champ de recherche, plus haut que le reste mais texte normal */
+  --cr-search-options-h: 24px; /* bande sous le champ, en recherche (Flatten, Shuffle) */
   --cr-row-h: 24px;       /* ligne compacte */
   --cr-row-h-wave: 36px;  /* ligne avec mini-waveform */
   --cr-item-h: 22px;      /* item de sidebar */
@@ -142,15 +143,19 @@
   --cr-wave-h: 44px;      /* waveform du tiroir */
   --cr-wave-mini-h: 12px;
 
-  /* Colonnes de la liste */
-  --cr-col-bpm: 32px;
-  --cr-col-key: 28px;
-  /* Mode grand : colonnes en plus, inspecteur */
-  --cr-col-dur: 44px;
-  --cr-col-fmt: 156px;
-  --cr-col-tags: 168px;
-  --cr-inspector-w: 340px;
-  --cr-inspector-wave-h: 120px;
+  /* Fenêtre bibliothèque (mode grand) : explorer, preview, colonnes de la liste */
+  --cr-explorer-w: 34%;
+  --cr-explorer-min: 200px;
+  --cr-explorer-max: 480px;      /* largeur par défaut au plus ; tirée à la main, jusqu'à --cr-full-main-min de la liste */
+  --cr-full-main-min: 420px;
+  --cr-splitter-hit: 7px;
+  --cr-preview-h: 176px;
+  --cr-tcol-name-min: 200px;
+  --cr-tcol-bpm: 40px;
+  --cr-tcol-key: 40px;
+  --cr-tcol-dur: 48px;
+  --cr-tcol-fmt: 156px;
+  --cr-tcol-tags: minmax(120px, 0.7fr);
   --cr-wide-max: 640px;   /* Réglages et « Créer un vrai dossier » en mode grand */
 
   --cr-radius: 2px;

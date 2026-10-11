@@ -23,7 +23,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const sample = (s: typeof kick) => ({ kind: "sample" as const, label: s.name, depth: 1, bpm: s.bpm, keyName: s.key, peaks: s.peaks });
+const sample = (s: typeof kick) => ({ kind: "sample" as const, label: s.name, depth: 1, peaks: s.peaks });
 
 export const DossierFerme: Story = {};
 export const DossierOuvert: Story = { args: { open: true } };
@@ -41,13 +41,10 @@ export const Introuvable: Story = { args: { ...sample(missing), missing: true } 
 export const Renommage: Story = { args: { kind: "virtual", label: "Nouveau dossier", depth: 1, renaming: true } };
 export const EnDrag: Story = { args: { ...sample(kick), dragging: true } };
 export const Waveform: Story = { args: { ...sample(loop), wave: true, playing: true, progress: 0.4 } };
-/** Mode grand : colonnes durée, format et tags avant BPM / clé. */
-export const Large: Story = {
-  parameters: { panelWidth: "860px" },
-  args: { ...sample(loop), wide: true, duration: "7.38", format: "wav · 44,1 kHz · 24 bits", tags: loop.tags },
-};
-/** Fichier MIDI : repère « MIDI » avant le BPM (joué au piano dans l'app). */
-export const Midi: Story = { args: { kind: "sample", label: "Lofi_Chords_90_Am", depth: 1, midi: true, bpm: 90, keyName: "Am" } };
+/** Explorer du mode grand : dossier sans sous-dossier (pas de chevron), portée de la liste. */
+export const FeuilleEnPortee: Story = { args: { label: "Kicks", depth: 2, leaf: true, scoped: true } };
+/** Fichier MIDI : icône de note (joué au piano dans l'app). */
+export const Midi: Story = { args: { kind: "sample", label: "Lofi_Chords_90_Am", depth: 1, midi: true } };
 
 /** Onglet Bibliothèque : sources, puis éléments épinglés marqués à droite. */
 export const Arbre: Story = {
@@ -57,7 +54,7 @@ export const Arbre: Story = {
       <TreeRow kind="folder" label="Samples" depth={0} open />
       <TreeRow kind="folder" label="Drums" depth={1} open />
       <TreeRow kind="folder" label="Kicks" depth={2} />
-      <TreeRow kind="sample" label={loop.name} depth={2} bpm={loop.bpm} keyName={loop.key} selected playing progress={0.4} themeKey={String(ctx.globals.theme)} />
+      <TreeRow kind="sample" label={loop.name} depth={2} selected playing progress={0.4} themeKey={String(ctx.globals.theme)} />
       <TreeRow kind="sample" label={kick.name} depth={2} />
       <TreeRow kind="folder" label="Field Recordings" depth={0} offline />
       <TreeRow kind="shortcut" label="Dusty Tapes Vol.2" depth={0} marker="shortcut" />

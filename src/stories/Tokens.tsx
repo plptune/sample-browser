@@ -107,7 +107,7 @@ export function Tokens() {
             <TreeRow kind="folder" label="Samples" depth={0} open />
             <TreeRow kind="folder" label="Drums" depth={1} open />
             <TreeRow kind="folder" label="Kicks" depth={2} />
-            <TreeRow kind="sample" label="Drum_Loop_Tape_96" depth={2} bpm={96} />
+            <TreeRow kind="sample" label="Drum_Loop_Tape_96" depth={2} />
           </div>
         </div>
       </div>

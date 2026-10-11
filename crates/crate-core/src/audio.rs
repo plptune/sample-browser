@@ -155,12 +155,23 @@ fn bucket_peaks(blocks: &[f32]) -> Vec<u8> {
 pub const WAVEFORM_MAX_BUCKETS: usize = 4096;
 
 /// Forme d'onde détaillée de tout le fichier, en `buckets` colonnes (min, max, RMS ; canaux mélangés).
-/// Le décodage passe par des blocs de 64 trames : la mémoire reste petite même pour un long fichier.
+/// Le décodage passe par des blocs de 64 trames : la mémoire reste petite même pour un long fichier. Un fichier court
+/// en donne moins de deux par colonne (un kick de 0,2 s : ~140 blocs pour 4 000 colonnes, une forme en escalier) : il
+/// est relu par blocs plus fins, jusqu'à la trame.
 pub fn waveform(path: &Path, buckets: usize) -> Option<crate::Waveform> {
-    const BLOCK: usize = 64;
     let buckets = buckets.clamp(1, WAVEFORM_MAX_BUCKETS);
+    let blocks = waveform_blocks(path, 64)?;
+    let frames: usize = blocks.iter().map(|b| b.3 as usize).sum();
+    if blocks.len() < buckets * 2 && frames > blocks.len() {
+        let fine = waveform_blocks(path, (frames / (buckets * 2)).max(1))?;
+        return Some(bucket_waveform(&fine, buckets));
+    }
+    Some(bucket_waveform(&blocks, buckets))
+}
+
+/// (min, max, somme des carrés, trames) par bloc de `block` trames.
+fn waveform_blocks(path: &Path, block: usize) -> Option<Vec<(f32, f32, f32, u32)>> {
     let mut d = Decoder::open(path)?;
-    // (min, max, somme des carrés, trames) par bloc.
     let mut blocks: Vec<(f32, f32, f32, u32)> = Vec::new();
     let mut cur = (f32::MAX, f32::MIN, 0f32, 0u32);
     let mut tmp = Vec::new();
@@ -168,7 +179,7 @@ pub fn waveform(path: &Path, buckets: usize) -> Option<crate::Waveform> {
         for frame in tmp.chunks(ch) {
             let x = frame.iter().sum::<f32>() / ch as f32;
             cur = (cur.0.min(x), cur.1.max(x), cur.2 + x * x, cur.3 + 1);
-            if cur.3 as usize == BLOCK {
+            if cur.3 as usize == block {
                 blocks.push(cur);
                 cur = (f32::MAX, f32::MIN, 0.0, 0);
             }
@@ -178,7 +189,7 @@ pub fn waveform(path: &Path, buckets: usize) -> Option<crate::Waveform> {
     if cur.3 > 0 {
         blocks.push(cur);
     }
-    Some(bucket_waveform(&blocks, buckets))
+    Some(blocks)
 }
 
 fn bucket_waveform(blocks: &[(f32, f32, f32, u32)], buckets: usize) -> crate::Waveform {
@@ -187,9 +198,20 @@ fn bucket_waveform(blocks: &[(f32, f32, f32, u32)], buckets: usize) -> crate::Wa
     if n == 0 {
         return w;
     }
+    let rms = |(_, _, sq, k): (f32, f32, f32, u32)| (sq / k.max(1) as f32).sqrt();
     for b in 0..buckets {
-        // Moins de blocs que de colonnes : une colonne reprend le bloc qui la couvre.
-        let lo = (b * n / buckets).min(n - 1);
+        if n < buckets {
+            // Moins de blocs que de colonnes : interpolation entre les deux blocs voisins (pas d'escalier).
+            let t = ((b as f32 + 0.5) / buckets as f32 * n as f32 - 0.5).clamp(0.0, (n - 1) as f32);
+            let (i, f) = (t.floor() as usize, t.fract());
+            let (p, q) = (blocks[i], blocks[(i + 1).min(n - 1)]);
+            let lerp = |a: f32, z: f32| a + (z - a) * f;
+            w.min.push(lerp(p.0, q.0));
+            w.max.push(lerp(p.1, q.1));
+            w.rms.push(lerp(rms(p), rms(q)));
+            continue;
+        }
+        let lo = b * n / buckets;
         let hi = ((b + 1) * n / buckets).max(lo + 1).min(n);
         let (mut mn, mut mx, mut sq, mut k) = (f32::MAX, f32::MIN, 0f32, 0u32);
         for &(a, z, s, c) in &blocks[lo..hi] {
@@ -197,7 +219,7 @@ fn bucket_waveform(blocks: &[(f32, f32, f32, u32)], buckets: usize) -> crate::Wa
         }
         w.min.push(mn);
         w.max.push(mx);
-        w.rms.push((sq / k.max(1) as f32).sqrt());
+        w.rms.push(rms((mn, mx, sq, k)));
     }
     let peak = w.min.iter().chain(&w.max).fold(0f32, |m, x| m.max(x.abs()));
     if peak > 0.0 {
@@ -801,10 +823,12 @@ mod tests {
         assert_eq!(w.min[2], -1.0, "normalisée sur le maximum absolu");
         assert!((w.max[1] - 0.625).abs() < 1e-6);
         assert!(w.rms.iter().all(|&r| (0.0..=1.0).contains(&r)));
-        // Plus de colonnes que de blocs : chaque colonne reprend son bloc.
+        // Plus de colonnes que de blocs : interpolation entre blocs voisins, sans palier ; les bords gardent leur bloc.
         let w = bucket_waveform(&blocks, 6);
         assert_eq!(w.max.len(), 6);
-        assert_eq!(w.max[0], w.max[1]);
+        assert_eq!(w.max[0], 0.0);
+        assert!(w.max[1] > 0.0 && w.max[1] < 0.625, "entre le silence et la crête : {}", w.max[1]);
+        assert_eq!(w.min[5], -1.0);
         assert!(bucket_waveform(&[], 10).max.is_empty());
     }
 

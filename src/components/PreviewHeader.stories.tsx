@@ -1,27 +1,28 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { SAMPLES } from "../mock/generate";
 import { kick, loop, missing } from "../stories/fixtures";
-import { Inspector } from "./Inspector";
+import { PreviewHeader } from "./PreviewHeader";
 
 const midi = SAMPLES.find((s) => s.ext === "mid")!;
 
 const meta = {
-  title: "Composants/Inspector",
-  component: Inspector,
+  title: "Composants/PreviewHeader",
+  component: PreviewHeader,
   args: {
     sample: loop,
     playing: false,
     progress: 0,
     memberships: [
       { key: "c:3", name: "Loops in Am" },
-      { key: "v:4", name: "Pack 2026 › Drums" },
+      { key: "v:4", name: "Drums" },
     ],
+    knownTags: [{ label: "dark", count: 12 }, { label: "dusty", count: 4 }],
   },
   argTypes: { progress: { control: { type: "range", min: 0, max: 1, step: 0.01 } } },
-  // Colonne de droite du mode grand.
-  parameters: { panelWidth: "340px", panelHeight: "640px" },
-  render: (args, ctx) => <Inspector {...args} themeKey={String(ctx.globals.theme)} />,
-} satisfies Meta<typeof Inspector>;
+  // Haut de la partie droite de la fenêtre bibliothèque.
+  parameters: { panelWidth: "860px", panelHeight: "200px" },
+  render: (args, ctx) => <PreviewHeader {...args} themeKey={String(ctx.globals.theme)} />,
+} satisfies Meta<typeof PreviewHeader>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

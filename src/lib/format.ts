@@ -41,3 +41,15 @@ export function relativeFolder(path: string, sources: { path: string }[], max = 
   if (!parts.length) return "/";
   return parts.map((p) => (p.length > max ? p.slice(0, max) + "…" : p)).join("/") + "/";
 }
+
+/**
+ * Chemin d'un sample tel qu'on le montre : relatif à sa source, précédé du nom de la source
+ * (« Samples/Drums/Kicks/Kick_01.wav »). Jamais de chemin absolu à l'écran ; hors de toute source, le nom du fichier.
+ */
+export function relativePath(path: string, sources: { name: string; path: string }[]): string {
+  const src = sources
+    .map((s) => ({ name: s.name, root: s.path.replace(/\/+$/, "") + "/" }))
+    .filter((s) => path.startsWith(s.root))
+    .sort((a, b) => b.root.length - a.root.length)[0];
+  return src ? `${src.name}/${path.slice(src.root.length)}` : path.slice(path.lastIndexOf("/") + 1);
+}

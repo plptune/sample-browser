@@ -69,11 +69,18 @@ lui donner [`agent-mac.md`](agent-mac.md).
 - [ ] Dans la fenêtre, avec ce même glisser natif : déposer sur une collection manuelle, un dossier virtuel,
       « Favoris » ; survoler l'onglet « Virtuels » l'ouvre après 500 ms ; aucun dépôt n'est pris pour un dossier venu
       du Finder (pas de source ajoutée par erreur).
-- [ ] Glisser un dossier virtuel sur un autre (glisser HTML, pas natif) : il s'y déplace. À vérifier parce que Tauri
-      intercepte les dépôts de fichiers sur la fenêtre.
+- [ ] Glisser un dossier virtuel (au pointeur, ni HTML ni natif) sur un autre : il s'y déplace ; sur le fond de
+      l'onglet : il remonte à la racine ; survoler l'onglet l'ouvre après 500 ms ; près du bord bas ou haut de
+      l'arbre, il défile. Pareil avec « Keep the DAW in front » activé (panneau non activant).
 - [x] **Panneau non activant** (« Keep the DAW in front », activé), Bitwig avec Serum ouvert : glisser un sample sur
       Serum le charge, Serum reste affiché ; taper dans la recherche aussi ; juste après le dépôt, Espace lance le
       transport de Bitwig. (Vérifié le 11 oct. 2026.)
+- [ ] **Redimensionner ensemble** (« Resize the DAW with Crate », autorisation Accessibilité accordée) : Crate calé à
+      gauche (⌘⌥←), Bitwig collé à droite ; tirer le bord droit de Crate fait suivre Bitwig en direct ; tirer le bord
+      gauche de Bitwig fait suivre Crate. Même chose Crate à droite (⌘⌥→). Traces `tile : …` avec `CRATE_TRACE=1`.
+- [ ] Fenêtres écartées de plus de quelques points, ou Bitwig en plein écran : rien ne bouge. Déplacer Bitwig par sa
+      barre titre ne bouge pas Crate ; ⌘⌥← / ⌘⌥→ / ⌘⇧F ne touchent pas Bitwig. Autorisation absente : le bouton « Open
+      settings » ouvre Réglages Système › Accessibilité.
 - [ ] Même réglage : la barre des menus reste celle de Bitwig ; pas de clignotement gênant de Crate quand le clavier
       revient au DAW. Si Crate plante au lancement, relancer avec `CRATE_TRACE=1` : l'exception ObjC est journalisée.
 - [ ] Même réglage : ⌘F dans Bitwig met le curseur dans la recherche, Serum reste là ; Échap dans la recherche vide rend
@@ -133,14 +140,26 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] Glisser un `.mid` dans Ableton Live 12 (piste MIDI : clip créé, notes correctes) et dans Logic (région MIDI).
 - [ ] Tonalités lues sur des clips aux noms muets : crédibles ? (noter les erreurs.)
 
-## 6 ter. Deux modes d'affichage
+## 6 ter. Deux modes séparés : colonne et fenêtre bibliothèque
 
-- [ ] Bouton ⤢ (ou ⌘⇧F) : la fenêtre s'agrandit à l'écran (sans nouveau Space), l'arbre gagne Durée / Format / Tags et
-      l'inspecteur apparaît à droite ; re-cliquer (ou ⌘⇧F) la remet en colonne, à sa taille et sa place d'avant.
-- [ ] Le bouton vert de la fenêtre et un double-clic sur la barre titre font la même chose (la disposition suit).
-- [ ] Quitter en grand, relancer : la fenêtre se rouvre agrandie, en mode grand.
-- [ ] Inspecteur : waveform cliquable, lecture, × sur un tag, « + tag », clic sur une collection, « Afficher dans le
-      Finder ». Rien ne saute ni ne clignote en passant d'un mode à l'autre ; ⌥⌘D reste sous 16 ms en mode grand.
+- [ ] Bouton de mode (ou ⌘⇧F) : la fenêtre remplit la zone utile de l'écran (sans nouveau Space, sous la barre des
+      menus, au-dessus du Dock) ; explorer à gauche, preview, recherche et liste à droite. « Side panel » (ou ⌘⇧F) la
+      remet en colonne, à sa taille et sa place d'avant.
+- [ ] Bouton vert grisé dans les deux modes ; double-clic sur la barre titre sans effet ; la colonne ne s'élargit pas
+      au-delà de 600 pt ; la fenêtre bibliothèque (« Expanded ») se réduit à la main jusqu'à 640 × 480 pt (une autre
+      app sur une moitié d'écran), l'explorer et la liste restent lisibles.
+- [ ] Quitter en bibliothèque, relancer : elle se rouvre en bibliothèque. Quitter en colonne après l'avoir déplacée :
+      elle se rouvre à sa place.
+- [ ] ⌘⌥← depuis la bibliothèque : colonne calée à gauche, d'une touche.
+- [ ] Avec « Resize the DAW with Crate » : en bibliothèque, Bitwig ne bouge pas ; de retour en colonne, il suit de
+      nouveau.
+- [ ] En bibliothèque, Crate est une fenêtre ordinaire (barre des menus de Crate, ⌘Q quitte Crate) ; « Toujours au
+      premier plan » ne s'y applique pas ; de retour en colonne, le panneau non activant et le premier plan reviennent
+      (Serum reste ouvert pendant un glisser).
+- [ ] Explorer : clic sur un dossier → la liste montre toute sa sous-arborescence ; ↑ / ↓ changent la portée ; Échap
+      → « All samples ». Tri par BPM / Key dans les deux sens ; ⌥⌘D reste sous 16 ms à la frappe, portée « All
+      samples » comprise, sur une grosse bibliothèque.
+- [ ] Preview : waveform cliquable, lecture, × sur un tag, champ « Add… », clic sur « In: », « Show in Finder ».
 
 ## 6 quater. Retours du premier essai
 
@@ -151,7 +170,7 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 - [ ] ⌘← et ⌘→ replient tout et le curseur reste sur le dossier de premier niveau ; dans le champ de recherche, ils vont en début / fin de ligne.
 - [ ] Pendant une recherche : un dossier se referme et se rouvre (chevron, double clic, ← / →) ; ⌘→ depuis l'arbre replie tout.
 - [ ] La ligne en lecture n'a plus de ▶.
-- [ ] ⌘⌥→ cale la fenêtre à droite de l'écran, sur toute la hauteur (sous la barre des menus, au-dessus du Dock) ; ⌘⌥← à gauche ; en mode grand, la fenêtre revient d'abord en colonne.
+- [ ] ⌘⌥→ cale la fenêtre à droite de l'écran, sur toute la hauteur (sous la barre des menus, au-dessus du Dock) ; ⌘⌥← à gauche ; depuis la fenêtre bibliothèque, elle revient d'abord en colonne.
 - [ ] Tiroir : « Tags : » montre les tags ; taper un nom + ⏎ l'ajoute (suggestions des tags existants), × le retire.
 - [ ] Ligne sélectionnée bien visible (bleu), lisible en sombre et en clair, en colonne et en grand (tags compris).
 - [ ] Réglages : 4 onglets ; Apparence › Taille du texte S / M / L change tout le panneau ; les couleurs accent,
@@ -184,7 +203,7 @@ Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crat
 - [ ] Glisser un sample vers Bitwig ou Live : plus de « 1 » transparent sous le curseur.
 - [ ] Tiroir : tags, puis dossier relatif (« Drums/Kicks/ »), puis nom.ext ; pas de durée.
 - [ ] Explorer en colonne : icône + nom.ext ; lignes de parenté discrètes ; ← ferme, → ouvre.
-- [ ] Recherche : ↓ ne s'arrête que sur des samples ; menu à droite du champ → « Flat results » : liste à plat,
+- [ ] Recherche : ↓ ne s'arrête que sur des samples ; « Flatten » sous le champ : liste à plat,
       retrouvée après relance.
 
 ## 6 septies. Dossiers aplatis, waveform
@@ -192,13 +211,30 @@ Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crat
 - [ ] ↓ rapide en lecture auto : la waveform apparaît directement nette (un court vide, jamais de bâtons ni de flou).
 - [ ] Clic droit sur un gros dossier › Flatten : tous ses samples, sans sous-dossiers ; icône à astérisque ;
       l'entonnoir passe en bleu ; son menu le liste et le retire ; une recherche le retire aussi.
-- [ ] L'engrenage à droite du champ ouvre « Search options » (Flat results).
+- [ ] En recherche, une bande sous le champ : « Flatten » met à plat et passe en ambre ; l'icône aléatoire à côté
+      remélange à chaque clic ; modifier la recherche revient à l'ordre normal ; Flatten reste actif après relance.
+
+## 6 nonies. Filtres rapides
+
+- [ ] Entonnoir : cocher Favorites puis Minor sans que le menu se ferme ; deux chips apparaissent ; seuls des favoris
+      en tonalité mineure restent. Loops puis One-shots : une seule chip. Une collection de la liste : ses samples.
+
+## 6 octies. Tags automatiques
+
+- [ ] Après l'analyse (version 2 : tout est refait, ~10 à 20 min pour 40 000 fichiers) : les samples bien nommés ont
+      leur instrument (en italique) ; le type (`loop` / `oneshot`) est le premier tag, sans ×.
+- [ ] Un sample au nom muet (`Sample 017.wav`) dans un dossier « Kicks » reçoit `kick` ; une voix sans nom parlant
+      reçoit souvent `vocal`.
+- [ ] × sur un tag automatique : il disparaît et ne revient pas après relance (ni après une réanalyse).
+- [ ] Taper soi-même un tag automatique dans « Add… » : il n'est plus en italique.
+- [ ] `#kick`, `#wet`, `#loop` dans la recherche ; `#lo` propose `#loop` avec son nombre.
+- [ ] Mémoire au repos toujours < 150 Mo une fois le modèle chargé (après une analyse).
 
 ## 7. Mémoire, taille, lancement (budgets du plan)
 
 - [ ] Lancement à froid → arbre affiché < 400 ms avec 100 000 fichiers (chronomètre ou Instruments).
 - [ ] Mémoire au repos < 150 Mo (Moniteur d'activité, après un scan de 100 000 fichiers).
-- [ ] Taille de `Crate.app` < 15 Mo.
+- [ ] Taille de `Crate.app` < 21 Mo (20,5 Mo mesurés avec le modèle de tags).
 - [ ] Mac Intel (si disponible) : l'app se lance et joue (le build CI est Apple Silicon).
 
 ## 8. Déjà noté comme limite (pas un bug à chercher)

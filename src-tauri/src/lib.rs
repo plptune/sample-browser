@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate_core::audio::Player;
 use crate_core::{
-    AnalysisStatus, Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, PlaybackOptions,
-    PlaybackStatus, SampleId, ScanStatus, Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder, Waveform,
+    AnalysisStatus, Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, ListRequest,
+    PlaybackOptions, PlaybackStatus, SampleId, ScanStatus, Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder, Waveform,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -17,7 +17,9 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
 mod daw;
+mod mode;
 mod panel;
+mod tile;
 mod wave_cache;
 
 use wave_cache::WaveCache;
@@ -139,6 +141,19 @@ fn tree(lib: State<'_, Lib>, req: TreeRequest) -> TreePage {
             req.query,
             req.expanded.len(),
             page.total_rows
+        )
+    });
+    page
+}
+
+#[tauri::command]
+#[specta::specta]
+fn list(lib: State<'_, Lib>, req: ListRequest) -> TreePage {
+    let page = lib.lock().list(&req);
+    trace(|| {
+        format!(
+            "list scope={:?} query={:?} sort={:?} → {} lignes",
+            req.scope, req.query, req.sort, page.total_rows
         )
     });
     page
@@ -457,6 +472,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             library,
             sources,
             tree,
+            list,
             set_favorite,
             add_tag,
             remove_tag,
@@ -497,7 +513,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             reveal_in_finder,
             demo_set_missing,
             daw::set_daw_shortcut,
+            mode::set_window_mode,
             daw::return_to_daw,
+            tile::accessibility_trusted,
+            tile::open_accessibility_settings,
         ])
 }
 
@@ -513,6 +532,7 @@ pub fn run() {
             builder.mount_events(app);
             daw::setup(app);
             panel::setup(app);
+            tile::setup(app);
             let inner = if std::env::var_os("CRATE_DEMO").is_some() {
                 Inner::Demo(Catalog::demo())
             } else {

@@ -27,6 +27,9 @@ export type Contract = [
   Check<Assignable<Ui.PlaybackOptions, Rust.PlaybackOptions>>,
   // …et ce que l'UI envoie doit être accepté par Rust.
   Check<Assignable<Ui.TreeRequest, Rust.TreeRequest>>,
+  Check<Assignable<Ui.ListRequest, Rust.ListRequest>>,
+  Check<Assignable<Ui.SortColumn, Rust.SortColumn>>,
+  Check<Assignable<Rust.SortColumn, Ui.SortColumn>>,
   Check<Assignable<Ui.CommitOptions, Rust.CommitOptions>>,
   // Les deux énumérations doivent rester identiques dans les deux sens.
   Check<Assignable<Rust.NodeKind, Ui.NodeKind>>,

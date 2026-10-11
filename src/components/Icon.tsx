@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "expand" | "collapse" | "folder" | "sample" | "midi" | "autoplay" | "filter" | "gear" | "folder-flat" | "library" | "layers";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "layout-side" | "layout-full" | "folder" | "sample" | "midi" | "autoplay" | "filter" | "shuffle" | "folder-flat" | "library" | "layers";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -28,9 +28,22 @@ const PATHS: Record<IconName, () => JSX.Element> = {
   close: () => <path d="M3.2 3.2l5.6 5.6M8.8 3.2 3.2 8.8" />,
   plus: () => <path d="M6 2.5v7M2.5 6h7" />,
   settings: () => <path d="M2 3.5h8M2 8.5h8M4.5 2v3M7.5 7v3" />,
-  // Agrandir / revenir en colonne : flèches vers les coins, ou vers le centre.
-  expand: () => <path d="M7 2h3v3M10 2 6.9 5.1M5 10H2V7M2 10l3.1-3.1" />,
-  collapse: () => <path d="M10 2 7.1 4.9M7.1 2.6v2.3h2.3M2 10l2.9-2.9M4.9 9.4V7.1H2.6" />,
+  // Modes d'affichage, dans le même cadre de fenêtre : la colonne à côté du DAW (bande pleine à droite), et la
+  // fenêtre bibliothèque (explorer à gauche, preview au-dessus de la liste).
+  "layout-side": () => (
+    <>
+      <path d="M1.6 2.4h8.8v7.2H1.6z" />
+      <path d="M7.4 2.4h3v7.2h-3z" fill="currentColor" stroke="none" opacity=".45" />
+      <path d="M7.4 2.4v7.2" />
+    </>
+  ),
+  "layout-full": () => (
+    <>
+      <path d="M1.6 2.4h8.8v7.2H1.6z" />
+      <path d="M1.6 2.4h2.8v7.2H1.6z" fill="currentColor" stroke="none" opacity=".45" />
+      <path d="M4.4 2.4v7.2M4.4 5h6" />
+    </>
+  ),
   // Type des lignes de l'arbre : dossier (trait plein, le dossier virtuel est pointillé), sample (onde), MIDI (note).
   folder: () => <path d="M1.6 3.2h3.1l1 1.2h4.7v5.2H1.6z" />,
   sample: () => <path d="M1.6 6h.4M3.4 4.4v3.2M5.2 2.4v7.2M7 3.8v4.4M8.8 5v2M10.4 6h.1" />,
@@ -42,13 +55,8 @@ const PATHS: Record<IconName, () => JSX.Element> = {
   ),
   // Filtres actifs (dossiers aplatis…) : un entonnoir.
   filter: () => <path d="M1.8 2.4h8.4L7 6.2v3.1L5 10.2V6.2z" />,
-  // Options de recherche : un engrenage (distinct des curseurs des Réglages de l'app).
-  gear: () => (
-    <>
-      <circle cx="6" cy="6" r="1.6" />
-      <path d="M6 1.4v1.4M6 9.2v1.4M1.4 6h1.4M9.2 6h1.4M2.75 2.75l1 1M8.25 8.25l1 1M2.75 9.25l1-1M8.25 3.75l1-1" />
-    </>
-  ),
+  // Mélanger les résultats à plat : deux flèches croisées vers la droite.
+  shuffle: () => <path d="M1.5 3.5h1.8c2.6 0 2.8 5 5.4 5h1.8M1.5 8.5h1.8c1 0 1.6-.8 2.1-1.8M7 4.3c.4-.5 1-.8 1.7-.8h1.8M9 2l1.5 1.5L9 5M9 7l1.5 1.5L9 10" />,
   // Dossier aplati (filtre temporaire) : un dossier marqué d'un astérisque.
   "folder-flat": () => (
     <>

@@ -48,13 +48,10 @@ export function TreeRow(props: {
   dragging?: boolean;
   /** Fichier MIDI (joué au piano dans l'app) : icône de note au lieu de l'onde. */
   midi?: boolean;
-  /** Mode grand : colonnes durée, format et tags avant BPM / clé. */
-  wide?: boolean;
-  duration?: string;
-  format?: string;
-  tags?: string[];
-  bpm?: number | null;
-  keyName?: string | null;
+  /** Explorer du mode grand : dossier sans sous-dossier, donc sans chevron. */
+  leaf?: boolean;
+  /** Explorer du mode grand : la portée de la liste. */
+  scoped?: boolean;
   peaks?: number[];
   wave?: boolean;
   themeKey?: string;
@@ -64,6 +61,7 @@ export function TreeRow(props: {
   ref?: (el: HTMLDivElement) => void;
   onContextMenu?: (e: MouseEvent) => void;
   onMouseDown?: (e: MouseEvent) => void;
+  onPointerDown?: (e: PointerEvent) => void;
   onDblClick?: () => void;
   onToggle?: () => void;
   onDragStart?: (e: DragEvent) => void;
@@ -74,7 +72,7 @@ export function TreeRow(props: {
 }) {
   const isSample = () => props.kind === "sample";
   // Un raccourci ne se déplie pas (il saute au dossier visé) : pas de chevron.
-  const folds = () => !isSample() && props.kind !== "shortcut";
+  const folds = () => !isSample() && props.kind !== "shortcut" && !props.leaf;
   const kindIcon = (): IconName =>
     props.kind === "sample" ? (props.midi ? "midi" : "sample") : props.flattened ? "folder-flat" : KIND_ICON[props.kind];
   return (
@@ -88,6 +86,7 @@ export function TreeRow(props: {
       style={{ "--depth": props.depth }}
       data-kind={props.kind}
       data-selected={props.selected || undefined}
+      data-scoped={props.scoped || undefined}
       data-playing={props.playing || undefined}
       data-missing={props.missing || undefined}
       data-hidden={props.hidden || undefined}
@@ -99,6 +98,7 @@ export function TreeRow(props: {
       draggable={props.draggable ?? (isSample() && !props.missing)}
       title={props.title}
       onMouseDown={(e) => props.onMouseDown?.(e)}
+      onPointerDown={(e) => props.onPointerDown?.(e)}
       onDblClick={() => props.onDblClick?.()}
       onContextMenu={(e) => {
         if (!props.onContextMenu) return;
@@ -153,18 +153,6 @@ export function TreeRow(props: {
             <Icon name={MARKER_ICON[m()]} />
           </span>
         )}
-      </Show>
-      <Show when={isSample() && props.wide}>
-        <span class="cr-col-dur cr-node__meta">{props.duration ?? ""}</span>
-        <span class="cr-col-fmt cr-node__meta">{props.format ?? ""}</span>
-        <span class="cr-col-tags" title={props.tags?.join(", ")}>
-          {props.tags?.join(" · ") ?? ""}
-        </span>
-      </Show>
-      {/* En colonne : juste l'icône et le nom ; les métadonnées n'apparaissent qu'en mode grand. */}
-      <Show when={isSample() && props.wide}>
-        <span class="cr-col-bpm cr-node__meta">{props.bpm ?? ""}</span>
-        <span class="cr-col-key cr-node__meta">{props.keyName ?? ""}</span>
       </Show>
     </div>
   );

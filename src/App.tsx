@@ -27,7 +27,7 @@ export function App() {
   function onKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
     const key = e.key.toLowerCase();
-    // ⌘⇧F : grande fenêtre (arbre large + inspecteur) ou retour en colonne.
+    // ⌘⇧F : fenêtre bibliothèque ou retour en colonne (le seul passage, avec le bouton de la barre titre).
     if (mod && e.shiftKey && key === "f") {
       e.preventDefault();
       void app.toggleLayout();
@@ -75,7 +75,7 @@ export function App() {
     // ⌘← / ⌘→ : referme tous les dossiers (hors des champs, où ils vont en début ou fin de ligne).
     if (mod && !e.altKey && !e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isField(e.target) && app.view() === "browser") {
       e.preventDefault();
-      document.querySelector<HTMLElement>(".cr-tree")?.focus();
+      app.focusList("tree");
       void app.collapseAll();
       return;
     }
@@ -138,6 +138,8 @@ export function App() {
       if (app.menu() || app.tagging() || app.saving() !== null) app.closeOverlays();
       else if (app.view() === "settings") app.setView("browser");
       else if (app.view() === "commit") app.commit()?.status !== "running" && app.closeCommit();
+      // Mode grand, dans l'explorer : la liste revient à toute la bibliothèque.
+      else if (app.layout() === "full" && app.zone() === "tree" && app.scope() !== null) app.clearScope();
       else app.stop();
       return;
     }
@@ -150,25 +152,30 @@ export function App() {
     }
     if (app.view() !== "browser") return;
 
-    const tree = () => document.querySelector<HTMLElement>(".cr-tree");
     switch (e.key) {
       case "ArrowDown":
       case "ArrowUp":
         e.preventDefault();
-        tree()?.focus();
+        app.focusList();
         app.move(e.key === "ArrowDown" ? 1 : -1, e.shiftKey);
         return;
       case "ArrowRight":
         e.preventDefault();
-        tree()?.focus();
+        app.focusList();
         if (e.shiftKey) return app.nudge(0.1);
         app.right();
         return;
       case "ArrowLeft":
         e.preventDefault();
-        tree()?.focus();
+        app.focusList();
         if (e.shiftKey) return app.nudge(-0.1);
         app.left();
+        return;
+      // Mode grand : Tab passe de l'explorer à la liste, et retour.
+      case "Tab":
+        if (app.layout() !== "full" || !(e.target instanceof HTMLElement && e.target.closest(".cr-tree"))) return;
+        e.preventDefault();
+        app.focusList(app.zone() === "tree" ? "list" : "tree");
         return;
       case " ":
         e.preventDefault();
@@ -267,6 +274,10 @@ export function App() {
     const onBlur = () => app.stopOnBlur() && app.playingId() !== null && app.stop();
     window.addEventListener("blur", onBlur);
     onCleanup(() => window.removeEventListener("blur", onBlur));
+    // Retour dans Crate (par exemple depuis les Réglages Système) : l'autorisation Accessibilité a pu changer.
+    const onFocus = () => app.dawShortcut().resizeTogether && void app.checkAccessibility();
+    window.addEventListener("focus", onFocus);
+    onCleanup(() => window.removeEventListener("focus", onFocus));
     onCleanup(() => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("mouseup", onMouseNav);

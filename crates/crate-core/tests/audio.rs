@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate_core::audio::{compute_peaks, Player, PEAKS};
+use crate_core::audio::{compute_peaks, waveform, Player, PEAKS, WAVEFORM_MAX_BUCKETS};
 use crate_core::PlaybackStatus;
 
 fn tmp(name: &str) -> PathBuf {
@@ -122,4 +122,24 @@ fn deplacement_boucle_et_stop() {
     rec.wait("erreur", |l| l.last().is_some_and(|s| s.id == 2 && !s.playing));
     assert!(rec.last().error);
     let _ = fs::remove_dir_all(d);
+}
+
+#[test]
+fn forme_detaillee_d_un_fichier_court_sans_escalier() {
+    // Kick de 0,18 s à 44,1 kHz (~7 900 trames) dessiné sur toute la largeur d'un grand écran.
+    let path = tmp("court").join("court.wav");
+    wav(&path, 44_100, 2, 0.18, |t| {
+        (t * 60.0 * std::f32::consts::TAU).sin() * (1.0 - t / 0.18)
+    });
+    let w = waveform(&path, WAVEFORM_MAX_BUCKETS).expect("décodé");
+    assert_eq!(w.max.len(), WAVEFORM_MAX_BUCKETS);
+    // Plus de paliers de 30 colonnes identiques (blocs de 64 trames étirés) : presque chaque colonne est différente.
+    let same = w.max.windows(2).filter(|p| p[0] == p[1]).count();
+    assert!(same < WAVEFORM_MAX_BUCKETS / 10, "{same} colonnes répétées");
+    // Fichier plus court que le nombre de colonnes : interpolé, toujours sans palier.
+    let tiny = tmp("minuscule").join("minuscule.wav");
+    wav(&tiny, 44_100, 1, 0.02, |t| (t * 200.0 * std::f32::consts::TAU).sin());
+    let w = waveform(&tiny, WAVEFORM_MAX_BUCKETS).expect("décodé");
+    let same = w.max.windows(2).filter(|p| p[0] == p[1]).count();
+    assert!(same < WAVEFORM_MAX_BUCKETS / 10, "{same} colonnes répétées");
 }

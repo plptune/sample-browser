@@ -11,10 +11,10 @@ export type QueryToken =
   | { kind: "tag"; raw: string; value: string; negated: boolean }
   | { kind: "filter"; raw: string; key: FilterKey; value: string; negated: boolean };
 
-/** Découpe sur les espaces en respectant les "phrases". */
+/** Découpe sur les espaces en respectant les "phrases" et les valeurs entre guillemets (`in:"Vocal chops"`). */
 export function splitLine(line: string): string[] {
   const out: string[] = [];
-  const re = /-?"[^"]*"?|\S+/g;
+  const re = /-?"[^"]*"?|-?[A-Za-z]+:"[^"]*"?|\S+/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(line))) out.push(m[0]);
   return out;
@@ -36,7 +36,7 @@ export function parseToken(raw: string): QueryToken {
   const colon = body.indexOf(":");
   if (colon > 0) {
     const key = body.slice(0, colon).toLowerCase();
-    const value = body.slice(colon + 1);
+    const value = body.slice(colon + 1).replace(/^"|"$/g, "");
     if ((FILTER_KEYS as readonly string[]).includes(key) && value) {
       return { kind: "filter", raw, key: key as FilterKey, value, negated };
     }

@@ -96,7 +96,7 @@ dans le dossier. Dans le rapport :
 
 ```bash
 pnpm tauri build --bundles app                  # comme la CI (pas de .dmg)
-du -sh target/release/bundle/macos/Crate.app      # budget : < 15 Mo
+du -sh target/release/bundle/macos/Crate.app      # budget : < 21 Mo (modèle de tags compris)
 ```
 
 Lance l'app une fois (`open target/release/bundle/macos/Crate.app`). Après une minute au repos, mesure sa mémoire :
@@ -120,8 +120,9 @@ et ce qu'il doit observer. Mets en tête, dans cet ordre :
    après relance.
 6. **Clavier** : ⇧F10, ⌘⌫, Tab dans les Réglages, avec et sans « Navigation au clavier » (Réglages Système ›
    Clavier).
-7. **Grande fenêtre** (⌘⇧F ou bouton ⤢) : la fenêtre s'agrandit, l'inspecteur apparaît ; retour en colonne à la
-   taille d'avant ; bouton vert cohérent ; relance en grand (`docs/verification-mac.md`, section 6 ter).
+7. **Fenêtre bibliothèque** (⌘⇧F ou bouton de mode) : la fenêtre remplit l'écran (explorer, preview, liste
+   triable) ; retour en colonne à sa place ; bouton vert grisé, double-clic sur la barre titre sans effet, colonne
+   plafonnée à 600 pt ; relance dans le même mode (`docs/verification-mac.md`, section 6 ter).
 8. **Retours du premier essai** : lecture auto par défaut, ⌘← tout replier, tags dans le tiroir, Réglages en onglets,
    taille du texte et couleurs (`docs/verification-mac.md`, section 6 quater).
 9. **Recherche depuis le DAW** : ⌘F dans Live ou Bitwig amène Crate sur la recherche, Échap ou un glisser y revient,

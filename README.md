@@ -28,7 +28,7 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | Touche | Action |
 | --- | --- |
 | clic droit › Flatten | Aplatir un dossier (tous ses samples, sans sous-dossiers) ; l'entonnoir de la recherche liste les filtres actifs |
-| ⌘F ou `/` | Recherche ; dans Live ou Bitwig, ⌘F amène Crate devant, sur la recherche (Échap y revient). En recherche, ↑ / ↓ ne s'arrêtent que sur les samples, les dossiers se referment comme ailleurs ; menu ⏷ à droite du champ : « Flat results » |
+| ⌘F ou `/` | Recherche ; dans Live ou Bitwig, ⌘F amène Crate devant, sur la recherche (Échap y revient). En recherche, ↑ / ↓ ne s'arrêtent que sur les samples, les dossiers se referment comme ailleurs ; sous le champ : « Flatten » (résultats à plat), puis Shuffle (ordre aléatoire) |
 | ↑ ↓ (⇧ pour étendre) | Naviguer dans l'arbre (avec la lecture auto, active par défaut, le sample joue aussitôt) |
 | → | Ouvrir le dossier sélectionné (le curseur reste dessus) ; suivre un raccourci |
 | ← | Fermer le dossier sélectionné ; sur un sample, fermer son dossier et le sélectionner |
@@ -52,11 +52,17 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | ⌘L | Boucle |
 | ⌘⇧Espace | Lire un sample au hasard parmi les lignes de l'arbre |
 | ⌘, | Réglages (Échap pour revenir) |
-| ⌘⇧F | Grande fenêtre (arbre large + inspecteur) / retour en colonne ; aussi le bouton ⤢ |
+| ⌘⇧F | Fenêtre bibliothèque (explorer, preview, liste triable) / retour en colonne ; aussi le bouton de mode de la barre titre. Agrandir la fenêtre ne change jamais de mode |
+| Tab | Fenêtre bibliothèque : passer de l'explorer à la liste, et retour ; Échap dans l'explorer : toute la bibliothèque |
 | Échap | Fermer la surcouche ouverte, sinon stop |
-| `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir |
+| `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir (`#loop` / `#oneshot` : le type du sample ; `key:minor` / `key:major` : le mode) |
+| Entonnoir (à droite du champ) | Filtres en un clic, posés comme des chips : favoris, dans une collection (ou une collection précise), boucles / one-shots, mineur / majeur |
 | ⌫ en début de champ | Supprimer la dernière chip |
 | 1–9, 0, -, =, [, ] | Scénarios de démo 1 à 14 |
+
+Tags automatiques : l'analyse pose l'instrument (`kick`, `snare`, `hat`, `bass`, `vocal`, `fx`…) et `wet` / `dry`,
+d'après le nom, le dossier, puis l'audio ; ils sont en italique, et × les retire pour toujours. Le type (`loop` /
+`oneshot`) s'affiche en premier tag.
 
 Souris : clic sur le chevron = ouvrir / fermer ; clic, ⇧-clic, ⌘-clic = sélection ; double-clic = ouvrir un dossier
 ou lire un sample ; glisser des samples sur une collection manuelle les y ajoute ; clic droit = menu contextuel

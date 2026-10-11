@@ -1,7 +1,7 @@
 //! Parité avec le prototype : la bibliothèque factice Rust doit produire exactement les mêmes données
 //! que le mock TypeScript (empreinte dans tests/fixtures/prototype.json, générée par `pnpm parity:fixture`).
 
-use crate_core::{Backend, CommitOptions, MockLibrary, TreePage, TreeRequest, TreeRoot, TreeRow};
+use crate_core::{Backend, CommitOptions, ListRequest, ListSort, MockLibrary, SortColumn, TreePage, TreeRequest, TreeRoot, TreeRow};
 use serde_json::Value;
 
 fn fixture() -> Value {
@@ -22,6 +22,7 @@ fn rows_of(page: &TreePage) -> Vec<String> {
                 n.target.as_ref().map(|t| format!("|->{t}")).unwrap_or_default()
                     + if n.hidden == Some(true) { "|hidden" } else { "" }
                     + if n.flattened == Some(true) { "|flattened" } else { "" }
+                    + if n.leaf == Some(true) { "|leaf" } else { "" }
             ),
             TreeRow::Sample(s) => format!("{}|{}", s.depth, s.key),
         })
@@ -68,6 +69,7 @@ fn memes_samples() {
         assert_eq!(s.key.as_deref(), e["key"].as_str(), "{ctx}");
         assert_eq!(serde_json::to_value(s.kind).unwrap(), e["kind"], "{ctx}");
         assert_eq!(serde_json::to_value(&s.tags).unwrap(), e["tags"], "{ctx}");
+        assert_eq!(serde_json::to_value(&s.auto_tags).unwrap(), e["autoTags"], "{ctx}");
         assert_eq!(s.fav, e["fav"].as_bool().unwrap(), "{ctx}");
         // Les fonctions exp / pow / sin peuvent différer au dernier bit entre moteurs : tolérance de 1e-9.
         let sum: f64 = s.peaks.iter().sum();
@@ -390,6 +392,54 @@ fn memes_resultats_a_plat() {
 }
 
 #[test]
+fn memes_resultats_melanges() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    let cases = fx["shuffled"].as_array().unwrap();
+    assert!(cases.len() >= 12);
+    for c in cases {
+        let root = if c["root"] == "virtual" {
+            TreeRoot::Virtual
+        } else {
+            TreeRoot::Library
+        };
+        let q = c["query"].as_str().unwrap();
+        let seed = c["seed"].as_u64().unwrap() as u32;
+        let rows = rows_of(&lib.tree(&TreeRequest {
+            flat: true,
+            shuffle: Some(seed),
+            ..req(root, q, vec![])
+        }));
+        assert_eq!(rows, strings(&c["rows"]), "mélangé {:?} {q} {seed}", c["root"]);
+        // Mêmes samples que l'ordre à plat, dans un autre ordre.
+        let mut plain = rows_of(&lib.tree(&TreeRequest {
+            flat: true,
+            ..req(root, q, vec![])
+        }));
+        if plain.len() > 3 {
+            assert_ne!(rows, plain, "ordre inchangé : {q} {seed}");
+        }
+        let mut sorted = rows.clone();
+        sorted.sort();
+        plain.sort();
+        assert_eq!(sorted, plain, "mêmes samples : {q}");
+    }
+    // Sans `flat` ou sans recherche, la graine ne change rien.
+    for (q, flat) in [("kick", false), ("", true)] {
+        let base = lib.tree(&TreeRequest {
+            flat,
+            ..req(TreeRoot::Library, q, vec![])
+        });
+        let seeded = lib.tree(&TreeRequest {
+            flat,
+            shuffle: Some(42),
+            ..req(TreeRoot::Library, q, vec![])
+        });
+        assert_eq!(rows_of(&base), rows_of(&seeded), "{q:?} flat={flat}");
+    }
+}
+
+#[test]
 fn memes_formes_d_onde() {
     let fx = fixture();
     let lib = MockLibrary::demo();
@@ -456,5 +506,85 @@ fn memes_noeuds_refermes_en_recherche() {
             c["collapsed"],
             c["query"]
         );
+    }
+}
+
+fn sort_column(v: &Value) -> SortColumn {
+    serde_json::from_value(v.clone()).unwrap()
+}
+
+#[test]
+fn memes_listes() {
+    let fx = fixture();
+    let mut lib = MockLibrary::demo();
+    let cases = fx["lists"].as_array().unwrap();
+    assert!(cases.len() >= 100);
+    for (n, c) in cases.iter().enumerate() {
+        // Les trois derniers cas : samples et dossier masqués (comme dans le script).
+        if n == cases.len() - 3 {
+            lib.set_hidden(&[1, 2, 3, 5, 11], true);
+            lib.set_folder_hidden(12, true);
+        }
+        let r = ListRequest {
+            scope: c["scope"].as_str().map(String::from),
+            query: c["query"].as_str().unwrap().into(),
+            sort: ListSort {
+                column: sort_column(&c["column"]),
+                desc: c["desc"].as_bool().unwrap(),
+            },
+            offset: 0,
+            limit: 100_000,
+            focus: None,
+        };
+        let page = lib.list(&r);
+        assert_eq!(
+            rows_of(&page),
+            strings(&c["rows"]),
+            "liste {:?} {:?} {:?} {:?}",
+            c["scope"],
+            c["query"],
+            c["column"],
+            c["desc"]
+        );
+        assert_eq!(page.total_rows as u64, c["totalRows"].as_u64().unwrap());
+    }
+}
+
+#[test]
+fn memes_positions_dans_la_liste() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    for f in fx["listFocus"].as_array().unwrap() {
+        let page = lib.list(&ListRequest {
+            scope: f["scope"].as_str().map(String::from),
+            query: f["query"].as_str().unwrap().into(),
+            sort: ListSort {
+                column: SortColumn::Bpm,
+                desc: true,
+            },
+            offset: 0,
+            limit: 0,
+            focus: f["focus"].as_str().map(String::from),
+        });
+        assert_eq!(page.focus_index.map(|i| i as u64), f["focusIndex"].as_u64(), "{f}");
+    }
+}
+
+#[test]
+fn meme_explorateur() {
+    let fx = fixture();
+    let lib = MockLibrary::demo();
+    for c in fx["explorers"].as_array().unwrap() {
+        let root = if c["root"] == "virtual" {
+            TreeRoot::Virtual
+        } else {
+            TreeRoot::Library
+        };
+        let page = lib.tree(&TreeRequest {
+            folders_only: true,
+            ..req(root, "", strings(&c["expanded"]))
+        });
+        assert!(page.rows.iter().all(|r| matches!(r, TreeRow::Node(_))));
+        assert_eq!(rows_of(&page), strings(&c["rows"]), "explorer {:?} {:?}", c["root"], c["expanded"]);
     }
 }

@@ -41,7 +41,8 @@ pub struct Token {
     pub negated: bool,
 }
 
-/// Découpe sur les espaces en respectant les "phrases" (équivalent de `/-?"[^"]*"?|\S+/g`).
+/// Découpe sur les espaces en respectant les "phrases" et les valeurs entre guillemets (`in:"Vocal chops"`) :
+/// équivalent de `/-?"[^"]*"?|-?[A-Za-z]+:"[^"]*"?|\S+/g`.
 pub fn split_line(line: &str) -> Vec<String> {
     let chars: Vec<char> = line.chars().collect();
     let mut out = Vec::new();
@@ -53,7 +54,24 @@ pub fn split_line(line: &str) -> Vec<String> {
         }
         let start = i;
         let quoted = chars[i] == '"' || (chars[i] == '-' && chars.get(i + 1) == Some(&'"'));
-        if quoted {
+        // `clé:"…"` : lettres, deux-points, guillemet ouvrant.
+        let key_quote = {
+            let mut j = i + usize::from(chars[i] == '-');
+            let letters = j;
+            while j < chars.len() && chars[j].is_ascii_alphabetic() {
+                j += 1;
+            }
+            (j > letters && chars.get(j) == Some(&':') && chars.get(j + 1) == Some(&'"')).then_some(j + 2)
+        };
+        if let Some(after) = key_quote.filter(|_| !quoted) {
+            i = after;
+            while i < chars.len() && chars[i] != '"' {
+                i += 1;
+            }
+            if i < chars.len() {
+                i += 1; // guillemet fermant
+            }
+        } else if quoted {
             i += if chars[i] == '-' { 2 } else { 1 };
             while i < chars.len() && chars[i] != '"' {
                 i += 1;
@@ -92,7 +110,8 @@ pub fn parse_token(raw: &str) -> Token {
     }
     if let Some(colon) = body.find(':') {
         if colon > 0 {
-            let value = &body[colon + 1..];
+            let value = body[colon + 1..].strip_prefix('"').unwrap_or(&body[colon + 1..]);
+            let value = value.strip_suffix('"').unwrap_or(value);
             if let Some(key) = FilterKey::parse(&body[..colon].to_lowercase()) {
                 if !value.is_empty() {
                     return token(TokenKind::Filter(key), value.to_string());
@@ -228,6 +247,21 @@ mod tests {
         assert!(parse_range("1-4s", "s")(2.0));
         assert!(parse_range("120", "")(119.6));
         assert!(!parse_range("abc", "")(1.0));
+    }
+
+    #[test]
+    fn valeurs_entre_guillemets() {
+        assert_eq!(
+            split_line(r#"kick in:"Vocal chops" -in:"Go-to kicks" key:minor"#),
+            ["kick", r#"in:"Vocal chops""#, r#"-in:"Go-to kicks""#, "key:minor"]
+        );
+        let t = parse_token(r#"-in:"Vocal chops""#);
+        assert_eq!(
+            (t.kind, t.value.as_str(), t.negated),
+            (TokenKind::Filter(FilterKey::In), "Vocal chops", true)
+        );
+        // Guillemet non fermé : jusqu'au bout de la ligne, comme une phrase.
+        assert_eq!(split_line(r#"in:"Vocal ch"#), [r#"in:"Vocal ch"#]);
     }
 
     #[test]

@@ -1,18 +1,22 @@
-import { Match, Show, Switch } from "solid-js";
+import { Match, Show, Switch, createSignal } from "solid-js";
 import type { TreeRow as Row } from "../api";
 import { app } from "../state/app";
 import { Browser } from "./Browser";
 import { CommitView } from "./CommitView";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { EmptyState } from "./EmptyState";
+import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
-import { Inspector } from "./Inspector";
+import { isKindTag } from "../lib/autotag";
 import { DEFAULT_COLORS } from "../lib/color";
-import { relativeFolder } from "../lib/format";
+import { relativeFolder, relativePath } from "../lib/format";
 import { PreviewDrawer } from "./PreviewDrawer";
+import { PreviewHeader } from "./PreviewHeader";
+import { ResultsTable } from "./ResultsTable";
 import { SaveSearch } from "./SaveSearch";
 import { ScanStatus } from "./ScanStatus";
 import { SearchField } from "./SearchField";
+import { Segmented } from "./Segmented";
 import { SettingsView } from "./SettingsView";
 import { Tabs } from "./Tabs";
 import { TagPopover, type TagState } from "./TagPopover";
@@ -65,7 +69,9 @@ const pinItem = (key: string, pinned: boolean | null | undefined): MenuItem => (
 });
 
 /** Aplatir un dossier (filtre temporaire) : tous ses samples, sans sous-dossiers. Pas pendant une recherche. */
-const flattenItem = (row: { key: string; flattened?: boolean | null }): MenuItem =>
+const flattenItem = (row: { key: string; flattened?: boolean | null }): MenuItem[] =>
+  app.layout() === "full" ? [] : [flattenItem1(row)];
+const flattenItem1 = (row: { key: string; flattened?: boolean | null }): MenuItem =>
   row.flattened
     ? { label: "Unflatten", action: () => app.flatten(row.key, false) }
     : { label: "Flatten", disabled: app.searching(), action: () => app.flatten(row.key) };
@@ -122,7 +128,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       if (row.parent === null && app.tab() === "library") {
         return [
           toggle,
-          flattenItem(row),
+          ...flattenItem(row),
           { label: "Refresh", action: () => app.refreshSource(+row.key.slice(2)) },
           { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key), disabled: !!row.offline },
           { type: "separator" },
@@ -132,7 +138,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       const pinned = app.library()?.pinnedFolders.includes(+row.key.slice(2));
       return [
         toggle,
-        flattenItem(row),
+        ...flattenItem(row),
         { label: pinned ? "Remove from Library" : "Pin to Library", action: () => app.togglePin(row.key) },
         { label: "Open in Finder", shortcut: "⌥⌘R", action: () => app.openFolderInFinder(row.key) },
         { type: "separator" },
@@ -164,7 +170,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
       ];
       return [
         toggle,
-        flattenItem(row),
+        ...flattenItem(row),
         { label: "New virtual folder inside", action: () => app.newVirtualFolder(row.key) },
         { label: "Rename", action: () => app.setRenamingKey(row.key) },
         pinItem(row.key, row.pinned),
@@ -188,10 +194,13 @@ function menuFor(row: Row | undefined): MenuItem[] {
   }
 }
 
+/** Tags qu'on peut poser : tous sauf le type (`loop` / `oneshot`, qui vient de l'analyse). */
+const assignableTags = () => (app.library()?.tags ?? []).filter((t) => !isKindTag(t.name));
+
 /** Tags proposés dans le popover, avec leur état sur la sélection. */
 function tagChoices() {
   const samples = app.selectedSamples();
-  return (app.library()?.tags ?? []).map((t) => {
+  return assignableTags().map((t) => {
     const n = samples.filter((s) => s.tags.includes(t.name)).length;
     const state: TagState = n === 0 ? "none" : n === samples.length ? "all" : "some";
     return { name: t.name, state };
@@ -200,7 +209,7 @@ function tagChoices() {
 
 export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
   return (
-    <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()} data-font-size={app.fontSize()}>
+    <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()} data-font-size={app.fontSize()} data-searching={app.searching() || undefined}>
       <header class="cr-titlebar" data-tauri-drag-region>
         <Tabs
           value={app.tab()}
@@ -216,11 +225,7 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
         <Show when={app.tab() === "virtual" && app.view() === "browser" && !app.empty()}>
           <IconButton icon="plus" label="New virtual folder (⌘N)" onClick={() => app.newVirtualFolder()} />
         </Show>
-        <IconButton
-          icon={app.layout() === "full" ? "collapse" : "expand"}
-          label={app.layout() === "full" ? "Back to column (⌘⇧F)" : "Expand (⌘⇧F)"}
-          onClick={() => void app.toggleLayout()}
-        />
+        <ModeSwitch />
         <IconButton
           icon="settings"
           label="Settings (⌘,)"
@@ -280,6 +285,9 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onResetColors={app.resetColors}
             dawShortcut={app.dawShortcut()}
             onDawShortcut={app.setDawShortcut}
+            accessibility={app.accessibility()}
+            onRequestAccessibility={() => void app.checkAccessibility(true)}
+            onOpenAccessibility={() => void app.openAccessibilitySettings()}
           />
         </Match>
         <Match when={app.view() === "commit" && app.commit()}>
@@ -303,86 +311,11 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             />
           )}
         </Match>
+        <Match when={app.layout() === "full"}>
+          <FullBrowser searchRef={props.searchRef} forceAc={props.forceAc} />
+        </Match>
         <Match when={true}>
-          <SearchField ref={props.searchRef} forceAc={props.forceAc && !app.tagging()} />
-          <Show when={app.saving() !== null}>
-            <SaveSearch value={app.saving()!} onSubmit={app.saveSearch} onCancel={() => app.setSaving(null)} />
-          </Show>
-          <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
-          <Notice />
-          {/* Mode colonne : l'arbre puis le tiroir. Mode grand : l'arbre à gauche, l'inspecteur à droite.
-              L'arbre reste le même élément d'un mode à l'autre (rien n'est recréé). */}
-          <div class="cr-split">
-            <div class="cr-split__main">
-              <Show
-                when={app.shownTotal()}
-                fallback={
-                  <EmptyState
-                    variant="noresults"
-                    title="No results"
-                    body={<>Nothing matches “{app.queryLine()}”.</>}
-                    hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
-                  />
-                }
-              >
-                <Browser />
-              </Show>
-              <Show when={app.debug()}>
-                <DebugOverlay />
-              </Show>
-            </div>
-            <Show when={app.layout() === "full"}>
-              <Inspector
-                sample={app.current()}
-                peaks={app.currentPeaks()}
-                playing={app.playingId() !== null && app.playingId() === app.current()?.id}
-                progress={app.progress()}
-                looping={app.looping()}
-                loadDetail={(b) => (app.current() ? app.waveformFor(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
-                themeKey={app.theme()}
-                selectionCount={app.selectedSamples().length}
-                memberships={app.memberships()}
-                onTogglePlay={() => app.togglePlay()}
-                onToggleFav={() => app.toggleFavorite(app.selectedSamples().length ? app.selectedSamples() : [app.current()!])}
-                onSeek={app.seekTo}
-                onRemoveTag={(t) => void app.removeTag(t)}
-                onAddTag={() => app.openTagging()}
-                onJump={(k) => void app.jumpTo(k)}
-                onReveal={() => app.showInFinder(app.current()?.path)}
-              />
-            </Show>
-          </div>
-          <Show when={app.layout() !== "full"}>
-            <PreviewDrawer
-              sample={app.current()}
-              peaks={app.currentPeaks()}
-              playing={app.playingId() !== null && app.playingId() === app.current()?.id}
-              progress={app.progress()}
-              themeKey={app.theme()}
-              autoPlay={app.autoPlay()}
-              looping={app.looping()}
-              folder={app.current() ? relativeFolder(app.current()!.path, app.sources()) : ""}
-              loadDetail={(b) => (app.current() ? app.waveformFor(app.current()!.id, b) : Promise.resolve({ min: [], max: [], rms: [] }))}
-              knownTags={app.library()?.tags.map((t) => ({ label: t.name, count: t.count })) ?? []}
-              onTogglePlay={() => app.togglePlay()}
-              onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
-              onAutoPlay={app.setAutoPlay}
-              onAddTag={(t) => void app.addTag(t)}
-              onRemoveTag={(t) => void app.removeTag(t)}
-              onSeek={app.seekTo}
-            />
-          </Show>
-          <Show when={app.tagging()}>
-            <TagPopover
-              count={app.selectedSamples().length}
-              tags={tagChoices()}
-              onToggle={app.toggleTag}
-              onClose={() => {
-                app.setTagging(false);
-                document.querySelector<HTMLElement>(".cr-tree")?.focus();
-              }}
-            />
-          </Show>
+          <SideBrowser searchRef={props.searchRef} forceAc={props.forceAc} />
         </Match>
       </Switch>
 
@@ -393,6 +326,241 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
           return <ContextMenu x={m().x} y={m().y} items={menuFor(row)} onClose={() => app.setMenu(null)} />;
         }}
       </Show>
+    </div>
+  );
+}
+
+/**
+ * Mode d'affichage, seulement par ce bouton ou ⌘⇧F (agrandir la fenêtre n'en change pas). En colonne, une icône
+ * (la place manque) ; en fenêtre bibliothèque, les deux modes côte à côte.
+ */
+function ModeSwitch() {
+  return (
+    <Show
+      when={app.layout() === "full"}
+      fallback={<IconButton icon="layout-full" label="Expanded (⌘⇧F)" onClick={() => void app.setLayout("full")} />}
+    >
+      <Segmented
+        label="Display mode"
+        value={app.layout()}
+        options={[
+          { value: "side", label: "Side panel (⌘⇧F)", icon: "layout-side" },
+          { value: "full", label: "Expanded (⌘⇧F)", icon: "layout-full" },
+        ]}
+        onChange={(v) => void app.setLayout(v)}
+      />
+    </Show>
+  );
+}
+
+/** Popover de tags (T) : sur la sélection ; à la fermeture, le clavier revient à la liste. */
+function Tagging() {
+  return (
+    <Show when={app.tagging()}>
+      <TagPopover
+        count={app.selectedSamples().length}
+        tags={tagChoices()}
+        onToggle={app.toggleTag}
+        onClose={() => {
+          app.setTagging(false);
+          app.focusList();
+        }}
+      />
+    </Show>
+  );
+}
+
+const noDetail = () => Promise.resolve({ min: [], max: [], rms: [] });
+const loadDetail = (b: number) => (app.current() ? app.waveformFor(app.current()!.id, b) : noDetail());
+const currentRelPath = () => (app.current() ? relativePath(app.current()!.path, app.sources()) : "");
+const isPlayingCurrent = () => app.playingId() !== null && app.playingId() === app.current()?.id;
+
+/** Colonne : la recherche, l'arbre (dossiers et samples), puis le tiroir. */
+function SideBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
+  return (
+    <>
+      <SearchField ref={props.searchRef} forceAc={props.forceAc && !app.tagging()} />
+      <Show when={app.saving() !== null}>
+        <SaveSearch value={app.saving()!} onSubmit={app.saveSearch} onCancel={() => app.setSaving(null)} />
+      </Show>
+      <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
+      <Notice />
+      <div class="cr-side">
+        <Show
+          when={app.shownTotal()}
+          fallback={
+            <EmptyState
+              variant="noresults"
+              title="No results"
+              body={<>Nothing matches “{app.queryLine()}”.</>}
+              hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
+            />
+          }
+        >
+          <Browser model={app.tree} />
+        </Show>
+        <Show when={app.debug()}>
+          <DebugOverlay />
+        </Show>
+      </div>
+      <PreviewDrawer
+        sample={app.current()}
+        peaks={app.currentPeaks()}
+        playing={isPlayingCurrent()}
+        progress={app.progress()}
+        themeKey={app.theme()}
+        autoPlay={app.autoPlay()}
+        looping={app.looping()}
+        folder={app.current() ? relativeFolder(app.current()!.path, app.sources()) : ""}
+        relPath={currentRelPath()}
+        loadDetail={loadDetail}
+        knownTags={assignableTags().map((t) => ({ label: t.name, count: t.count }))}
+        onTogglePlay={() => app.togglePlay()}
+        onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
+        onAutoPlay={app.setAutoPlay}
+        onAddTag={(t) => void app.addTag(t)}
+        onRemoveTag={(t) => void app.removeTag(t)}
+        onSeek={app.seekTo}
+        onTagsDone={() => app.focusList()}
+      />
+      <Tagging />
+    </>
+  );
+}
+
+/** Portée de la liste : un nœud de l'explorer, ou toute la bibliothèque ; × (ou Échap dans l'explorer) l'efface. */
+function ScopeBar() {
+  const n = () => app.results.total();
+  return (
+    <div class="cr-scopebar" role="status">
+      <Icon name={app.scope() ? (app.scope()!.startsWith("v:") ? "virtual" : app.scope()!.startsWith("c:") ? "collection" : "folder") : "library"} />
+      <span class="cr-scopebar__name">{app.scope() ? app.scopeName() || "Folder" : "All samples"}</span>
+      <span class="cr-scopebar__count cr-num">
+        {num(n())} {n() === 1 ? "sample" : "samples"}
+      </span>
+      <Show when={app.scope()}>
+        <IconButton icon="close" label="Search all samples" onClick={() => app.clearScope()} />
+      </Show>
+    </div>
+  );
+}
+
+/**
+ * Séparateur entre l'explorer et la partie droite : tirer redimensionne les deux ; ← / → au clavier (⇧ : plus vite) ;
+ * double-clic : la largeur par défaut. La largeur est gardée dans les réglages.
+ */
+function Splitter(props: { container: () => HTMLElement }) {
+  const [dragging, setDragging] = createSignal(false);
+  const current = () => props.container().querySelector<HTMLElement>(".cr-explorer")!.getBoundingClientRect().width;
+  /** Bornes lues dans les tokens : l'explorer et la partie droite gardent leur largeur minimale. */
+  const set = (w: number) => {
+    const box = props.container();
+    const css = getComputedStyle(box);
+    const min = parseFloat(css.getPropertyValue("--cr-explorer-min")) || 0;
+    const mainMin = parseFloat(css.getPropertyValue("--cr-full-main-min")) || 0;
+    const max = Math.max(min, box.getBoundingClientRect().width - mainMin);
+    app.setExplorerWidth(Math.round(Math.max(min, Math.min(max, w))));
+  };
+  return (
+    <div
+      class="cr-splitter"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize folders"
+      tabindex="0"
+      data-dragging={dragging() || undefined}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setDragging(true);
+      }}
+      onPointerMove={(e) => {
+        if (!dragging()) return;
+        set(e.clientX - props.container().getBoundingClientRect().left);
+      }}
+      onPointerUp={() => setDragging(false)}
+      onPointerCancel={() => setDragging(false)}
+      onDblClick={() => app.setExplorerWidth(null)}
+      onKeyDown={(e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        e.stopPropagation();
+        const step = e.shiftKey ? 64 : 16;
+        set(current() + (e.key === "ArrowLeft" ? -step : step));
+      }}
+    />
+  );
+}
+
+/** Fenêtre bibliothèque : l'explorer (dossiers) à gauche ; à droite la preview, la recherche et la liste triable. */
+function FullBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
+  let root!: HTMLDivElement;
+  return (
+    <div
+      ref={root}
+      class="cr-full"
+      style={app.explorerWidth() === null ? undefined : { "--cr-explorer-col": `clamp(var(--cr-explorer-min), ${app.explorerWidth()}px, calc(100% - var(--cr-full-main-min)))` }}
+    >
+      <aside class="cr-explorer" aria-label="Folders">
+        <Browser model={app.tree} variant="explorer" />
+        <Splitter container={() => root} />
+      </aside>
+      <section class="cr-full__main">
+        <PreviewHeader
+          sample={app.current()}
+          peaks={app.currentPeaks()}
+          playing={isPlayingCurrent()}
+          progress={app.progress()}
+          looping={app.looping()}
+          loadDetail={loadDetail}
+          themeKey={app.theme()}
+          selectionCount={app.selectedSamples().length}
+          memberships={app.memberships()}
+          relPath={currentRelPath()}
+          knownTags={assignableTags().map((t) => ({ label: t.name, count: t.count }))}
+          onTogglePlay={() => app.togglePlay()}
+          onToggleFav={() => app.toggleFavorite(app.selectedSamples().length ? app.selectedSamples() : [app.current()!])}
+          onSeek={app.seekTo}
+          onAddTag={(t) => void app.addTag(t)}
+          onRemoveTag={(t) => void app.removeTag(t)}
+          onTagsDone={() => app.focusList("list")}
+          onJump={(k) => void app.jumpTo(k)}
+          onReveal={() => app.showInFinder(app.current()?.path)}
+        />
+        <SearchField ref={props.searchRef} forceAc={props.forceAc && !app.tagging()} />
+        <Show when={app.saving() !== null}>
+          <SaveSearch value={app.saving()!} onSubmit={app.saveSearch} onCancel={() => app.setSaving(null)} />
+        </Show>
+        <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
+        <Notice />
+        <ScopeBar />
+        <div class="cr-full__list">
+          <Show
+            when={app.results.shownTotal()}
+            fallback={
+              <EmptyState
+                variant="noresults"
+                title="No results"
+                body={
+                  app.queryLine() ? (
+                    <>Nothing {app.scope() ? `in “${app.scopeName()}” ` : ""}matches “{app.queryLine()}”.</>
+                  ) : (
+                    <>This folder has no samples.</>
+                  )
+                }
+                hints={["kick dark", "#warm -#bright", "bpm:120-128 key:Am", "dur:<1s type:oneshot"]}
+              />
+            }
+          >
+            <ResultsTable />
+          </Show>
+          <Show when={app.debug()}>
+            <DebugOverlay />
+          </Show>
+        </div>
+      </section>
+      <Tagging />
     </div>
   );
 }

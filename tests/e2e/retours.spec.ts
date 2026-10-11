@@ -45,7 +45,9 @@ test("en colonne : pas de tonalité, onglets en icônes ; en grand : les deux re
   await page.keyboard.press("Control+Shift+F");
   await expect(page.locator(".cr-panel[data-layout=full]")).toBeVisible();
   await expect(lib).toHaveText("Library");
-  await expect(page.locator(".cr-node .cr-col-key").first()).toHaveCSS("width", "28px");
+  // Fenêtre bibliothèque : la tonalité est une colonne de la liste, pas de l'explorer (dossiers seuls).
+  await expect(page.locator(".cr-table__row .cr-col-key").first()).toHaveCSS("width", "40px");
+  await expect(page.locator('.cr-explorer .cr-node[data-kind="sample"]')).toHaveCount(0);
 });
 
 test("⌘← replie tous les dossiers et remonte au premier niveau", async ({ page }) => {
@@ -132,6 +134,7 @@ test("Réglages › Lecture : recherche depuis le DAW (raccourci capturé, DAW c
   await page.keyboard.press("Control+,");
   await page.getByRole("radio", { name: "Playback", exact: true }).click();
   await expect(page.getByRole("switch", { name: "Keep the DAW in front" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("switch", { name: "Resize the DAW with Crate" })).toHaveAttribute("aria-checked", "false");
   await expect(page.getByRole("switch", { name: "Search from the DAW" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Ableton Live" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: "Bitwig Studio" })).toHaveAttribute("aria-checked", "true");

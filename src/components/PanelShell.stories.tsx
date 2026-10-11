@@ -40,9 +40,10 @@ export const ModeWaveform = scenario(12);
 export const DossiersVirtuels = scenario(13);
 export const CreerUnVraiDossier = scenario(14);
 
-/** Mode grand : l'arbre large (durée, format, tags) et l'inspecteur du sample courant (⌘⇧F). */
-export const GrandeFenetre: Story = {
-  name: "Grande fenêtre",
+/** Fenêtre bibliothèque (⌘⇧F) : explorer de dossiers, preview, recherche et liste triable ; la portée part du dossier du
+ *  sample sélectionné. */
+export const FenetreBibliotheque: Story = {
+  name: "Fenêtre bibliothèque",
   parameters: { panelWidth: "1200px" },
   play: async () => {
     await SCENARIOS.find((s) => s.id === 3)!.run();

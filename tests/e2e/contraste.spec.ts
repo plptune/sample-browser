@@ -1,5 +1,5 @@
-// Contraste du texte (WCAG 2.1) : ≥ 4,5:1 pour le texte des lignes de l'arbre, sélectionnées ou non, du tiroir et de
-// l'inspecteur. Couleurs lues telles que rendues (les color-mix des tokens compris), dans les deux thèmes, en colonne
+// Contraste du texte (WCAG 2.1) : ≥ 4,5:1 pour le texte des lignes de l'arbre (et de la liste du mode grand),
+// sélectionnées ou non, du tiroir et de la preview du mode grand. Couleurs lues telles que rendues (les color-mix des tokens compris), dans les deux thèmes, en colonne
 // et en grand, liste avec ou sans focus. Un échec liste chaque texte trop pâle avec son rapport.
 import { expect, test, type Page } from "@playwright/test";
 
@@ -82,13 +82,14 @@ for (const theme of ["dark", "light"] as const) {
       // Liste sans focus, puis avec focus (la sélection change de teinte).
       await page.locator("body").click({ position: { x: 5, y: 880 } });
       await check("ligne sélectionnée", ".cr-node[data-selected]", ROW_TEXT);
-      await page.locator(".cr-tree").focus();
+      await page.locator(layout === "side" ? ".cr-tree" : ".cr-table__body").focus();
       await check("ligne sélectionnée (focus)", ".cr-node[data-selected]", ROW_TEXT);
-      await check("lignes", ".cr-node:not([data-selected])", ROW_TEXT);
+      // Une source hors ligne est atténuée exprès (inactive) : hors du critère, comme un contrôle désactivé.
+      await check("lignes", ".cr-node:not([data-selected]):not([data-offline])", ROW_TEXT);
       if (layout === "side") {
         await check("tiroir", ".cr-drawer", ".cr-drawer__title, .cr-drawer__time, .cr-drawer__label, .cr-tag");
       } else {
-        await check("inspecteur", ".cr-inspector", ".cr-inspector__name, dd, .cr-tag");
+        await check("preview", ".cr-preview", ".cr-preview__title, .cr-preview__time, dd, .cr-drawer__label, .cr-tag");
       }
       expect(failures).toEqual([]);
     });

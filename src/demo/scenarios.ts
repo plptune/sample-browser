@@ -125,7 +125,7 @@ export const SCENARIOS: Scenario[] = [
       // Dossier virtuel épinglé dans Bibliothèque (repère à droite), ouvert sur un sous-dossier.
       await reset(["v:3", "v:5"]);
       const s = selectSample("Texture", 1);
-      document.querySelector<HTMLElement>(".cr-tree")?.focus();
+      app.focusList();
       if (s) app.play(s.id);
     },
   },

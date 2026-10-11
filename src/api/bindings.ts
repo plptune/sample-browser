@@ -10,6 +10,7 @@ export const commands = {
 	library: () => __TAURI_INVOKE<Library_Serialize>("library"),
 	sources: () => __TAURI_INVOKE<Source[]>("sources"),
 	tree: (req: TreeRequest_Deserialize) => __TAURI_INVOKE<TreePage_Serialize>("tree", { req }),
+	list: (req: ListRequest_Deserialize) => __TAURI_INVOKE<TreePage_Serialize>("list", { req }),
 	setFavorite: (ids: number[], fav: boolean) => __TAURI_INVOKE<void>("set_favorite", { ids, fav }),
 	addTag: (ids: number[], tag: string) => __TAURI_INVOKE<void>("add_tag", { ids, tag }),
 	removeTag: (ids: number[], tag: string) => __TAURI_INVOKE<void>("remove_tag", { ids, tag }),
@@ -77,10 +78,29 @@ export const commands = {
 	/**  Réglages venus de l'interface. Erreur (en clair) si le raccourci est illisible ; rien n'est changé alors. */
 	setDawShortcut: (config: DawShortcutConfig) => typedError<null, string>(__TAURI_INVOKE("set_daw_shortcut", { config })),
 	/**
+	 *  Passe en fenêtre bibliothèque (`full`) ou en colonne. En colonne, `side` est le cadre à retrouver (ignoré s'il
+	 *  n'est plus sur un écran). Rend le cadre de la colonne quittée, à garder pour le retour.
+	 */
+	setWindowMode: (full: boolean, side: {
+	x: number | null,
+	y: number | null,
+	w: number | null,
+	h: number | null,
+} | null) => typedError<{
+	x: number | null,
+	y: number | null,
+	w: number | null,
+	h: number | null,
+} | null, string>(__TAURI_INVOKE("set_window_mode", { full, side })),
+	/**
 	 *  Rend la main à l'app d'où l'on a sauté dans Crate (Échap, glisser terminé). Faux s'il n'y en a pas.
 	 *  Avec `keep_daw_active`, à défaut d'app d'origine : l'app au premier plan, si ce n'est pas Crate.
 	 */
 	returnToDaw: () => __TAURI_INVOKE<boolean>("return_to_daw"),
+	/**  Crate a-t-il l'autorisation Accessibilité ? Avec `prompt`, macOS la demande s'il ne l'a pas. */
+	accessibilityTrusted: (prompt: boolean) => __TAURI_INVOKE<boolean>("accessibility_trusted", { prompt }),
+	/**  Ouvre Réglages Système › Confidentialité et sécurité › Accessibilité. */
+	openAccessibilitySettings: () => __TAURI_INVOKE<void>("open_accessibility_settings"),
 };
 
 /** Events */
@@ -174,6 +194,11 @@ export type DawShortcutConfig = {
 	 *  `enabled`. Absent des réglages enregistrés avant lui : activé.
 	 */
 	keepDawActive?: boolean,
+	/**
+	 *  Tirer la frontière entre Crate et le DAW redimensionne les deux (voir `tile`). Demande l'autorisation
+	 *  Accessibilité : coupé par défaut.
+	 */
+	resizeTogether?: boolean,
 };
 
 /**  Le raccourci a été pressé dans le DAW : l'interface focalise le champ de recherche. */
@@ -196,6 +221,8 @@ export type FolderRow_Deserialize = {
 	hidden?: boolean | null,
 	/**  Dossier aplati (voir `TreeRequest.flattened`) : affiché autrement (icône de dossier à astérisque). */
 	flattened?: boolean | null,
+	/**  Arbre de dossiers seuls (`TreeRequest.foldersOnly`) : nœud sans sous-dossier visible, donc sans chevron. */
+	leaf?: boolean | null,
 	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
 	target?: string | null,
 };
@@ -215,8 +242,18 @@ export type FolderRow_Serialize = {
 	hidden?: boolean | null,
 	/**  Dossier aplati (voir `TreeRequest.flattened`) : affiché autrement (icône de dossier à astérisque). */
 	flattened?: boolean | null,
+	/**  Arbre de dossiers seuls (`TreeRequest.foldersOnly`) : nœud sans sous-dossier visible, donc sans chevron. */
+	leaf?: boolean | null,
 	/**  Raccourci : le dossier source visé ("f:<id>"). Un raccourci ne se déplie pas, il y saute. */
 	target?: string | null,
+};
+
+/**  Cadre d'une fenêtre, en points (repère de Tauri : origine en haut à gauche de l'écran principal). */
+export type Frame = {
+	x: number | null,
+	y: number | null,
+	w: number | null,
+	h: number | null,
 };
 
 export type Library = Library_Serialize | Library_Deserialize;
@@ -243,6 +280,59 @@ export type Library_Serialize = {
 	pinnedFolders: number[],
 	/**  Samples masqués (eux-mêmes ou par leur dossier). */
 	hidden: number,
+};
+
+/**
+ *  Liste à plat du mode grand : les samples d'une portée (toute sa sous-arborescence), filtrés par la recherche et
+ *  triés. Les lignes sont des `SampleRow` de profondeur 0 dont le parent est le conteneur réel du sample.
+ */
+export type ListRequest = ListRequest_Serialize | ListRequest_Deserialize;
+
+/**
+ *  Liste à plat du mode grand : les samples d'une portée (toute sa sous-arborescence), filtrés par la recherche et
+ *  triés. Les lignes sont des `SampleRow` de profondeur 0 dont le parent est le conteneur réel du sample.
+ */
+export type ListRequest_Deserialize = {
+	/**
+	 *  Nœud de l'explorer : dossier source "f:" (ou raccourci "p:"), dossier virtuel "v:", "c:fav", collection
+	 *  "c:<id>", groupe "g:collections". Absent : toute la bibliothèque.
+	 */
+	scope?: string | null,
+	/**  Ligne de recherche brute (vide : tous les samples de la portée). */
+	query: string,
+	sort?: ListSort,
+	offset: number,
+	limit: number,
+	/**  Ligne dont on veut la position : "s:<id>@<parent>", ou "s:<id>" (le sample, quel que soit son parent). */
+	focus?: string | null,
+};
+
+/**
+ *  Liste à plat du mode grand : les samples d'une portée (toute sa sous-arborescence), filtrés par la recherche et
+ *  triés. Les lignes sont des `SampleRow` de profondeur 0 dont le parent est le conteneur réel du sample.
+ */
+export type ListRequest_Serialize = {
+	/**
+	 *  Nœud de l'explorer : dossier source "f:" (ou raccourci "p:"), dossier virtuel "v:", "c:fav", collection
+	 *  "c:<id>", groupe "g:collections". Absent : toute la bibliothèque.
+	 */
+	scope?: string | null,
+	/**  Ligne de recherche brute (vide : tous les samples de la portée). */
+	query: string,
+	sort?: ListSort,
+	offset: number,
+	limit: number,
+	/**  Ligne dont on veut la position : "s:<id>@<parent>", ou "s:<id>" (le sample, quel que soit son parent). */
+	focus?: string | null,
+};
+
+/**
+ *  Tri de la liste : une colonne, croissant ou décroissant. Les valeurs absentes (BPM, tonalité) restent à la fin
+ *  dans les deux sens ; à égalité, l'ordre des noms (puis des ids).
+ */
+export type ListSort = {
+	column: SortColumn,
+	desc?: boolean,
 };
 
 export type NodeKind = "folder" | "shortcut" | "favorites" | "group" | "collection" | "smart" | "virtual";
@@ -309,7 +399,13 @@ export type Sample = {
 	bpm: number | null,
 	key: string | null,
 	kind: SampleKind,
+	/**  Tous les tags, triés : ceux de l'utilisateur et ceux posés par l'analyse. */
 	tags: string[],
+	/**
+	 *  Ceux de `tags` posés par l'analyse (vocabulaire fermé, `autotag`), affichés atténués. Un tag que
+	 *  l'utilisateur ajoute lui-même n'y est pas.
+	 */
+	autoTags: string[],
 	missing: boolean,
 	fav: boolean,
 	/**  Masqué par l'utilisateur (lui-même, pas via son dossier) : invisible sauf avec `is:hidden`. */
@@ -348,6 +444,9 @@ export type ScanStatus = {
 	total: number,
 	finished: boolean,
 };
+
+/**  Colonne de tri de la liste du mode grand. */
+export type SortColumn = "name" | "bpm" | "key" | "duration" | "format" | "tags";
 
 export type Source = {
 	id: number,
@@ -415,6 +514,16 @@ export type TreeRequest_Deserialize = {
 	 *  `collapsed` ne sert pas hors recherche.
 	 */
 	collapsed?: string[],
+	/**
+	 *  Résultats à plat mélangés (bouton Shuffle) : graine de l'ordre aléatoire, le même pour une même graine. Sans
+	 *  effet hors recherche ou sans `flat`.
+	 */
+	shuffle?: number | null,
+	/**
+	 *  Dossiers seuls (explorer du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
+	 *  sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`).
+	 */
+	foldersOnly?: boolean,
 };
 
 export type TreeRequest_Serialize = {
@@ -447,6 +556,16 @@ export type TreeRequest_Serialize = {
 	 *  `collapsed` ne sert pas hors recherche.
 	 */
 	collapsed?: string[],
+	/**
+	 *  Résultats à plat mélangés (bouton Shuffle) : graine de l'ordre aléatoire, le même pour une même graine. Sans
+	 *  effet hors recherche ou sans `flat`.
+	 */
+	shuffle?: number | null,
+	/**
+	 *  Dossiers seuls (explorer du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
+	 *  sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`).
+	 */
+	foldersOnly?: boolean,
 };
 
 /**  Onglet : sources (+ éléments épinglés) ou favoris / collections / dossiers virtuels. */

@@ -1,9 +1,9 @@
 // Bas du panneau : tags du sample courant, son dossier (relatif à la source), son nom et sa waveform.
-import { For, Show, createMemo, createSignal } from "solid-js";
-import type { Sample, Waveform as WaveformData } from "../api";
+import { Show, createMemo, createSignal } from "solid-js";
+import type { Sample, SampleKind, Waveform as WaveformData } from "../api";
 import { Autocomplete, type AcItem } from "./Autocomplete";
-import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
+import { TagChips } from "./TagChips";
 import { Waveform } from "./Waveform";
 
 export function PreviewDrawer(props: {
@@ -18,6 +18,8 @@ export function PreviewDrawer(props: {
   themeKey?: string;
   /** Dossier du sample, relatif à sa source (« Drums/Kicks/ »). */
   folder?: string;
+  /** Chemin du sample relatif à sa source (infobulles) : jamais de chemin absolu à l'écran. */
+  relPath?: string;
   /** Lecture auto : ↑/↓ et clic lisent le sample dès qu'il est sélectionné. */
   autoPlay?: boolean;
   /** Tags existants de la bibliothèque, proposés pendant la frappe. */
@@ -29,6 +31,8 @@ export function PreviewDrawer(props: {
   onRemoveTag?: (tag: string) => void;
   /** Clic dans la waveform : position 0..1. */
   onSeek?: (fraction: number) => void;
+  /** Échap dans le champ des tags. */
+  onTagsDone?: () => void;
 }) {
   const s = () => props.sample;
   return (
@@ -37,12 +41,15 @@ export function PreviewDrawer(props: {
         {(x) => (
           <>
             <DrawerTags
+              kind={x().kind}
               tags={x().tags}
+              autoTags={x().autoTags}
               known={props.knownTags ?? []}
               onAdd={(t) => props.onAddTag?.(t)}
               onRemove={(t) => props.onRemoveTag?.(t)}
+              onDone={props.onTagsDone}
             />
-            <div class="cr-drawer__path" title={x().path}>
+            <div class="cr-drawer__path" title={props.relPath}>
               {props.folder ?? ""}
             </div>
           </>
@@ -57,7 +64,7 @@ export function PreviewDrawer(props: {
           disabled={!s() || s()!.missing}
           onClick={() => props.onTogglePlay?.()}
         />
-        <span class="cr-drawer__title" title={s()?.path}>
+        <span class="cr-drawer__title" title={props.relPath}>
           {s() ? `${s()!.name}.${s()!.ext}` : "No sample"}
         </span>
         <IconButton
@@ -97,8 +104,18 @@ export function PreviewDrawer(props: {
   );
 }
 
-/** « Tags: » puis les tags du sample (× pour retirer) et un champ « Add… » (⏎ ajoute, suggestions des tags existants). */
-function DrawerTags(props: { tags: string[]; known: AcItem[]; onAdd: (t: string) => void; onRemove: (t: string) => void }) {
+/** « Tags: » puis les tags du sample (× pour retirer) et un champ « Add… » (⏎ ajoute, suggestions des tags existants).
+ *  Aussi dans la preview du mode grand. */
+export function DrawerTags(props: {
+  kind: SampleKind;
+  tags: string[];
+  autoTags: string[];
+  known: AcItem[];
+  onAdd: (t: string) => void;
+  onRemove: (t: string) => void;
+  /** Échap : rend le clavier à la liste. */
+  onDone?: () => void;
+}) {
   let input!: HTMLInputElement;
   const [draft, setDraft] = createSignal("");
   const [focused, setFocused] = createSignal(false);
@@ -130,22 +147,13 @@ function DrawerTags(props: { tags: string[]; known: AcItem[]; onAdd: (t: string)
       e.stopPropagation();
       setDraft("");
       input.blur();
-      document.querySelector<HTMLElement>(".cr-tree")?.focus();
+      props.onDone?.();
     }
   }
   return (
     <div class="cr-drawer__tags">
       <span class="cr-drawer__label">Tags:</span>
-      <For each={props.tags}>
-        {(t) => (
-          <span class="cr-tag cr-tag--removable">
-            {t}
-            <button class="cr-tag__remove" aria-label={`Remove tag ${t}`} onClick={() => props.onRemove(t)}>
-              <Icon name="close" />
-            </button>
-          </span>
-        )}
-      </For>
+      <TagChips kind={props.kind} tags={props.tags} autoTags={props.autoTags} onRemove={props.onRemove} />
       <span class="cr-drawer__add">
         <input
           ref={input}

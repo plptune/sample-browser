@@ -14,6 +14,7 @@ export const tauriBackend: Backend = {
   library: () => commands.library(),
   sources: () => commands.sources(),
   tree: (req) => commands.tree(req),
+  list: (req) => commands.list(req),
   setFavorite: (ids, fav) => commands.setFavorite(ids, fav),
   addTag: (ids, tag) => commands.addTag(ids, tag),
   removeTag: (ids, tag) => commands.removeTag(ids, tag),

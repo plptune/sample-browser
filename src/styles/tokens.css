@@ -33,6 +33,7 @@
   --cr-row-selected: color-mix(in srgb, var(--cr-text-strong) 50%, var(--cr-bg));       /* liste non focus (45 % : 3,99:1, trop pâle) */
   --cr-row-selected-focus: color-mix(in srgb, var(--cr-text-strong) 70%, var(--cr-bg)); /* liste focus */
   --cr-on-row-selected: var(--cr-bg);
+  --cr-accent-on-row-selected: color-mix(in srgb, var(--cr-accent) 55%, #000); /* étoile des favoris sur la sélection claire */
 
   /* Texte */
   --cr-text: #d8d8d8;
@@ -73,6 +74,7 @@
   --cr-row-selected: color-mix(in srgb, var(--cr-text-strong) 60%, var(--cr-bg));       /* 55 % : 4,48:1, trop pâle */
   --cr-row-selected-focus: color-mix(in srgb, var(--cr-text-strong) 70%, var(--cr-bg));
   --cr-on-row-selected: var(--cr-bg);
+  --cr-accent-on-row-selected: color-mix(in srgb, var(--cr-accent) 70%, #fff); /* étoile des favoris sur la sélection foncée */
 
   --cr-text: #252525;
   --cr-text-strong: #000000;
@@ -130,6 +132,7 @@
   /* Début des libellés de l'arbre : chevron, icône de type, libellé. */
   --cr-label-x: calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1) + var(--cr-icon) + var(--cr-space-1));
   --cr-icon: 12px;
+  --cr-fav-star: 9px;   /* étoile des favoris, après l'icône d'un sample */
   --cr-icon-btn: 20px;
   --cr-chip-h: 16px;      /* chips de requête, tags */
   --cr-mark: 6px;         /* repère de collection */

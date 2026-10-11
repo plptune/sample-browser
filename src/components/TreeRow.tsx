@@ -48,6 +48,8 @@ export function TreeRow(props: {
   dragging?: boolean;
   /** Fichier MIDI (joué au piano dans l'app) : icône de note au lieu de l'onde. */
   midi?: boolean;
+  /** Sample favori : petite étoile pleine, en couleur primaire, juste après l'icône. */
+  fav?: boolean;
   /** Explorer du mode grand : dossier sans sous-dossier, donc sans chevron. */
   leaf?: boolean;
   /** Explorer du mode grand : la portée de la liste. */
@@ -130,6 +132,9 @@ export function TreeRow(props: {
       <span class="cr-node__icon" data-icon={kindIcon()}>
         <Icon name={kindIcon()} />
       </span>
+      <Show when={isSample() && props.fav}>
+        <FavStar />
+      </Show>
       <div class="cr-node__main">
         <Show when={props.renaming} fallback={<span class="cr-node__label">{props.label}</span>}>
           <RenameInput value={props.label} onDone={(v) => props.onRename?.(v)} />
@@ -155,6 +160,15 @@ export function TreeRow(props: {
         )}
       </Show>
     </div>
+  );
+}
+
+/** Étoile des favoris, après l'icône du sample (arbre et liste du mode Expanded). */
+export function FavStar() {
+  return (
+    <span class="cr-node__fav" title="Favorite" aria-label="Favorite">
+      <Icon name="star-fill" />
+    </span>
   );
 }
 

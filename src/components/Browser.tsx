@@ -238,6 +238,7 @@ function SampleRowView(props: { model: ListModel; row: SampleRow }) {
       hidden={s().hidden}
       dragging={app.draggingKey() === props.row.key}
       midi={isMidi(s())}
+      fav={s().fav}
       peaks={s().peaks}
       wave={app.density() === "wave"}
       themeKey={app.theme()}

@@ -257,6 +257,12 @@ sont le même signal (lu 160).
 | **Autorisation Accessibilité, réglage coupé par défaut** : demandée à l'activation ; tant qu'elle manque, un bouton ouvre Réglages Système › Accessibilité. Seul un glisser de l'utilisateur entraîne l'autre fenêtre (⌘⌥← / ⌘⌥→, ⌘⇧F non). | Piloter la fenêtre d'une autre app l'exige ; le ⌘F, lui, reste sans autorisation. |
 | Limites acceptées : un DAW qui refuse de rétrécir sous sa largeur minimale chevauche Crate ; rien en plein écran macOS ; une app non signée peut perdre l'autorisation à chaque recompilation. | V1. |
 
+## Favoris visibles dans les listes (11 oct. 2026)
+
+| Décision | Raison |
+| --- | --- |
+| **Petite étoile pleine juste après l'icône d'un sample favori**, dans l'arbre et dans la liste d'Expanded, en couleur primaire ; sur une ligne sélectionnée (inversion), une nuance d'ambre lisible sur ce fond (`--cr-accent-on-row-selected`). Le libellé se décale d'autant. Le bouton étoile du tiroir et de la preview passe en ambre quand le sample est favori. | Demandé : repérer les favoris sans ouvrir la preview. |
+
 ## Tags automatiques (11 oct. 2026)
 
 | Décision | Raison |

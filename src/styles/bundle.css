@@ -554,6 +554,24 @@
   color: var(--cr-on-row-selected);
 }
 
+/* Favori : petite étoile pleine juste après l'icône, toujours en couleur primaire (ligne sélectionnée ou lue aussi). */
+.cr-node__fav {
+  flex: none;
+  display: flex;
+  margin-left: calc(-1 * var(--cr-space-0));
+  color: var(--cr-accent);
+}
+
+.cr-node__fav .cr-icon {
+  width: var(--cr-fav-star);
+  height: var(--cr-fav-star);
+}
+
+/* Sur la sélection (inversion), l'ambre pur manque de contraste : une nuance d'ambre lisible sur ce fond. */
+.cr-node[data-selected] .cr-node__fav {
+  color: var(--cr-accent-on-row-selected);
+}
+
 .cr-node__main {
   flex: 1;
   min-width: 0;

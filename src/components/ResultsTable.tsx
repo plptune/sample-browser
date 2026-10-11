@@ -7,6 +7,7 @@ import { formatDuration, formatFormat, isMidi, relativePath } from "../lib/forma
 import { app } from "../state/app";
 import { OVERSCAN, PAD, ROW_H, sampleRowHandlers } from "./Browser";
 import { Chevron, Icon } from "./Icon";
+import { FavStar } from "./TreeRow";
 
 const COLUMNS: { id: SortColumn; label: string; cls: string }[] = [
   { id: "name", label: "Name", cls: "cr-col-name" },
@@ -141,6 +142,9 @@ function ResultRow(props: { row: SampleRow }) {
         <span class="cr-node__icon" data-icon={isMidi(s()) ? "midi" : "sample"}>
           <Icon name={isMidi(s()) ? "midi" : "sample"} />
         </span>
+        <Show when={s().fav}>
+          <FavStar />
+        </Show>
         <Show when={s().missing}>
           <span class="cr-node__warn">!</span>
         </Show>

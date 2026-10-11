@@ -69,6 +69,7 @@ export function PreviewHeader(props: {
                 icon={x().fav ? "star-fill" : "star"}
                 label={x().fav ? "Remove from favorites (⌘D)" : "Add to favorites (⌘D)"}
                 active={x().fav}
+                accent
                 onClick={() => props.onToggleFav?.()}
               />
               <span class="cr-preview__time cr-num">{time()}</span>

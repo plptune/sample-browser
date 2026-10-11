@@ -79,6 +79,7 @@ export function PreviewDrawer(props: {
             icon={s()!.fav ? "star-fill" : "star"}
             label={s()!.fav ? "Remove from favorites (⌘D)" : "Add to favorites (⌘D)"}
             active={s()!.fav}
+            accent
             onClick={() => props.onToggleFav?.()}
           />
         </Show>

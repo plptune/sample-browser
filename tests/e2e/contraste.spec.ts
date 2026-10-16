@@ -89,7 +89,7 @@ for (const theme of ["dark", "light"] as const) {
       if (layout === "side") {
         await check("tiroir", ".cr-drawer", ".cr-drawer__title, .cr-drawer__time, .cr-drawer__label, .cr-tag");
       } else {
-        await check("preview", ".cr-preview", ".cr-preview__title, .cr-preview__time, dd, .cr-drawer__label, .cr-tag");
+        await check("preview", ".cr-preview", ".cr-preview__title, .cr-preview__key, .cr-preview__bpm, .cr-drawer__label, .cr-tag");
       }
       expect(failures).toEqual([]);
     });

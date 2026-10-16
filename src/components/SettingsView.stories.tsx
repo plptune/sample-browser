@@ -56,3 +56,13 @@ export const Recherche: StoryObj<typeof meta> = { args: { initialTab: "search" }
 export const AnalyseEnCours: StoryObj<typeof meta> = {
   args: { initialTab: "sources", analysis: { done: 12_480, total: 41_250 } },
 };
+
+/** Tags Splice synchronisés : bilan sous les boutons. */
+export const SpliceSynchronise: StoryObj<typeof meta> = {
+  args: { initialTab: "sources", spliceSync: { status: "done", report: { spliceSamples: 13_459, matched: 12_870, added: 41_200 } } },
+};
+
+/** Splice absent de ce Mac : le message à la place du bilan. */
+export const SpliceIntrouvable: StoryObj<typeof meta> = {
+  args: { initialTab: "sources", spliceSync: { status: "error", error: "Splice not found on this Mac" } },
+};

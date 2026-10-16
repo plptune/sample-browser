@@ -2,7 +2,7 @@
 // Sert à l'UI (chips) et, en phase 0 seulement, au filtre naïf des mocks.
 // En phase 3 le vrai parser vit en Rust ; l'UI garde ce module pour l'affichage des chips.
 
-export const FILTER_KEYS = ["bpm", "key", "dur", "in", "type", "is"] as const;
+export const FILTER_KEYS = ["bpm", "key", "dur", "in", "type", "is", "path"] as const;
 export type FilterKey = (typeof FILTER_KEYS)[number];
 
 export type QueryToken =

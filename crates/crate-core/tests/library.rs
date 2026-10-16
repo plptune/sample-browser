@@ -455,10 +455,10 @@ fn migrations_idempotentes() {
     let tmp = Tmp::new("migr");
     let path = tmp.join("crate.db");
     let conn = crate_core::db::open(&path).unwrap();
-    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 3);
+    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 4);
     drop(conn);
     let conn = crate_core::db::open(&path).unwrap();
-    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 3);
+    assert_eq!(crate_core::db::schema_version(&conn).unwrap(), 4);
 }
 
 /// Attend qu'une condition devienne vraie (les scans tournent sur le thread de l'indexeur).
@@ -940,4 +940,119 @@ fn tags_automatiques() {
     fs::remove_file(root.join("Kicks/Hit 1.wav")).unwrap();
     lib.scan_inline(src.id).unwrap();
     assert!(lib.catalog().samples().iter().all(|s| s.name != "Hit 1"));
+}
+
+/// Fausse base Splice : la table `samples` réduite à ce que Crate lit (chemin, tags).
+fn splice_db(path: &Path, rows: &[(&Path, &str)]) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let conn = rusqlite::Connection::open(path).unwrap();
+    conn.execute_batch("CREATE TABLE samples (id INTEGER PRIMARY KEY, local_path TEXT, tags TEXT)").unwrap();
+    for (p, tags) in rows {
+        conn.execute("INSERT INTO samples (local_path, tags) VALUES (?1, ?2)", (p.to_string_lossy(), tags)).unwrap();
+    }
+}
+
+/// Tags Splice : ajoutés seulement s'ils manquent, atténués, retirés pour toujours par ×, promus quand l'utilisateur
+/// les ajoute lui-même, épargnés par la réanalyse, retirés en bloc.
+#[test]
+fn tags_splice() {
+    let tmp = Tmp::new("splice");
+    let root = tmp.join("Samples");
+    half_second(&root.join("Kicks/Hit 1.wav"));
+    half_second(&root.join("Thing.wav"));
+    let splice = tmp.join("Splice/users/default/moi/sounds.db");
+    splice_db(
+        &splice,
+        &[
+            (&root.join("Kicks/Hit 1.wav"), "drums,kicks,hip hop,house"),
+            (&root.join("Thing.wav"), "vocals,future house,loop,Wet"),
+            (&tmp.join("ailleurs/Hors.wav"), "fx"),
+        ],
+    );
+    let db = tmp.join("crate.db");
+    let mut lib = library_at(&db);
+    lib.add_source(&root.to_string_lossy()).unwrap();
+    lib.analyze_pending();
+    let thing = sample_id(&lib, "Thing");
+    let hit = sample_id(&lib, "Hit 1");
+    lib.add_tag(&[thing], "Vocal");
+    let tags = |lib: &SqliteLibrary, name: &str| {
+        let s = sample(lib, name);
+        (s.tags.clone(), s.splice_tags.clone())
+    };
+    let v = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let sync = |lib: &mut SqliteLibrary| {
+        let r = lib.sync_splice_tags_from(std::slice::from_ref(&splice)).unwrap();
+        (r.splice_samples, r.matched, r.added)
+    };
+
+    // `kick` (déjà posé par l'analyse) et `vocal` (à l'utilisateur) ne comptent pas ; `loop` est réservé.
+    assert_eq!(sync(&mut lib), (3, 2, 5));
+    assert_eq!(
+        tags(&lib, "Hit 1"),
+        (v(&["drums", "hip-hop", "house", "kick"]), v(&["drums", "hip-hop", "house", "kick"]))
+    );
+    assert!(sample(&lib, "Hit 1").auto_tags.is_empty(), "compté une seule fois, côté Splice");
+    assert_eq!(tags(&lib, "Thing"), (v(&["future-house", "vocal", "wet"]), v(&["future-house", "wet"])));
+    let found = |lib: &SqliteLibrary, q: &str| {
+        lib.tree(&TreeRequest {
+            query: q.into(),
+            ..req(&[])
+        })
+        .matches
+    };
+    assert_eq!(found(&lib, "#hip-hop"), 1);
+    assert_eq!(sync(&mut lib), (3, 2, 0), "rien de nouveau");
+
+    // × : retiré, et jamais reposé (synchronisation, rechargement depuis la base).
+    lib.remove_tag(&[thing], "wet");
+    assert_eq!(tags(&lib, "Thing"), (v(&["future-house", "vocal"]), v(&["future-house"])));
+    assert_eq!(sync(&mut lib), (3, 2, 0));
+    drop(lib);
+    let mut lib = library_at(&db);
+    assert_eq!(tags(&lib, "Thing"), (v(&["future-house", "vocal"]), v(&["future-house"])), "ni au rechargement");
+
+    // Ajouté par l'utilisateur : il devient le sien.
+    lib.add_tag(&[hit], "house");
+    assert_eq!(sample(&lib, "Hit 1").splice_tags, v(&["drums", "hip-hop", "kick"]));
+    // La réanalyse ne touche pas aux tags Splice.
+    lib.connection().execute("UPDATE files SET analyzed_at = NULL", []).unwrap();
+    lib.analyze_pending();
+    assert_eq!(
+        tags(&lib, "Hit 1"),
+        (v(&["drums", "hip-hop", "house", "kick"]), v(&["drums", "hip-hop", "kick"]))
+    );
+
+    // Retirés en bloc : il reste les tags de l'utilisateur et ceux de l'analyse ; × reste retenu.
+    assert_eq!(lib.clear_splice_tags(), 4);
+    assert_eq!(tags(&lib, "Hit 1"), (v(&["house", "kick"]), v(&[])));
+    assert_eq!(sample(&lib, "Hit 1").auto_tags, v(&["kick"]));
+    assert_eq!(tags(&lib, "Thing"), (v(&["vocal"]), v(&[])));
+    assert_eq!(sync(&mut lib), (3, 2, 3));
+    assert!(!sample(&lib, "Thing").tags.contains(&"wet".to_string()));
+
+    assert!(lib.sync_splice_tags_from(&[]).is_err(), "Splice absent");
+}
+
+/// Lit la vraie base Splice de ce Mac (`cargo test -p crate-core splice_reel -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn splice_reel() {
+    let dbs = crate_core::splice::find_dbs();
+    println!("bases : {dbs:?}");
+    let mut count = std::collections::HashMap::<String, usize>::new();
+    let mut n = 0;
+    for db in &dbs {
+        for s in crate_core::splice::read(db).unwrap() {
+            n += 1;
+            for t in s.tags {
+                *count.entry(t).or_default() += 1;
+            }
+        }
+    }
+    let mut top: Vec<_> = count.into_iter().collect();
+    top.sort_by_key(|t| std::cmp::Reverse(t.1));
+    println!("{n} samples, {} tags distincts", top.len());
+    println!("{:?}", &top[..top.len().min(60)]);
+    assert!(n > 0);
 }

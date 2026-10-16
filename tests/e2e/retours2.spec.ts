@@ -130,7 +130,5 @@ test("interface en anglais : aucun texte français visible", async ({ page }) =>
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+Shift+F");
   await scan("mode grand");
-  await page.keyboard.press("Control+2");
-  await scan("Virtual");
   expect(found).toEqual([]);
 });

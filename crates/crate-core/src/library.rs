@@ -2,6 +2,7 @@
 //! Chaque modification est appliquée au catalogue puis écrite tout de suite en base ; les scans écrivent en
 //! base depuis le thread de l'indexeur et le catalogue est rechargé (`sync`) quand ils ont avancé.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -190,6 +191,71 @@ impl SqliteLibrary {
         log(r);
     }
 
+    /// Reprend les tags de ces bases Splice (l'application : `splice::find_dbs`). Seuls les tags qui manquent sont
+    /// ajoutés : ni un tag de l'utilisateur, ni un tag retiré à la main (Splice ou automatique) ne bouge.
+    pub fn sync_splice_tags_from(&mut self, dbs: &[PathBuf]) -> Result<SpliceSync, String> {
+        if dbs.is_empty() {
+            return Err("Splice not found on this Mac".into());
+        }
+        let mut samples = vec![];
+        for db in dbs {
+            samples.extend(crate::splice::read(db)?);
+        }
+        let mut report = SpliceSync {
+            splice_samples: samples.len() as u32,
+            ..SpliceSync::default()
+        };
+        let r = (|| {
+            let by_path: HashMap<String, u32> = self
+                .conn
+                .prepare("SELECT path, id FROM files")?
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            let tx = self.conn.unchecked_transaction()?;
+            {
+                let mut new_tag = tx.prepare("INSERT OR IGNORE INTO tags (name) VALUES (?1)")?;
+                let mut tag_id = tx.prepare("SELECT id FROM tags WHERE name = ?1")?;
+                let mut insert = tx.prepare(
+                    "INSERT OR IGNORE INTO file_splice_tags (file_id, tag_id) SELECT ?1, ?2
+                     WHERE NOT EXISTS (SELECT 1 FROM file_tags WHERE file_id = ?1 AND tag_id = ?2)
+                       AND NOT EXISTS (SELECT 1 FROM file_auto_tags WHERE file_id = ?1 AND tag_id = ?2 AND rejected = 1)",
+                )?;
+                // Déjà là grâce à l'analyse : gardé comme tag Splice, mais pas compté comme ajouté.
+                let mut was_auto = tx.prepare("SELECT 1 FROM file_auto_tags WHERE file_id = ?1 AND tag_id = ?2 AND rejected = 0")?;
+                let mut ids: HashMap<String, i64> = HashMap::new();
+                let mut seen = HashSet::new();
+                for s in &samples {
+                    let id = by_path.get(&s.path).or_else(|| {
+                        let p = std::fs::canonicalize(&s.path).ok()?;
+                        by_path.get(p.to_str()?)
+                    });
+                    let Some(&id) = id else { continue };
+                    if seen.insert(id) {
+                        report.matched += 1;
+                    }
+                    for t in &s.tags {
+                        let tid = match ids.get(t) {
+                            Some(&tid) => tid,
+                            None => {
+                                new_tag.execute([t])?;
+                                let tid: i64 = tag_id.query_row([t], |r| r.get(0))?;
+                                ids.insert(t.clone(), tid);
+                                tid
+                            }
+                        };
+                        if insert.execute(params![id, tid])? == 1 && !was_auto.exists(params![id, tid])? {
+                            report.added += 1;
+                        }
+                    }
+                }
+            }
+            tx.commit()
+        })();
+        r.map_err(|e| e.to_string())?;
+        self.reload();
+        Ok(report)
+    }
+
     fn write_pinned_folders(&self) {
         let r = (|| {
             let tx = self.conn.unchecked_transaction()?;
@@ -342,8 +408,9 @@ impl Backend for SqliteLibrary {
                     "INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?1, ?2)",
                     params![id, tag_id],
                 )?;
-                // Posé par l'analyse (ou retiré avant) : c'est maintenant un tag de l'utilisateur.
+                // Posé par l'analyse ou repris de Splice (ou retiré avant) : c'est maintenant un tag de l'utilisateur.
                 tx.execute("DELETE FROM file_auto_tags WHERE file_id = ?1 AND tag_id = ?2", params![id, tag_id])?;
+                tx.execute("DELETE FROM file_splice_tags WHERE file_id = ?1 AND tag_id = ?2", params![id, tag_id])?;
             }
             tx.commit()
         })();
@@ -357,6 +424,11 @@ impl Backend for SqliteLibrary {
             for id in ids {
                 tx.execute(
                     "DELETE FROM file_tags WHERE file_id = ?1 AND tag_id = (SELECT id FROM tags WHERE name = ?2)",
+                    params![id, tag],
+                )?;
+                // Repris de Splice et retiré à la main : la synchronisation ne le reposera plus.
+                tx.execute(
+                    "UPDATE file_splice_tags SET rejected = 1 WHERE file_id = ?1 AND tag_id = (SELECT id FROM tags WHERE name = ?2)",
                     params![id, tag],
                 )?;
                 // Un tag du vocabulaire automatique retiré à la main : l'analyse ne le reposera plus.
@@ -532,6 +604,26 @@ impl Backend for SqliteLibrary {
         self.cat.memberships(id)
     }
 
+    fn folder_paths(&self, prefix: &str, limit: usize) -> Vec<String> {
+        self.cat.folder_paths(prefix, limit)
+    }
+
+    fn samples_at(&self, paths: &[String]) -> SamplesAt {
+        // Les chemins enregistrés partent de la racine canonique de la source : on canonise aussi ceux déposés (liens,
+        // /Volumes…), et on rend les chemins d'origine dans `outside`.
+        let canon: Vec<String> = paths
+            .iter()
+            .map(|p| std::fs::canonicalize(p).map(|c| c.to_string_lossy().into_owned()).unwrap_or_else(|_| p.clone()))
+            .collect();
+        let mut r = self.cat.samples_at(&canon);
+        r.outside = r
+            .outside
+            .iter()
+            .map(|o| canon.iter().position(|c| c.trim_end_matches('/') == o).map_or_else(|| o.clone(), |i| paths[i].clone()))
+            .collect();
+        r
+    }
+
     fn node_path(&self, key: &str) -> Option<String> {
         if !(key.starts_with("f:") || key.starts_with("p:")) {
             return None;
@@ -606,5 +698,19 @@ impl Backend for SqliteLibrary {
         // Dossiers, fichiers, tags et appartenances suivent (ON DELETE CASCADE). Rien n'est touché sur le disque.
         log(self.conn.execute("DELETE FROM folders WHERE id = ? AND parent_id IS NULL", [id]));
         self.reload();
+    }
+
+    fn sync_splice_tags(&mut self) -> Result<SpliceSync, String> {
+        self.sync_splice_tags_from(&crate::splice::find_dbs())
+    }
+
+    fn clear_splice_tags(&mut self) -> u32 {
+        // Les tags retirés à la main restent notés : une prochaine synchronisation ne les reposera pas.
+        let n = self.conn.execute("DELETE FROM file_splice_tags WHERE rejected = 0", []);
+        self.reload();
+        n.unwrap_or_else(|e| {
+            eprintln!("[crate] base : {e}");
+            0
+        }) as u32
     }
 }

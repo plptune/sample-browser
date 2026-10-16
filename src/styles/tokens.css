@@ -132,6 +132,8 @@
   /* Début des libellés de l'arbre : chevron, icône de type, libellé. */
   --cr-label-x: calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1) + var(--cr-icon) + var(--cr-space-1));
   --cr-icon: 12px;
+  --cr-dialog-w: 260px; /* fenêtre de capture d'un raccourci */
+  --cr-kind-h: 16px;    /* badge du type (loop / one-shot) */
   --cr-fav-star: 9px;   /* étoile des favoris, après l'icône d'un sample */
   --cr-icon-btn: 20px;
   --cr-chip-h: 16px;      /* chips de requête, tags */
@@ -152,8 +154,11 @@
   --cr-explorer-max: 480px;      /* largeur par défaut au plus ; tirée à la main, jusqu'à --cr-full-main-min de la liste */
   --cr-full-main-min: 420px;
   --cr-splitter-hit: 7px;
+  --cr-pane-min: 120px;          /* hauteur minimale d'un panneau empilé (≈ 5 lignes) */
+  --cr-panel-split: 50%;         /* part du panneau Library quand les deux sont affichés (tirée : prefs panelSplit) */
   --cr-preview-h: 176px;
   --cr-tcol-name-min: 200px;
+  --cr-tcol-kind: 36px;
   --cr-tcol-bpm: 40px;
   --cr-tcol-key: 40px;
   --cr-tcol-dur: 48px;

@@ -9,6 +9,7 @@ const isField = (t: EventTarget | null) =>
 
 import { COLOR_VARS, colorVars } from "./lib/color";
 import { inTauri } from "./lib/env";
+import { externalDrop, externalEnter, externalLeave, externalOver } from "./lib/externalDrop";
 import { isOwnDrag, nativeDragLeave, nativeDragOver, nativeDrop } from "./lib/nativeDrag";
 
 export function App() {
@@ -55,9 +56,10 @@ export function App() {
       app.toggleFavorite();
       return;
     }
+    // ⌘1 / ⌘2 : onglet en colonne, panneau affiché ou masqué en Expanded.
     if (mod && (e.key === "1" || e.key === "2")) {
       e.preventDefault();
-      app.switchTab(e.key === "1" ? "library" : "virtual");
+      app.rootShortcut(e.key === "1" ? "library" : "virtual");
       return;
     }
     // Historique : ⌘[ / ⌘] partout, ⌥← / ⌥→ hors des champs (où ils déplacent le curseur d'un mot).
@@ -75,7 +77,7 @@ export function App() {
     // ⌘← / ⌘→ : referme tous les dossiers (hors des champs, où ils vont en début ou fin de ligne).
     if (mod && !e.altKey && !e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !isField(e.target) && app.view() === "browser") {
       e.preventDefault();
-      app.focusList("tree");
+      app.focusTree();
       void app.collapseAll();
       return;
     }
@@ -138,8 +140,8 @@ export function App() {
       if (app.menu() || app.tagging() || app.saving() !== null) app.closeOverlays();
       else if (app.view() === "settings") app.setView("browser");
       else if (app.view() === "commit") app.commit()?.status !== "running" && app.closeCommit();
-      // Mode grand, dans l'explorer : la liste revient à toute la bibliothèque.
-      else if (app.layout() === "full" && app.zone() === "tree" && app.scope() !== null) app.clearScope();
+      // Mode grand, dans le panneau Library : la liste revient à toute la bibliothèque.
+      else if (app.layout() === "full" && app.zone() === "library" && app.listScope() !== null) app.clearScope();
       else app.stop();
       return;
     }
@@ -171,14 +173,22 @@ export function App() {
         if (e.shiftKey) return app.nudge(-0.1);
         app.left();
         return;
-      // Mode grand : Tab passe de l'explorer à la liste, et retour.
+      // Mode grand : Tab passe d'un panneau affiché à l'autre, puis à la liste (⇧Tab : à rebours).
       case "Tab":
         if (app.layout() !== "full" || !(e.target instanceof HTMLElement && e.target.closest(".cr-tree"))) return;
         e.preventDefault();
-        app.focusList(app.zone() === "tree" ? "list" : "tree");
+        app.focusList(app.nextZone(e.shiftKey));
         return;
       case " ":
         e.preventDefault();
+        // Réglage « Space plays Bitwig » : Bitwig lance ou arrête son transport ; la preview s'arrête si elle joue,
+        // sans jamais repartir.
+        if (app.dawShortcut().spaceToDaw) {
+          if (e.repeat) return;
+          if (app.playingId() !== null) app.stop();
+          void app.bitwigTogglePlay();
+          return;
+        }
         app.togglePlay();
         return;
       case "Enter":
@@ -207,8 +217,6 @@ export function App() {
     app.openMenu(r.left - panel.left + 24, r.bottom - panel.top, key);
   }
 
-  // Dossiers glissés depuis le Finder sur la fenêtre : chacun devient une source.
-  let lastDrop = { sig: "", at: 0 };
   /** ⌘F dans le DAW (raccourci pris côté Rust) : Crate est passé devant, la recherche prend le focus, texte sélectionné. */
   async function listenFocusSearch() {
     const { events } = await import("./api/bindings");
@@ -225,27 +233,30 @@ export function App() {
 
   async function listenFileDrops() {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    // Décidé une fois, à l'entrée : nos propres samples (glisser natif) ou des fichiers d'une autre app.
+    let own: boolean | null = null;
     const off = await getCurrentWebview().onDragDropEvent((e) => {
       const p = e.payload;
-      // Nos propres samples, glissés nativement : cible retrouvée sous le pointeur.
-      if (app.draggingKey() || isOwnDrag("paths" in p ? p.paths : undefined)) {
-        if (p.type === "enter" || p.type === "over") {
-          const pos = p.position.toLogical(window.devicePixelRatio || 1);
-          nativeDragOver(pos.x, pos.y);
-        } else if (p.type === "drop") nativeDrop();
+      if (p.type === "enter") own = !!app.draggingKey() || isOwnDrag(p.paths);
+      const mine = own ?? (!!app.draggingKey() || isOwnDrag("paths" in p ? p.paths : undefined));
+      if (p.type === "drop" || p.type === "leave") own = null;
+      // Position lue telle quelle : sur macOS, wry lit `draggingLocation()` en points de fenêtre (déjà logiques, des
+      // pixels CSS) et Tauri les étiquette seulement « physiques » ; `toLogical` les divisait par 2 sur Retina (cible
+      // au-dessus et à gauche du pointeur). `titleBarStyle: Overlay` : pas de barre de titre à retrancher.
+      const pos = "position" in p ? { x: p.position.x, y: p.position.y } : null;
+      if (mine) {
+        // Nos propres samples, glissés nativement : cible retrouvée sous le pointeur.
+        if (p.type === "enter" || p.type === "over") nativeDragOver(pos!.x, pos!.y);
+        else if (p.type === "drop") nativeDrop();
         else nativeDragLeave();
         return;
       }
-      if (p.type === "enter") app.setFileOver(p.paths.length > 0);
-      else if (p.type === "leave") app.setFileOver(false);
-      else if (p.type === "drop") {
-        app.setFileOver(false);
-        // Même dépôt livré deux fois : une seule fois.
-        const sig = p.paths.join("\n");
-        if (sig === lastDrop.sig && performance.now() - lastDrop.at < 500) return;
-        lastDrop = { sig, at: performance.now() };
-        if (!app.demo()) for (const path of p.paths) void app.addFolder(path);
-      }
+      if (p.type === "enter") {
+        externalEnter(p.paths);
+        externalOver(pos!.x, pos!.y);
+      } else if (p.type === "over") externalOver(pos!.x, pos!.y);
+      else if (p.type === "drop") externalDrop(p.paths, pos!.x, pos!.y);
+      else externalLeave();
     });
     onCleanup(off);
   }

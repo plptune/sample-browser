@@ -18,6 +18,7 @@ pub mod model;
 pub mod natural;
 pub mod query;
 pub mod scan;
+pub mod splice;
 pub mod synonyms;
 
 pub use catalog::Catalog;

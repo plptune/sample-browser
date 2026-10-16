@@ -3,6 +3,7 @@ import { Show, createMemo, createSignal } from "solid-js";
 import type { Sample, SampleKind, Waveform as WaveformData } from "../api";
 import { Autocomplete, type AcItem } from "./Autocomplete";
 import { IconButton } from "./IconButton";
+import { KindBadge } from "./KindBadge";
 import { TagChips } from "./TagChips";
 import { Waveform } from "./Waveform";
 
@@ -44,6 +45,7 @@ export function PreviewDrawer(props: {
               kind={x().kind}
               tags={x().tags}
               autoTags={x().autoTags}
+              spliceTags={x().spliceTags}
               known={props.knownTags ?? []}
               onAdd={(t) => props.onAddTag?.(t)}
               onRemove={(t) => props.onRemoveTag?.(t)}
@@ -105,12 +107,15 @@ export function PreviewDrawer(props: {
   );
 }
 
-/** « Tags: » puis les tags du sample (× pour retirer) et un champ « Add… » (⏎ ajoute, suggestions des tags existants).
- *  Aussi dans la preview du mode grand. */
+/** « Type: » et son badge (loop / one-shot), puis « Tags: », les tags du sample (× pour retirer) et un champ « Add… »
+ *  (⏎ ajoute, suggestions des tags existants). Aussi dans la preview du mode grand, sans le type (déjà dans ses infos). */
 export function DrawerTags(props: {
   kind: SampleKind;
+  /** Montrer la catégorie « Type: » (défaut : oui). */
+  showKind?: boolean;
   tags: string[];
   autoTags: string[];
+  spliceTags?: string[];
   known: AcItem[];
   onAdd: (t: string) => void;
   onRemove: (t: string) => void;
@@ -153,8 +158,16 @@ export function DrawerTags(props: {
   }
   return (
     <div class="cr-drawer__tags">
+      <Show when={props.showKind ?? true}>
+        <span class="cr-drawer__label">Type:</span>
+        <KindBadge kind={props.kind} />
+        <span class="cr-drawer__sep" />
+      </Show>
       <span class="cr-drawer__label">Tags:</span>
-      <TagChips kind={props.kind} tags={props.tags} autoTags={props.autoTags} onRemove={props.onRemove} />
+      {/* Colonne : une seule ligne, les tags qui ne tiennent pas sont masqués (liste complète au survol). */}
+      <span class="cr-drawer__chips" title={props.tags.join(", ") || undefined}>
+        <TagChips tags={props.tags} autoTags={props.autoTags} spliceTags={props.spliceTags} onRemove={props.onRemove} />
+      </span>
       <span class="cr-drawer__add">
         <input
           ref={input}

@@ -9,7 +9,12 @@ use crate::catalog::{Catalog, FolderNode};
 use crate::model::*;
 use crate::natural;
 
-const MIGRATIONS: &[&str] = &[include_str!("schema.sql"), include_str!("schema2.sql"), include_str!("schema3.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("schema.sql"),
+    include_str!("schema2.sql"),
+    include_str!("schema3.sql"),
+    include_str!("schema4.sql"),
+];
 
 pub type DbResult<T> = Result<T, rusqlite::Error>;
 
@@ -106,6 +111,14 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
             auto_of.entry(id).or_default().push(name);
         }
     }
+    // Tags repris de Splice (ceux retirés à la main ne sont pas chargés : ils ne servent qu'à la synchronisation).
+    let mut splice_of: HashMap<u32, Vec<String>> = HashMap::new();
+    let mut stmt =
+        conn.prepare("SELECT fs.file_id, t.name FROM file_splice_tags fs JOIN tags t ON t.id = fs.tag_id WHERE fs.rejected = 0")?;
+    for r in stmt.query_map([], |r| Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?)))? {
+        let (id, name) = r?;
+        splice_of.entry(id).or_default().push(name);
+    }
     c.known_tags = conn
         .prepare("SELECT name FROM tags ORDER BY id")?
         .query_map([], |r| r.get(0))?
@@ -136,6 +149,7 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
                 kind: kind_of(r.get(11)?),
                 tags: vec![],
                 auto_tags: vec![],
+                splice_tags: vec![],
                 missing: r.get(13)?,
                 fav: r.get(12)?,
                 hidden: r.get(15)?,
@@ -148,12 +162,16 @@ pub fn load_catalog(conn: &Connection) -> DbResult<Catalog> {
         .into_iter()
         .map(|mut s| {
             let user = tags_of.remove(&s.id).unwrap_or_default();
+            let mut splice = splice_of.remove(&s.id).unwrap_or_default();
+            splice.retain(|t| !user.contains(t));
+            splice.sort();
             let mut auto = auto_of.remove(&s.id).unwrap_or_default();
-            auto.retain(|t| !user.contains(t));
+            auto.retain(|t| !user.contains(t) && !splice.contains(t));
             auto.sort();
-            s.tags = user.into_iter().chain(auto.iter().cloned()).collect();
+            s.tags = user.into_iter().chain(splice.iter().cloned()).chain(auto.iter().cloned()).collect();
             s.tags.sort();
             s.auto_tags = auto;
+            s.splice_tags = splice;
             s
         })
         .collect();

@@ -58,7 +58,9 @@ pub struct Catalog {
     hidden_count: usize,
     /// Rang de chaque sample dans l'ordre naturel des noms (à égalité : des ids) : tri de la liste en O(1) par paire.
     name_rank: Vec<u32>,
-    cache: RefCell<Option<TreeCache>>,
+    /// Dernier arbre calculé, un par racine (Bibliothèque, Virtuels) : en Expanded, les deux panneaux sont demandés
+    /// en alternance, un seul cache se reconstruirait à chaque page.
+    cache: RefCell<[Option<TreeCache>; 2]>,
     /// Liste du mode grand : cache à part, l'explorer et la liste sont demandés en alternance.
     list_cache: RefCell<Option<ListCache>>,
 }
@@ -123,6 +125,9 @@ enum Cond {
     /// Appartenance (`in:` collection ou dossier virtuel), par index de sample.
     In(Vec<bool>),
     InPath(String),
+    /// `path:` : chemins absolus (minuscules, sans `/` final) des dossiers désignés ; un sample y est s'il est dans
+    /// l'un d'eux, à une limite de dossier (« Drums » ne prend pas « Drums 2 »).
+    PathPrefix(Vec<String>),
 }
 
 /// Ligne de recherche compilée (`in:` résolu, texte en minuscules).
@@ -294,6 +299,12 @@ fn cond(c: &Cond, s: &Sample, hay: &str, i: usize, hidden: bool) -> bool {
         Cond::Never => false,
         Cond::In(member) => member[i],
         Cond::InPath(v) => s.path.to_lowercase().contains(v.as_str()),
+        Cond::PathPrefix(prefixes) => {
+            let p = s.path.to_lowercase();
+            prefixes
+                .iter()
+                .any(|pre| p.strip_prefix(pre.as_str()).is_some_and(|rest| rest.is_empty() || rest.starts_with('/')))
+        }
     }
 }
 
@@ -386,14 +397,16 @@ impl Catalog {
                 s.kind = u.kind;
                 // Tags auto : les nouveaux remplacent les anciens ; ni un tag de l'utilisateur, ni un tag retiré
                 // entre-temps (le lot a pu être écrit juste avant le ×).
-                let user: Vec<String> = s.tags.iter().filter(|t| !s.auto_tags.contains(t)).cloned().collect();
+                // Les tags Splice restent tels quels.
+                let user: Vec<String> =
+                    s.tags.iter().filter(|t| !s.auto_tags.contains(t) && !s.splice_tags.contains(t)).cloned().collect();
                 let auto: Vec<String> = u
                     .auto_tags
                     .iter()
-                    .filter(|t| !user.contains(t) && !self.rejected.contains(&(u.id, t.to_string())))
+                    .filter(|t| !user.contains(t) && !s.splice_tags.contains(t) && !self.rejected.contains(&(u.id, t.to_string())))
                     .cloned()
                     .collect();
-                s.tags = user.into_iter().chain(auto.iter().cloned()).collect();
+                s.tags = user.into_iter().chain(s.splice_tags.iter().cloned()).chain(auto.iter().cloned()).collect();
                 s.tags.sort();
                 s.auto_tags = auto;
                 self.hay[i] = haystack(&self.samples[i]);
@@ -402,8 +415,22 @@ impl Catalog {
         self.touch();
     }
 
+    /// Emplacement du cache d'arbre d'une racine.
+    fn slot(root: TreeRoot) -> usize {
+        match root {
+            TreeRoot::Library => 0,
+            TreeRoot::Virtual => 1,
+        }
+    }
+
+    /// Tests : l'arbre de cette racine est en cache (on peut y lire sans le reconstruire).
+    #[cfg(test)]
+    pub(crate) fn tree_cached(&self, root: TreeRoot) -> bool {
+        self.cache.borrow()[Self::slot(root)].is_some()
+    }
+
     pub(crate) fn touch(&mut self) {
-        *self.cache.get_mut() = None;
+        *self.cache.get_mut() = [None, None];
         *self.list_cache.get_mut() = None;
     }
 
@@ -504,6 +531,27 @@ impl Catalog {
 
     // ---------- recherche ----------
 
+    /// `path:` : la valeur est un chemin depuis la source, avec son nom (« Samples/Drums/Kicks/ », comme à l'écran) ou
+    /// sans (« Drums/Kicks », sous n'importe quelle source). Rend les chemins absolus correspondants.
+    fn path_prefixes(&self, value: &str) -> Vec<String> {
+        let v = value.trim().trim_matches('/').to_lowercase();
+        if v.is_empty() {
+            return Vec::new();
+        }
+        self.sources
+            .iter()
+            .filter_map(|s| Some((s.name.to_lowercase(), self.root_paths.get(&s.id)?.trim_end_matches('/').to_lowercase())))
+            .flat_map(|(name, root)| {
+                let named = if v == name {
+                    Some(root.clone())
+                } else {
+                    v.strip_prefix(&format!("{name}/")).map(|rest| format!("{root}/{rest}"))
+                };
+                named.into_iter().chain(std::iter::once(format!("{root}/{v}")))
+            })
+            .collect()
+    }
+
     pub(crate) fn compile(&self, line: &str) -> Matcher {
         let conds = query::parse_line(line)
             .into_iter()
@@ -558,6 +606,7 @@ impl Catalog {
                             "hidden" => Cond::Hidden,
                             _ => Cond::Never,
                         },
+                        FilterKey::Path => Cond::PathPrefix(self.path_prefixes(&t.value)),
                         FilterKey::In => {
                             // Collection, sinon dossier virtuel (avec ses sous-dossiers), sinon chemin. Le nom exact
                             // d'abord (« Drums » n'est pas « Drums 2 »), puis le début du nom.
@@ -675,8 +724,10 @@ impl Catalog {
         }
     }
 
-    /// Enfants d'un nœud ; `None` = racine de l'onglet.
-    fn child_nodes(&self, root: TreeRoot, key: Option<&str>, searching: bool) -> Vec<NodeInfo> {
+    /// Enfants d'un nœud ; `None` = racine de l'onglet. `pinned` : à la racine de Bibliothèque, les favoris,
+    /// collections et dossiers virtuels épinglés (pas dans le panneau Library d'Expanded, où le panneau Virtual les
+    /// montre déjà) ; les raccourcis vers de vrais dossiers restent toujours.
+    fn child_nodes(&self, root: TreeRoot, key: Option<&str>, searching: bool, pinned: bool) -> Vec<NodeInfo> {
         match key {
             None if root == TreeRoot::Virtual => {
                 // Virtuels : favoris, collections (groupe), dossiers virtuels.
@@ -711,6 +762,9 @@ impl Catalog {
                 let mut shortcuts: Vec<&FolderNode> = self.pinned_folders.iter().filter_map(|id| self.folders.get(id)).collect();
                 by_name(&mut shortcuts, |f| &f.name);
                 v.extend(shortcuts.into_iter().map(Self::shortcut_info));
+                if !pinned {
+                    return v;
+                }
                 if self.favorites_pinned {
                     v.push(self.fav_info());
                 }
@@ -912,16 +966,13 @@ impl Catalog {
                 });
             }
             SortColumn::Tags => {
-                // Le texte de la colonne : le type, puis les tags.
-                let t: Vec<String> = rows
-                    .iter()
-                    .map(|r| {
-                        let s = &self.samples[r.0];
-                        let kind = if s.kind == SampleKind::Loop { "loop" } else { "oneshot" };
-                        format!("{kind} {}", s.tags.join(" "))
-                    })
-                    .collect();
+                // Le texte de la colonne : les tags (le type a sa colonne).
+                let t: Vec<String> = rows.iter().map(|r| self.samples[r.0].tags.join(" ")).collect();
                 perm.sort_unstable_by(|&a, &b| dir(natural::compare(&t[a], &t[b])).then_with(|| name(a, b)));
+            }
+            SortColumn::Kind => {
+                let loop_first = |s: &Sample| s.kind != SampleKind::Loop;
+                perm.sort_unstable_by(|&a, &b| dir(loop_first(sample(a)).cmp(&loop_first(sample(b)))).then_with(|| name(a, b)));
             }
         }
         *rows = perm.into_iter().map(|p| rows[p]).collect();
@@ -979,7 +1030,7 @@ impl Catalog {
                 let v = self.lib.any_hit(key, hits)
                     || self
                         .lib
-                        .child_nodes(self.root, Some(key), true)
+                        .child_nodes(self.root, Some(key), true, true)
                         .iter()
                         .any(|n| self.has_match(&n.key, hits));
                 self.memo.insert(key.to_string(), v);
@@ -988,7 +1039,7 @@ impl Catalog {
 
             fn walk(&mut self, key: Option<&str>, slot: Option<u32>, depth: u32) {
                 let searching = self.searching;
-                for n in self.lib.child_nodes(self.root, key, searching) {
+                for n in self.lib.child_nodes(self.root, key, searching, !self.folders_only) {
                     // Dossier masqué (ou raccourci vers lui) : absent, sauf avec `is:hidden`.
                     if !self.reveal && (n.key.starts_with("f:") || n.key.starts_with("p:")) && self.lib.folder_hidden(node_id(&n.key)) {
                         continue;
@@ -1008,7 +1059,7 @@ impl Catalog {
                         && n.kind != NodeKind::Shortcut
                         && !self
                             .lib
-                            .child_nodes(self.root, Some(&n.key), false)
+                            .child_nodes(self.root, Some(&n.key), false, true)
                             .iter()
                             .any(|c| self.reveal || !(c.key.starts_with("f:") && self.lib.folder_hidden(node_id(&c.key))));
                     // Un raccourci ne se déplie jamais : il saute au dossier visé. En recherche, tout est ouvert sauf
@@ -1141,6 +1192,7 @@ impl Catalog {
             kind: s.kind,
             tags: s.tags.clone(),
             auto_tags: s.auto_tags.clone(),
+            splice_tags: s.splice_tags.clone(),
             missing: s.missing,
             fav: s.fav,
             hidden: s.hidden,
@@ -1324,13 +1376,14 @@ impl Backend for Catalog {
         let t0 = Instant::now();
         let q = req.query.trim();
         let flat = req.flat && !q.is_empty() && !req.folders_only;
-        let fresh = matches!(&*self.cache.borrow(), Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat && c.flattened == req.flattened && c.collapsed == req.collapsed && c.shuffle == req.shuffle.filter(|_| flat) && c.folders_only == req.folders_only);
+        let slot = Self::slot(req.root);
+        let fresh = matches!(&self.cache.borrow()[slot], Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat && c.flattened == req.flattened && c.collapsed == req.collapsed && c.shuffle == req.shuffle.filter(|_| flat) && c.folders_only == req.folders_only);
         if !fresh {
             let built = self.build_tree(req, q, flat);
-            *self.cache.borrow_mut() = Some(built);
+            self.cache.borrow_mut()[slot] = Some(built);
         }
         let cache = self.cache.borrow();
-        let c = cache.as_ref().expect("arbre calculé");
+        let c = cache[slot].as_ref().expect("arbre calculé");
         let total = c.rows.len();
         let start = (req.offset as usize).min(total);
         let end = start.saturating_add(req.limit as usize).min(total);
@@ -1410,8 +1463,9 @@ impl Backend for Catalog {
             let Some(&i) = self.by_id.get(id) else { continue };
             self.rejected.remove(&(*id, tag.clone()));
             let s = &mut self.samples[i];
-            // Déjà posé par l'analyse : il devient un tag de l'utilisateur (plus atténué).
+            // Déjà posé par l'analyse ou repris de Splice : il devient un tag de l'utilisateur (plus atténué).
             s.auto_tags.retain(|t| *t != tag);
+            s.splice_tags.retain(|t| *t != tag);
             if !s.tags.contains(&tag) {
                 s.tags.push(tag.clone());
                 s.tags.sort();
@@ -1431,6 +1485,7 @@ impl Backend for Catalog {
             let s = &mut self.samples[i];
             s.tags.retain(|t| t != tag);
             s.auto_tags.retain(|t| t != tag);
+            s.splice_tags.retain(|t| t != tag);
             self.hay[i] = haystack(&self.samples[i]);
         }
     }
@@ -1667,6 +1722,58 @@ impl Backend for Catalog {
         collections.chain(folders).collect()
     }
 
+    fn samples_at(&self, paths: &[String]) -> SamplesAt {
+        let mut out = SamplesAt::default();
+        let mut seen = HashSet::new();
+        for p in paths {
+            let p = p.trim_end_matches('/');
+            let hits: Vec<SampleId> = self
+                .samples
+                .iter()
+                .filter(|s| s.path.strip_prefix(p).is_some_and(|rest| rest.is_empty() || rest.starts_with('/')))
+                .map(|s| s.id)
+                .collect();
+            if hits.is_empty() {
+                out.outside.push(p.to_string());
+            }
+            out.ids.extend(hits.into_iter().filter(|id| seen.insert(*id)));
+        }
+        out
+    }
+
+    fn folder_paths(&self, prefix: &str, limit: usize) -> Vec<String> {
+        fn walk(nodes: &[FolderNode], base: &str, rel: &str, out: &mut Vec<(String, String, String)>) {
+            for n in nodes {
+                let path = format!("{base}{}/", n.name);
+                let r = format!("{rel}{}/", n.name);
+                out.push((path.clone(), r.clone(), n.name.to_lowercase()));
+                walk(&n.children, &path, &r, out);
+            }
+        }
+        let mut all = Vec::new();
+        for s in &self.sources {
+            let root = format!("{}/", s.name);
+            all.push((root.clone(), String::new(), s.name.to_lowercase()));
+            walk(&s.children, &root, "", &mut all);
+        }
+        let p = prefix.trim_start_matches('/').to_lowercase();
+        // Le chemin (avec ou sans la source) commence par le texte tapé, puis le nom du dossier seul.
+        let mut hits: Vec<(u8, String)> = all
+            .into_iter()
+            .filter_map(|(path, rel, name)| {
+                if path.to_lowercase().starts_with(&p) || (!rel.is_empty() && rel.to_lowercase().starts_with(&p)) {
+                    Some((0, path))
+                } else if name.starts_with(&p) {
+                    Some((1, path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        hits.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.len().cmp(&b.1.len())).then(a.1.cmp(&b.1)));
+        hits.into_iter().take(limit).map(|(_, p)| p).collect()
+    }
+
     fn node_path(&self, key: &str) -> Option<String> {
         if !(key.starts_with("f:") || key.starts_with("p:")) {
             return None;
@@ -1800,5 +1907,46 @@ impl Backend for Catalog {
     fn remove_source(&mut self, id: u32) {
         self.touch();
         self.sources.retain(|f| f.id != id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn req(root: TreeRoot, folders_only: bool) -> TreeRequest {
+        TreeRequest {
+            root,
+            limit: 50,
+            folders_only,
+            ..Default::default()
+        }
+    }
+
+    /// Deux panneaux (Library, Virtual) demandés en alternance : chacun garde son cache, aucun ne reconstruit
+    /// l'autre.
+    #[test]
+    fn un_cache_par_racine() {
+        let lib = Catalog::demo();
+        let a = lib.tree(&req(TreeRoot::Library, true));
+        let built: *const TreeCache = lib.cache.borrow()[0].as_ref().unwrap();
+        lib.tree(&req(TreeRoot::Virtual, false));
+        assert!(lib.tree_cached(TreeRoot::Library) && lib.tree_cached(TreeRoot::Virtual));
+        let b = lib.tree(&req(TreeRoot::Library, true));
+        let again: *const TreeCache = lib.cache.borrow()[0].as_ref().unwrap();
+        assert_eq!(built, again, "l'arbre de Bibliothèque n'est pas reconstruit");
+        assert_eq!(a.total_rows, b.total_rows);
+    }
+
+    /// Panneau Library d'Expanded : les raccourcis restent, les éléments virtuels épinglés n'y sont pas.
+    #[test]
+    fn explorer_sans_epingles_virtuels() {
+        let lib = Catalog::demo();
+        let keys = |folders_only| -> Vec<String> { lib.tree(&req(TreeRoot::Library, folders_only)).rows.iter().map(|r| r.key().to_string()).collect() };
+        let side = keys(false);
+        let explorer = keys(true);
+        assert!(side.iter().any(|k| k == "c:fav") && side.iter().any(|k| k == "v:3"));
+        assert!(explorer.iter().all(|k| k.starts_with("f:") || k.starts_with("p:")), "{explorer:?}");
+        assert!(explorer.iter().any(|k| k.starts_with("p:")));
     }
 }

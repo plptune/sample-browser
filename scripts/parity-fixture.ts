@@ -16,6 +16,9 @@ const QUERIES = [
   "#kick", "#wet", "#loop", "#oneshot", "#loop #bass", "-#oneshot vocal",
   // Filtres rapides de l'entonnoir : collections, mode de la tonalité, valeurs entre guillemets.
   "is:collection", "-is:collection kick", "key:minor", "key:major", "key:min type:loop", 'in:"Vocal chops"', '-in:"Go-to kicks" kick',
+  // path: : préfixe depuis la source (avec ou sans son nom), à une limite de dossier.
+  'path:"Samples/Drums/"', "path:Drums/Kicks", '-path:"Samples/Drums/" kick', "path:Samples/Drum", 'path:"Field Recordings/Paris"',
+  "path:Splice", "path:nowhere", 'path:"packs/Lofi Keys" type:midi',
 ];
 const EXPANDED = {
   library: [[], ["f:10", "f:11", "f:12"], ["f:1", "f:2", "f:3", "f:20", "f:21", "f:22"], ["c:fav", "c:1", "v:3", "v:4", "v:5", "p:3"]],
@@ -85,6 +88,12 @@ const library = await mockBackend.library();
 const sources = await mockBackend.sources();
 
 const nodePaths = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (k) => [k, await mockBackend.nodePath(k)])));
+// Autocomplétion de path: : chemin avec ou sans la source, nom de dossier seul, rien.
+const FOLDER_PREFIXES = ["", "Sam", "samples/drums", "Drums/", "kick", "field recordings/p", "/Splice", "zzz"];
+// Fichiers déposés depuis une autre app : un fichier, un dossier, un chemin hors des sources, un doublon.
+const DROPS = [[SAMPLES[0].path], ["~/Music/Samples/Drums/Kicks/"], ["/tmp/elsewhere.wav", SAMPLES[3].path], [SAMPLES[3].path, "~/Music/Samples/Drums/Kicks"], ["~/Music/Samples/Drum"]];
+const samplesAt = await Promise.all(DROPS.map(async (paths) => ({ paths, got: await mockBackend.samplesAt(paths) })));
+const folderPaths = Object.fromEntries(await Promise.all(FOLDER_PREFIXES.map(async (p) => [p, await mockBackend.folderPaths(p, 8)])));
 // Appartenances (inspecteur du mode grand) : tous les samples qui sont dans une collection ou un dossier virtuel.
 const memberships: Record<number, string[]> = {};
 for (const s of SAMPLES) {
@@ -159,7 +168,7 @@ const ancestors = Object.fromEntries(await Promise.all(ANCESTOR_KEYS.map(async (
 // Liste du mode grand : portées × recherches (tri par nom), puis chaque colonne dans les deux sens, et positions.
 const LIST_SCOPES = [null, "f:1", "f:10", "f:12", "p:3", "v:1", "v:3", "v:4", "c:fav", "c:1", "c:2", "c:3", "c:4", "g:collections", "f:999"];
 const LIST_QUERIES = ["", "kick", "#warm", "type:midi", "in:go", "-kick bpm:>100"];
-const COLUMNS = ["name", "bpm", "key", "duration", "format", "tags"] as const;
+const COLUMNS = ["name", "bpm", "key", "duration", "format", "tags", "kind"] as const;
 const lists: { scope: string | null; query: string; column: string; desc: boolean; totalRows: number; rows: string[] }[] = [];
 const listRows = async (scope: string | null, query: string, column: (typeof COLUMNS)[number], desc: boolean) => {
   const page = await mockBackend.list({ scope, query, sort: { column, desc }, offset: 0, limit: 100000 });
@@ -217,6 +226,6 @@ const after = {
   paths: afterTree.rows.flatMap((r) => (r.type === "sample" ? [r.sample.path] : [])),
 };
 
-const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, memberships, pins, after, flat, shuffled, waveforms, flattenedTrees, collapsedTrees, lists, listFocus, explorers };
+const out = { samples, trees, plans, focus, hidden, library, sources, ancestors, nodePaths, folderPaths, samplesAt, memberships, pins, after, flat, shuffled, waveforms, flattenedTrees, collapsedTrees, lists, listFocus, explorers };
 writeFileSync(new URL("../crates/crate-core/tests/fixtures/prototype.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`${samples.length} samples, ${trees.length} arbres, ${plans.length} plans, ${pins.length} épinglages, 1 commit → crates/crate-core/tests/fixtures/prototype.json`);

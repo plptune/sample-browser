@@ -39,6 +39,9 @@ pub struct Sample {
     /// Ceux de `tags` posés par l'analyse (vocabulaire fermé, `autotag`), affichés atténués. Un tag que
     /// l'utilisateur ajoute lui-même n'y est pas.
     pub auto_tags: Vec<String>,
+    /// Ceux de `tags` repris de la base de Splice (`splice`), affichés atténués eux aussi. Un tag de l'utilisateur
+    /// n'y est pas ; un tag à la fois Splice et automatique est compté ici.
+    pub splice_tags: Vec<String>,
     pub missing: bool,
     pub fav: bool,
     /// Masqué par l'utilisateur (lui-même, pas via son dossier) : invisible sauf avec `is:hidden`.
@@ -238,8 +241,10 @@ pub struct TreeRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub shuffle: Option<u32>,
-    /// Dossiers seuls (explorer du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
-    /// sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`).
+    /// Dossiers seuls (panneau Library du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
+    /// sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`). À la racine de
+    /// Bibliothèque, les favoris, collections et dossiers virtuels épinglés sont omis (le panneau Virtual les montre) ;
+    /// les raccourcis vers de vrais dossiers restent.
     #[serde(default, rename = "foldersOnly")]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub folders_only: bool,
@@ -257,6 +262,8 @@ pub enum SortColumn {
     Duration,
     Format,
     Tags,
+    /// Type : boucles, puis one-shots.
+    Kind,
 }
 
 /// Tri de la liste : une colonne, croissant ou décroissant. Les valeurs absentes (BPM, tonalité) restent à la fin
@@ -323,6 +330,16 @@ pub struct Library {
     pub hidden: u32,
 }
 
+/// Fichiers déposés depuis une autre app (Finder, Sononym…) : les samples de la bibliothèque qu'ils désignent.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct SamplesAt {
+    /// Dans l'ordre des chemins, sans doublon ; un dossier donne tous les samples dessous.
+    pub ids: Vec<SampleId>,
+    /// Chemins qui ne sont dans aucune source.
+    pub outside: Vec<String>,
+}
+
 /// Ce que « Créer un vrai dossier » copierait.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -384,6 +401,17 @@ pub struct ScanStatus {
 pub struct AnalysisStatus {
     pub done: u32,
     pub total: u32,
+}
+
+/// Bilan d'une synchronisation des tags Splice : samples de la base Splice, ceux trouvés dans la bibliothèque,
+/// tags ajoutés (un tag déjà présent ou retiré à la main n'est pas compté).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct SpliceSync {
+    pub splice_samples: u32,
+    pub matched: u32,
+    pub added: u32,
 }
 
 /// Forme d'onde détaillée (tiroir, inspecteur) : par colonne, minimum, maximum et RMS, normalisés sur le maximum
@@ -483,6 +511,12 @@ pub trait Backend {
     fn set_synonyms(&mut self, groups: &[Vec<String>]);
     /// Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; `None` sinon.
     fn node_path(&self, key: &str) -> Option<String>;
+    /// Autocomplétion de `path:` : chemins des dossiers depuis leur source, avec son nom et un `/` final
+    /// (« Samples/Drums/Kicks/ »), dont le chemin (avec ou sans la source) ou le nom commence par `prefix`.
+    fn folder_paths(&self, prefix: &str, limit: usize) -> Vec<String>;
+    /// Samples désignés par des chemins absolus déposés sur la fenêtre : un fichier, ou tout ce qui est sous un dossier
+    /// (à une limite de dossier).
+    fn samples_at(&self, paths: &[String]) -> SamplesAt;
     /// Collections manuelles ("c:<id>") puis dossiers virtuels ("v:<id>") qui contiennent ce sample, dans l'ordre
     /// de la bibliothèque (l'inspecteur du mode grand). Les favoris n'y sont pas : l'étoile les montre.
     fn memberships(&self, id: SampleId) -> Vec<NodeKey>;
@@ -494,6 +528,15 @@ pub trait Backend {
     /// Relance l'indexation d'une source (rescan incrémental).
     fn refresh_source(&mut self, id: u32);
     fn remove_source(&mut self, id: u32);
+    /// Reprend les tags de la base locale de Splice : ajoute ceux qui manquent, jamais un tag retiré à la main.
+    /// Rien à lire hors de la vraie bibliothèque.
+    fn sync_splice_tags(&mut self) -> Result<SpliceSync, String> {
+        Err("Splice tags need the real library".into())
+    }
+    /// Retire tous les tags repris de Splice (pas ceux de l'utilisateur). Renvoie le nombre de tags retirés.
+    fn clear_splice_tags(&mut self) -> u32 {
+        0
+    }
 }
 
 /// Forme d'onde dérivée des 256 pics (prototype) : interpolation linéaire, symétrique, RMS à 55 % du pic.

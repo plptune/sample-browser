@@ -28,6 +28,10 @@ export const commands = {
 	setPinned: (key: string, pinned: boolean) => __TAURI_INVOKE<void>("set_pinned", { key, pinned }),
 	ancestors: (key: string) => __TAURI_INVOKE<string[]>("ancestors", { key }),
 	nodePath: (key: string) => __TAURI_INVOKE<string | null>("node_path", { key }),
+	/**  Autocomplétion de `path:` : chemins de dossiers depuis leur source (« Samples/Drums/Kicks/ »). */
+	folderPaths: (prefix: string, limit: number) => __TAURI_INVOKE<string[]>("folder_paths", { prefix, limit }),
+	/**  Fichiers déposés depuis une autre app : les samples de la bibliothèque qu'ils désignent, et ceux hors des sources. */
+	samplesAt: (paths: string[]) => __TAURI_INVOKE<SamplesAt>("samples_at", { paths }),
 	/**  Collections manuelles et dossiers virtuels qui contiennent un sample (inspecteur du mode grand). */
 	memberships: (id: number) => __TAURI_INVOKE<string[]>("memberships", { id }),
 	setHidden: (ids: number[], hidden: boolean) => __TAURI_INVOKE<void>("set_hidden", { ids, hidden }),
@@ -52,6 +56,9 @@ export const commands = {
 	commitToFolder: (key: string, destination: string, options: CommitOptions) => typedError<CommitResult, string>(__TAURI_INVOKE("commit_to_folder", { key, destination, options })),
 	addSource: (path: string) => typedError<Source, string>(__TAURI_INVOKE("add_source", { path })),
 	refreshSource: (id: number) => __TAURI_INVOKE<void>("refresh_source", { id }),
+	/**  Reprend les tags de la base locale de Splice (lecture seule) : ajoute ceux qui manquent. */
+	syncSpliceTags: () => typedError<SpliceSync, string>(__TAURI_INVOKE("sync_splice_tags")),
+	clearSpliceTags: () => __TAURI_INVOKE<number>("clear_splice_tags"),
 	removeSource: (id: number) => __TAURI_INVOKE<void>("remove_source", { id }),
 	/**  Sélecteur de dossier natif (⌘O). `None` si annulé. */
 	pickFolder: () => __TAURI_INVOKE<string | null>("pick_folder"),
@@ -97,6 +104,14 @@ export const commands = {
 	 *  Avec `keep_daw_active`, à défaut d'app d'origine : l'app au premier plan, si ce n'est pas Crate.
 	 */
 	returnToDaw: () => __TAURI_INVOKE<boolean>("return_to_daw"),
+	/**  Espace dans Crate : lecture / arrêt du transport de Bitwig. Faux si Bitwig ne répond pas. */
+	bitwigTogglePlay: () => __TAURI_INVOKE<boolean>("bitwig_toggle_play"),
+	/**  État courant (Réglages ouverts avant le premier événement). */
+	bitwigStatus: () => __TAURI_INVOKE<BitwigState>("bitwig_status"),
+	/**  Copie le script dans ~/Documents/Bitwig Studio/Controller Scripts/Crate/ ; renvoie son chemin. */
+	installBitwigScript: () => typedError<string, string>(__TAURI_INVOKE("install_bitwig_script")),
+	/**  Capture d'un raccourci dans les Réglages : relâche le raccourci global (vrai), puis le reprend (faux). */
+	pauseDawShortcut: (paused: boolean) => __TAURI_INVOKE<void>("pause_daw_shortcut", { paused }),
 	/**  Crate a-t-il l'autorisation Accessibilité ? Avec `prompt`, macOS la demande s'il ne l'a pas. */
 	accessibilityTrusted: (prompt: boolean) => __TAURI_INVOKE<boolean>("accessibility_trusted", { prompt }),
 	/**  Ouvre Réglages Système › Confidentialité et sécurité › Accessibilité. */
@@ -105,6 +120,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	bitwigStateEvent: makeEvent<BitwigStateEvent>("bitwig-state-event"),
 	commitProgressEvent: makeEvent<CommitProgressEvent>("commit-progress-event"),
 	focusSearchEvent: makeEvent<FocusSearchEvent>("focus-search-event"),
 	playbackEvent: makeEvent<PlaybackEvent_Deserialize>("playback-event"),
@@ -120,6 +136,19 @@ export type AnalysisStatus = {
 	done: number,
 	total: number,
 };
+
+/**  État vu par les Réglages. */
+export type BitwigState = {
+	/**  Le script a répondu il y a moins de 5 s. */
+	connected: boolean,
+	/**  Transport de Bitwig en lecture (dernier état reçu). */
+	playing: boolean,
+	/**  Problème à afficher tel quel (port 9071 déjà pris). */
+	error: string | null,
+};
+
+/**  L'état a changé (connexion, transport). */
+export type BitwigStateEvent = BitwigState;
 
 /**  Collection : simple regroupement de samples, à plat. Smart = recherche enregistrée. */
 export type Collection = Collection_Serialize | Collection_Deserialize;
@@ -199,6 +228,12 @@ export type DawShortcutConfig = {
 	 *  Accessibilité : coupé par défaut.
 	 */
 	resizeTogether?: boolean,
+	/**
+	 *  « Space plays Bitwig » : Espace dans Crate (hors champ de saisie) lance ou arrête le transport de Bitwig par son
+	 *  script de contrôleur (`bitwig`) ; la preview s'arrête si elle joue, sans jamais repartir. Coupé par défaut. Le nom vient de la première version,
+	 *  une frappe simulée vers le DAW : gardé pour les réglages déjà enregistrés.
+	 */
+	spaceToDaw?: boolean,
 };
 
 /**  Le raccourci a été pressé dans le DAW : l'interface focalise le champ de recherche. */
@@ -406,6 +441,11 @@ export type Sample = {
 	 *  l'utilisateur ajoute lui-même n'y est pas.
 	 */
 	autoTags: string[],
+	/**
+	 *  Ceux de `tags` repris de la base de Splice (`splice`), affichés atténués eux aussi. Un tag de l'utilisateur
+	 *  n'y est pas ; un tag à la fois Splice et automatique est compté ici.
+	 */
+	spliceTags: string[],
 	missing: boolean,
 	fav: boolean,
 	/**  Masqué par l'utilisateur (lui-même, pas via son dossier) : invisible sauf avec `is:hidden`. */
@@ -431,6 +471,14 @@ export type SampleRow = {
 /**  Discriminant littéral `"sample"` d'une ligne de sample. */
 export type SampleTag = "sample";
 
+/**  Fichiers déposés depuis une autre app (Finder, Sononym…) : les samples de la bibliothèque qu'ils désignent. */
+export type SamplesAt = {
+	/**  Dans l'ordre des chemins, sans doublon ; un dossier donne tous les samples dessous. */
+	ids: number[],
+	/**  Chemins qui ne sont dans aucune source. */
+	outside: string[],
+};
+
 /**  Progression de l'indexation (au plus 5 par seconde, plus un dernier avec `finished`). */
 export type ScanEvent = ScanStatus;
 
@@ -446,13 +494,25 @@ export type ScanStatus = {
 };
 
 /**  Colonne de tri de la liste du mode grand. */
-export type SortColumn = "name" | "bpm" | "key" | "duration" | "format" | "tags";
+export type SortColumn = "name" | "bpm" | "key" | "duration" | "format" | "tags" | 
+/**  Type : boucles, puis one-shots. */
+"kind";
 
 export type Source = {
 	id: number,
 	name: string,
 	path: string,
 	offline: boolean,
+};
+
+/**
+ *  Bilan d'une synchronisation des tags Splice : samples de la base Splice, ceux trouvés dans la bibliothèque,
+ *  tags ajoutés (un tag déjà présent ou retiré à la main n'est pas compté).
+ */
+export type SpliceSync = {
+	spliceSamples: number,
+	matched: number,
+	added: number,
 };
 
 export type Tag = {
@@ -520,8 +580,10 @@ export type TreeRequest_Deserialize = {
 	 */
 	shuffle?: number | null,
 	/**
-	 *  Dossiers seuls (explorer du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
-	 *  sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`).
+	 *  Dossiers seuls (panneau Library du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
+	 *  sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`). À la racine de
+	 *  Bibliothèque, les favoris, collections et dossiers virtuels épinglés sont omis (le panneau Virtual les montre) ;
+	 *  les raccourcis vers de vrais dossiers restent.
 	 */
 	foldersOnly?: boolean,
 };
@@ -562,8 +624,10 @@ export type TreeRequest_Serialize = {
 	 */
 	shuffle?: number | null,
 	/**
-	 *  Dossiers seuls (explorer du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
-	 *  sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`).
+	 *  Dossiers seuls (panneau Library du mode grand) : aucun sample, ni aplatissement ; `leaf` marque les nœuds sans
+	 *  sous-dossier. La recherche ne sert alors qu'à révéler les dossiers masqués (`is:hidden`). À la racine de
+	 *  Bibliothèque, les favoris, collections et dossiers virtuels épinglés sont omis (le panneau Virtual les montre) ;
+	 *  les raccourcis vers de vrais dossiers restent.
 	 */
 	foldersOnly?: boolean,
 };

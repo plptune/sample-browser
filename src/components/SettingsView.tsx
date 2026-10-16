@@ -1,9 +1,10 @@
 // Réglages : remplacent l'arbre dans la même colonne (pas de fenêtre secondaire), rangés en onglets. Échap ou ‹ pour revenir.
-import { For, Show, createSignal, type JSX } from "solid-js";
-import type { AnalysisStatus, Source } from "../api";
+import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import type { AnalysisStatus, BitwigState, Source } from "../api";
 import type { DawShortcutConfig } from "../api/bindings";
-import { KNOWN_DAWS, formatShortcut, shortcutFromEvent } from "../lib/shortcut";
-import type { ColorRole, Density, FontSize, ThemePref } from "../state/app";
+import { KNOWN_DAWS, formatShortcut, heldModifiers, shortcutFromEvent } from "../lib/shortcut";
+import type { ColorRole, Density, FontSize, SpliceSyncState, ThemePref } from "../state/app";
+import { Button } from "./Button";
 import { IconButton } from "./IconButton";
 import { Segmented } from "./Segmented";
 import { Toggle } from "./Toggle";
@@ -22,6 +23,30 @@ function Row(props: { label: string; hint?: string; children: JSX.Element }) {
   );
 }
 
+const n = (x: number) => x.toLocaleString("en-US");
+const plural = (x: number, word: string) => `${n(x)} ${word}${x === 1 ? "" : "s"}`;
+
+/** Ligne d'état du script de Crate dans Bitwig. */
+function bitwigStatus(s: BitwigState | null | undefined): string {
+  if (s?.error) return s.error;
+  if (s?.connected) return "Bitwig connected";
+  return "Waiting for Bitwig — add the Crate controller in Bitwig › Settings › Controllers";
+}
+
+/** Ligne d'état de la synchronisation Splice. */
+function spliceStatus(s: SpliceSyncState): string {
+  switch (s.status) {
+    case "running":
+      return "Reading the Splice library…";
+    case "done":
+      return `${n(s.report.matched)} of ${plural(s.report.spliceSamples, "Splice sample")} found · ${plural(s.report.added, "tag")} added`;
+    case "cleared":
+      return `${plural(s.removed, "Splice tag")} removed`;
+    case "error":
+      return s.error;
+  }
+}
+
 export type SettingsTab = "sources" | "appearance" | "playback" | "search";
 
 /** Onglet ouvert : retenu le temps de la session (rouvrir les Réglages revient au même endroit). */
@@ -32,29 +57,98 @@ const COLOR_ROLES: { role: ColorRole; label: string; hint: string }[] = [
   { role: "bg", label: "Background", hint: "Surfaces follow it" },
 ];
 
-/** Champ de capture : clic, puis le raccourci voulu (avec ⌘, ⌃, ⌥ ou ⇧). Échap annule. */
-function ShortcutField(props: { value: string; onChange: (v: string) => void }) {
+/** Raccourci actuel ; un clic ouvre la fenêtre de capture. */
+function ShortcutField(props: { value: string; onChange: (v: string) => void; onCapture?: (on: boolean) => void }) {
   const [capturing, setCapturing] = createSignal(false);
+  const close = () => {
+    setCapturing(false);
+    props.onCapture?.(false);
+  };
   return (
-    <button
-      class="cr-shortcut"
-      data-capturing={capturing() || undefined}
-      aria-label={capturing() ? "Type the shortcut" : `Shortcut: ${formatShortcut(props.value)}`}
-      onClick={() => setCapturing(true)}
-      onBlur={() => setCapturing(false)}
-      onKeyDown={(e) => {
-        if (!capturing()) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.key === "Escape") return setCapturing(false);
-        const s = shortcutFromEvent(e);
-        if (!s) return;
-        props.onChange(s);
-        setCapturing(false);
-      }}
-    >
-      {capturing() ? "Type the shortcut…" : formatShortcut(props.value)}
-    </button>
+    <>
+      <button
+        class="cr-shortcut"
+        data-capturing={capturing() || undefined}
+        aria-label={`Shortcut: ${formatShortcut(props.value)}`}
+        onClick={() => {
+          setCapturing(true);
+          props.onCapture?.(true);
+        }}
+      >
+        {formatShortcut(props.value)}
+      </button>
+      <Show when={capturing()}>
+        <ShortcutDialog
+          onAccept={(s) => {
+            props.onChange(s);
+            close();
+          }}
+          onCancel={close}
+        />
+      </Show>
+    </>
+  );
+}
+
+/**
+ * Capture d'un raccourci : les touches sont lues sur toute la fenêtre (un bouton cliqué n'a pas le focus clavier dans
+ * WebKit), le raccourci tapé s'affiche, et rien n'est changé avant « Accept » (ou ⏎). Échap ou « Cancel » annule.
+ * Un raccourci doit avoir ⌘, ⌃, ⌥ ou ⇧ : une lettre seule serait volée au DAW.
+ */
+function ShortcutDialog(props: { onAccept: (s: string) => void; onCancel: () => void }) {
+  const [pending, setPending] = createSignal<string | null>(null);
+  const [held, setHeld] = createSignal("");
+  const [needsModifier, setNeedsModifier] = createSignal(false);
+  const onKey = (e: KeyboardEvent) => {
+    // Rien d'autre ne réagit pendant la capture (raccourcis de l'app, champs).
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    setHeld(heldModifiers(e));
+    if (e.type === "keyup" || e.repeat) return;
+    const plain = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
+    if (plain && e.key === "Escape") return props.onCancel();
+    if (plain && e.key === "Enter") {
+      const p = pending();
+      if (p) props.onAccept(p);
+      return;
+    }
+    const s = shortcutFromEvent(e);
+    if (s) {
+      setPending(s);
+      setNeedsModifier(false);
+    } else if (!/^(Meta|Control|Alt|Shift|OS)(Left|Right)?$/.test(e.code)) setNeedsModifier(true);
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onKey, true);
+  });
+  onCleanup(() => {
+    window.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("keyup", onKey, true);
+  });
+  const shown = () => {
+    const p = pending();
+    if (held() && (!p || !formatShortcut(p).startsWith(held()))) return `${held()}…`;
+    return p ? formatShortcut(p) : "…";
+  };
+  return (
+    <div class="cr-dialog__backdrop" onMouseDown={(e) => e.target === e.currentTarget && props.onCancel()}>
+      <div class="cr-dialog" role="dialog" aria-modal="true" aria-label="New shortcut">
+        <div class="cr-dialog__title">Press the new shortcut</div>
+        <kbd class="cr-dialog__keys" data-empty={!pending() || undefined} aria-live="polite">
+          {shown()}
+        </kbd>
+        <div class="cr-dialog__hint" data-warn={needsModifier() || undefined}>
+          {needsModifier() ? "Add ⌘, ⌃, ⌥ or ⇧" : "Taken only while one of your DAWs is in front"}
+        </div>
+        <div class="cr-dialog__actions">
+          <Button onClick={() => props.onCancel()}>Cancel</Button>
+          <Button variant="primary" disabled={!pending()} onClick={() => props.onAccept(pending()!)}>
+            Accept
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -62,10 +156,16 @@ export function SettingsView(props: {
   /** Recherche depuis le DAW : raccourci pris seulement quand un DAW de la liste est devant (macOS). */
   dawShortcut?: DawShortcutConfig;
   onDawShortcut?: (c: DawShortcutConfig) => void;
+  /** Capture d'un raccourci ouverte (vrai) ou fermée : le raccourci global est mis en pause pendant ce temps. */
+  onShortcutCapture?: (on: boolean) => void;
   /** Autorisation Accessibilité (redimensionner le DAW avec Crate) : faux affiche le lien vers les Réglages Système. */
   accessibility?: boolean | null;
   onRequestAccessibility?: () => void;
   onOpenAccessibility?: () => void;
+  /** « Space plays Bitwig » : état du script dans Bitwig, résultat de sa copie, bouton « Install Bitwig script ». */
+  bitwig?: BitwigState | null;
+  bitwigScript?: { path: string } | { error: string } | null;
+  onInstallBitwig?: () => void;
   /** Onglet affiché à l'ouverture (stories, tests) ; sinon le dernier ouvert. */
   initialTab?: SettingsTab;
   fontSize?: FontSize;
@@ -97,6 +197,10 @@ export function SettingsView(props: {
   onAutoPlay?: (v: boolean) => void;
   onRemoveSource?: (id: number) => void;
   onAddSource?: () => void;
+  /** Tags repris de la base locale de Splice : état de la dernière synchronisation, synchroniser, tout retirer. */
+  spliceSync?: SpliceSyncState | null;
+  onSyncSplice?: () => void;
+  onClearSplice?: () => void;
   /** Groupes de synonymes de la recherche (« kick, bd, bassdrum »). */
   synonyms?: string[][];
   onSynonyms?: (groups: string[][]) => void;
@@ -157,6 +261,37 @@ export function SettingsView(props: {
           </Show>
           <button class="cr-settings__add" onClick={() => props.onAddSource?.()}>
             Add a folder…
+          </button>
+        </section>
+        <section class="cr-settings__section">
+          <h3 class="cr-settings__h">Splice</h3>
+          <div class="cr-setting">
+            <span class="cr-setting__hint" data-wrap>
+              Adds the tags of your Splice downloads, dimmed. A tag you remove stays removed.
+            </span>
+          </div>
+          <Show when={props.spliceSync}>
+            {(s) => (
+              <div class="cr-setting" role={s().status === "error" ? "alert" : "status"}>
+                <span class="cr-setting__hint cr-num" data-wrap data-error={s().status === "error" || undefined}>
+                  {spliceStatus(s())}
+                </span>
+              </div>
+            )}
+          </Show>
+          <button
+            class="cr-settings__add"
+            disabled={props.spliceSync?.status === "running"}
+            onClick={() => props.onSyncSplice?.()}
+          >
+            {props.spliceSync?.status === "running" ? "Syncing…" : "Sync Splice tags"}
+          </button>
+          <button
+            class="cr-settings__add"
+            disabled={props.spliceSync?.status === "running"}
+            onClick={() => props.onClearSplice?.()}
+          >
+            Remove Splice tags
           </button>
         </section>
       </Show>
@@ -311,11 +446,33 @@ export function SettingsView(props: {
                     </button>
                   </Row>
                 </Show>
+                <Row label="Space plays Bitwig" hint="Space starts and stops Bitwig's transport and stops the preview">
+                  <Toggle label="Space plays Bitwig" checked={d().spaceToDaw ?? false} onChange={(v) => set({ spaceToDaw: v })} />
+                </Row>
+                <Show when={d().spaceToDaw}>
+                  <div class="cr-setting" role={props.bitwig?.error ? "alert" : "status"}>
+                    <span class="cr-setting__hint" data-wrap data-error={props.bitwig?.error ? true : undefined}>
+                      {bitwigStatus(props.bitwig)}
+                    </span>
+                  </div>
+                  <button class="cr-settings__add" onClick={() => props.onInstallBitwig?.()}>
+                    Install Bitwig script
+                  </button>
+                  <Show when={props.bitwigScript}>
+                    {(r) => (
+                      <div class="cr-setting" role={"error" in r() ? "alert" : "status"}>
+                        <span class="cr-setting__hint" data-wrap data-error={"error" in r() || undefined}>
+                          {"error" in r() ? (r() as { error: string }).error : `Installed in ${(r() as { path: string }).path}`}
+                        </span>
+                      </div>
+                    )}
+                  </Show>
+                </Show>
                 <Row label="Search from the DAW" hint="In the DAW, the shortcut opens Crate's search; Esc goes back">
                   <Toggle label="Search from the DAW" checked={d().enabled} onChange={(v) => set({ enabled: v })} />
                 </Row>
                 <Row label="Shortcut" hint="Only taken while one of these DAWs is in front">
-                  <ShortcutField value={d().shortcut} onChange={(v) => set({ shortcut: v })} />
+                  <ShortcutField value={d().shortcut} onChange={(v) => set({ shortcut: v })} onCapture={props.onShortcutCapture} />
                 </Row>
                 <For each={KNOWN_DAWS}>
                   {(daw) => (

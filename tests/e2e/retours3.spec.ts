@@ -82,3 +82,13 @@ for (const shortcut of ["Control+ArrowRight", "Control+ArrowLeft"]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("deux clics rapides sur le chevron : deux bascules, pas trois (le double clic de la ligne ne s'y ajoute pas)", async ({ page }) => {
+  const errors = await scenario(page, "3");
+  const row = page.locator('.cr-node[aria-level="1"][aria-expanded]').first();
+  const before = await row.getAttribute("aria-expanded");
+  await row.locator(".cr-node__slot").dblclick();
+  await page.waitForTimeout(300);
+  await expect(row).toHaveAttribute("aria-expanded", before!);
+  expect(errors).toEqual([]);
+});

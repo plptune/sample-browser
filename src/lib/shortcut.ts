@@ -17,6 +17,7 @@ export const DEFAULT_DAW_SHORTCUT: DawShortcutConfig = {
   apps: ["com.ableton.live", "com.bitwig.studio"],
   keepDawActive: true,
   resizeTogether: false,
+  spaceToDaw: false,
 };
 
 /** Identifiants erronés des premières versions, encore dans des réglages enregistrés → identifiant réel. */
@@ -39,6 +40,11 @@ export function shortcutFromEvent(e: Pick<KeyboardEvent, "code" | "ctrlKey" | "a
   if (!e.code || /^(Meta|Control|Alt|Shift|OS)(Left|Right)?$/.test(e.code)) return null;
   const mods = MODS.filter(([k]) => e[k as "ctrlKey"]).map(([, name]) => name);
   return mods.length ? [...mods, e.code].join("+") : null;
+}
+
+/** Modificateurs tenus en ce moment (« ⌃⌥ »), pendant la capture d'un raccourci. */
+export function heldModifiers(e: Pick<KeyboardEvent, "ctrlKey" | "altKey" | "shiftKey" | "metaKey">): string {
+  return MODS.filter(([k]) => e[k as "ctrlKey"]).map(([, , sym]) => sym).join("");
 }
 
 /** « Cmd+KeyF » → « ⌘F », « Ctrl+Alt+Space » → « ⌃⌥Espace ». */

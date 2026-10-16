@@ -27,6 +27,16 @@ function parse(s: string): [number, boolean, boolean] | null {
   return [(((base + shift) % 12) + 12) % 12, minor, mode !== ""];
 }
 
+/** Tonalité lisible : « Am » → « A minor », « F# » → « F♯ major », « Bbm » → « B♭ minor » (l'écriture de la note est
+ *  gardée) ; une valeur illisible est rendue telle quelle. */
+export function formatKey(s: string): string {
+  const p = parse(s);
+  if (!p) return s;
+  const t = s.trim();
+  const acc = /^.[#♯]/.test(t) ? "♯" : /^.(♭|b(?!pm))/.test(t) ? "♭" : "";
+  return `${t.charAt(0).toUpperCase()}${acc} ${p[1] ? "minor" : "major"}`;
+}
+
 /** `key:` — une note seule couvre majeur et mineur ; les enharmonies se valent (A# = Bb) ; `key:minor` /
  *  `key:major` (ou `min` / `maj`) : le mode seul, quelle que soit la tonique. */
 export function keyMatches(have: string, want: string): boolean {

@@ -1,7 +1,7 @@
 // Jeu d'icônes volontairement minimal : 12×12, trait 1.2, couleur = currentColor.
 import type { JSX } from "solid-js";
 
-export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "collection" | "pin" | "alias" | "layout-side" | "layout-full" | "folder" | "sample" | "midi" | "autoplay" | "filter" | "shuffle" | "folder-flat" | "library" | "layers";
+export type IconName = "search" | "chevron" | "back" | "play" | "stop" | "close" | "plus" | "settings" | "loop" | "check" | "minus" | "star" | "star-fill" | "virtual" | "folder-plus" | "oneshot" | "note" | "collection" | "pin" | "alias" | "layout-side" | "layout-full" | "folder" | "sample" | "midi" | "autoplay" | "filter" | "shuffle" | "folder-flat" | "library" | "layers";
 
 // Fonctions et non éléments : un nœud DOM ne peut être monté qu'à un seul endroit.
 const PATHS: Record<IconName, () => JSX.Element> = {
@@ -17,6 +17,13 @@ const PATHS: Record<IconName, () => JSX.Element> = {
   minus: () => <path d="M3 6h6" />,
   // Dossier en pointillés : « virtuel », rien sur le disque.
   virtual: () => <path d="M1.6 3.2h3.1l1 1.2h4.7v5.2H1.6z" stroke-dasharray="1.4 1.1" />,
+  // Nouveau dossier virtuel : le dossier en pointillés, un « + » dedans.
+  "folder-plus": () => (
+    <>
+      <path d="M1.6 3.2h3.1l1 1.2h4.7v5.2H1.6z" stroke-dasharray="1.4 1.1" />
+      <path d="M6 5.3v3M4.5 6.8h3" />
+    </>
+  ),
   collection: () => <path d="M3.6 3.4h6.4M3.6 6h6.4M3.6 8.6h6.4M1.8 3.4h.1M1.8 6h.1M1.8 8.6h.1" />,
   // Flèche d'alias (comme dans le Finder) : raccourci vers un dossier réel.
   alias: () => <path d="M3.2 8.8 8.4 3.6M4.6 3.4h4v4" />,
@@ -53,6 +60,15 @@ const PATHS: Record<IconName, () => JSX.Element> = {
       <path d="M5.5 9V2.2l4 1.3v2" />
     </>
   ),
+  // Tonalité (preview) : une note.
+  note: () => (
+    <>
+      <circle cx="4" cy="9" r="1.5" />
+      <path d="M5.5 9V2.2l4 1.3v2" />
+    </>
+  ),
+  // One-shot : un son qui part de gauche à droite et s'arrête (le pendant de « loop »).
+  oneshot: () => <path d="M2 6h7.5M7.2 3.7 9.5 6 7.2 8.3" />,
   // Filtres actifs (dossiers aplatis…) : un entonnoir.
   filter: () => <path d="M1.8 2.4h8.4L7 6.2v3.1L5 10.2V6.2z" />,
   // Mélanger les résultats à plat : deux flèches croisées vers la droite.

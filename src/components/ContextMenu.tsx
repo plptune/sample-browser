@@ -29,6 +29,9 @@ export function ContextMenu(props: {
   const actionable = () => props.items.flatMap((it, i) => (it.type !== "separator" && it.type !== "header" && !it.disabled ? [i] : []));
   const [active, setActive] = createSignal<number | null>(null);
   const [pos, setPos] = createSignal({ x: props.x, y: props.y });
+  // Le clic droit ouvre le menu à l'appui : son relâchement, s'il tombe sur un item (menu recalé sous le pointeur),
+  // ne le choisit pas. Comme sur macOS : armé par un appui dans le menu, ou par un glisser jusqu'à un item.
+  let armed = false;
 
   const run = (i: number) => {
     const it = props.items[i];
@@ -48,10 +51,23 @@ export function ContextMenu(props: {
     el.focus({ preventScroll: true });
     const away = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (!el.contains(t) && !props.anchor?.()?.contains(t)) props.onClose?.();
+      if (el.contains(t)) armed = true;
+      else if (!props.anchor?.()?.contains(t)) props.onClose?.();
+    };
+    let from: { x: number; y: number } | null = null;
+    const moved = (e: MouseEvent) => {
+      from ??= { x: e.clientX, y: e.clientY };
+      if (Math.hypot(e.clientX - from.x, e.clientY - from.y) > 4) {
+        armed = true;
+        window.removeEventListener("mousemove", moved, true);
+      }
     };
     window.addEventListener("mousedown", away, true);
-    onCleanup(() => window.removeEventListener("mousedown", away, true));
+    window.addEventListener("mousemove", moved, true);
+    onCleanup(() => {
+      window.removeEventListener("mousedown", away, true);
+      window.removeEventListener("mousemove", moved, true);
+    });
   });
 
   function onKeyDown(e: KeyboardEvent) {
@@ -99,7 +115,7 @@ export function ContextMenu(props: {
                     data-disabled={item.disabled || undefined}
                     onMouseEnter={() => !item.disabled && setActive(i())}
                     onMouseLeave={() => setActive(null)}
-                    onMouseUp={() => run(i())}
+                    onMouseUp={() => armed && run(i())}
                   >
                     <span class="cr-menu__label">{item.label}</span>
                     <Show when={item.shortcut}>

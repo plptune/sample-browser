@@ -45,6 +45,8 @@ export function TreeRow(props: {
   marker?: TreeRowMarker;
   draggable?: boolean;
   dropTarget?: boolean;
+  /** Dans le bloc de la cible de dépôt (la cible et ses descendants visibles) : surbrillance légère. */
+  dropBlock?: boolean;
   dragging?: boolean;
   /** Fichier MIDI (joué au piano dans l'app) : icône de note au lieu de l'onde. */
   midi?: boolean;
@@ -95,6 +97,7 @@ export function TreeRow(props: {
       data-flattened={props.flattened || undefined}
       data-offline={props.offline || undefined}
       data-drop-target={props.dropTarget || undefined}
+      data-drop-block={props.dropBlock || undefined}
       data-dragging={props.dragging || undefined}
       data-wave={(isSample() && props.wave) || undefined}
       draggable={props.draggable ?? (isSample() && !props.missing)}
@@ -121,6 +124,8 @@ export function TreeRow(props: {
           e.stopPropagation();
           props.onToggle?.();
         }}
+        // Deux clics rapides sur le chevron basculent déjà deux fois : le double-clic de la ligne n'en rajoute pas un.
+        onDblClick={(e) => folds() && e.stopPropagation()}
       >
         <Show when={folds()}>
           <Chevron open={props.open} />

@@ -20,12 +20,6 @@ export function formatFormat(s: { ext: string; sampleRate: number; bitDepth: num
   return parts.join(" · ");
 }
 
-/** Canaux en clair : mono, stéréo, n canaux (rien pour un MIDI). */
-export function formatChannels(n: number): string {
-  if (n <= 0) return "";
-  return n === 1 ? "mono" : n === 2 ? "stereo" : `${n} channels`;
-}
-
 /**
  * Dossier d'un sample relatif à sa source (Réglages › Sources), pour le tiroir : « Drums/Kicks/Analog Col…/ ».
  * Chaque dossier est coupé à `max` caractères (+ « … ») ; la ligne entière est tronquée par le CSS si besoin.
@@ -52,4 +46,10 @@ export function relativePath(path: string, sources: { name: string; path: string
     .filter((s) => path.startsWith(s.root))
     .sort((a, b) => b.root.length - a.root.length)[0];
   return src ? `${src.name}/${path.slice(src.root.length)}` : path.slice(path.lastIndexOf("/") + 1);
+}
+
+/** Dossier d'un sample tel qu'on le montre (« Samples/Drums/Kicks/ ») : son chemin relatif, sans le nom du fichier. */
+export function relativeDir(path: string, sources: { name: string; path: string }[]): string {
+  const rel = relativePath(path, sources);
+  return rel.slice(0, rel.lastIndexOf("/") + 1);
 }

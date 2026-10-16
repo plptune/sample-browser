@@ -1,5 +1,6 @@
-// Survol pendant un glisser, commun au glisser natif des samples et au glisser des dossiers virtuels : cible de dépôt
-// sous le pointeur, onglet ouvert après 500 ms, défilement de l'arbre près de ses bords.
+// Survol pendant un glisser, commun au glisser natif des samples, au glisser des dossiers virtuels, aux fichiers venus
+// d'une autre app et au glisser HTML : cible de dépôt sous le pointeur, onglet (ou panneau masqué) ouvert après 500 ms,
+// défilement de l'arbre près de ses bords.
 import type { NodeKey } from "../api";
 import { app } from "../state/app";
 
@@ -13,11 +14,14 @@ let pos = { x: 0, y: 0 };
 let raf = 0;
 let onTarget: ((target: NodeKey | null) => void) | null = null;
 
-/** Cible valide sous le point : une ligne, ou le fond de l'onglet Virtuels (racine). */
-function targetAt(el: Element | null): NodeKey | null {
-  const row = el?.closest<HTMLElement>("[data-key]")?.dataset.key;
-  const target = row ?? (el?.closest(".cr-tree") && app.tab() === "virtual" ? "root" : null);
-  return target && app.canDrop(target) ? target : null;
+/** Cible valide sous le point, dans un arbre seulement : la ligne survolée ou le dossier qui la contient, sinon le
+ *  fond d'un arbre des Virtuels (racine). */
+export function targetAt(el: Element | null): NodeKey | null {
+  const zone = el?.closest<HTMLElement>(".cr-tree[data-drop-zone]");
+  if (!zone) return null;
+  const row = el!.closest<HTMLElement>("[data-key]")?.dataset.key;
+  if (row) return app.dropTargetFor(row);
+  return zone.dataset.root === "virtual" && app.canDrop("root") ? "root" : null;
 }
 
 function retarget(el: Element | null) {
@@ -50,7 +54,10 @@ export function hoverAt(x: number, y: number, cb?: (target: NodeKey | null) => v
   if (tab !== springTab) {
     clearTimeout(springTimer);
     springTab = tab;
-    if (tab && tab !== app.tab()) springTimer = window.setTimeout(() => app.switchTab(tab as "library" | "virtual"), 500);
+    // Onglet (colonne) ou bouton d'un panneau masqué (Expanded) : la racine est mise à l'écran.
+    if (tab === "library" || tab === "virtual") {
+      if (!app.rootShown(tab)) springTimer = window.setTimeout(() => app.revealRoot(tab), 500);
+    }
   }
   retarget(el);
   if (!raf) raf = requestAnimationFrame(scrollStep);

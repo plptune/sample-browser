@@ -142,6 +142,21 @@ L'analyse est réglée sur un jeu synthétisé (`crates/crate-core/tests/analysi
 
 ## 6 ter. Deux modes séparés : colonne et fenêtre bibliothèque
 
+- [ ] Expanded : cliquer un dossier de l'explorer pose une chip `path:"…/"` dans la recherche (liste limitée à ce dossier
+      et ses sous-dossiers) ; ↑ / ↓ la remplacent ; Échap la retire. Onglet Virtuals : un dossier virtuel ne pose pas de
+      chip. ⌘S depuis un dossier : la collection smart garde le `path:`. Taper `path:` propose les dossiers.
+- [ ] Onglet Virtuals : bouton « New folder » visible (libellé en Expanded, icône en colonne).
+- [ ] Glisser un son de la bibliothèque depuis le Finder, puis depuis Sononym, sur un dossier virtuel (colonne et
+      Expanded) : le bloc du dossier s'éclaire (descendants ouverts compris, pas les parents), le son y est ajouté. Un
+      dossier de source déposé : tous ses sons. Un son hors source : message, rien d'ajouté. Sans cible, un dossier
+      déposé devient une source.
+- [ ] Preview : badge loop / one-shot, « A minor », BPM, extension ; plus de temps, de kHz ni de bits ; chemin jusqu'au
+      dossier.
+- [ ] Expanded : colonne Type (badges, tri) ; clic droit sur l'en-tête pour masquer une colonne, en-tête tiré pour
+      changer l'ordre (dans la fenêtre Tauri) ; quitter et relancer : colonnes gardées. Un dossier virtuel choisi → chip
+      de portée (× / ⌫). Tiroir : « Type: » puis « Tags: ».
+- [ ] Réglages › Playback › Shortcut : la fenêtre de capture montre le raccourci tapé (⌘F compris, même avec Bitwig
+      devant) ; Accept l'enregistre, Cancel / Échap non ; le nouveau raccourci marche ensuite dans Bitwig.
 - [ ] Bouton de mode (ou ⌘⇧F) : la fenêtre remplit la zone utile de l'écran (sans nouveau Space, sous la barre des
       menus, au-dessus du Dock) ; explorer à gauche, preview, recherche et liste à droite. « Side panel » (ou ⌘⇧F) la
       remet en colonne, à sa taille et sa place d'avant.
@@ -229,6 +244,44 @@ Rien de tout ça ne se teste hors d'un Mac (la logique, si : `cargo test -p crat
 - [ ] Taper soi-même un tag automatique dans « Add… » : il n'est plus en italique.
 - [ ] `#kick`, `#wet`, `#loop` dans la recherche ; `#lo` propose `#loop` avec son nombre.
 - [ ] Mémoire au repos toujours < 150 Mo une fois le modèle chargé (après une analyse).
+
+## 6 decies. Retours n° 4
+
+- [ ] Clic droit bref sur un sample en bas de la colonne : le menu reste ouvert, rien ne se lance. Appuyer, glisser
+  jusqu'à un item et relâcher le choisit encore.
+- [ ] Espace vers Bitwig : remplacé par le script de contrôleur, voir §6 undecies.
+- [ ] Colonne : un sample avec beaucoup de tags garde le tiroir sur une ligne ; les premiers tags entiers, la liste
+  complète au survol.
+
+## 6 undecies. Espace pilote Bitwig (script de contrôleur)
+
+- [ ] Réglages › From the DAW › « Space plays Bitwig » activé : « Waiting for Bitwig — … » s'affiche, pas de
+  demande d'Accessibilité.
+- [ ] « Install Bitwig script » : le chemin s'affiche ; `~/Documents/Bitwig Studio/Controller Scripts/Crate/Crate.control.js`
+  existe.
+- [ ] Dans Bitwig : Settings › Controllers › Add controller manually › Crate › Crate. Les Réglages de Crate passent à
+  « Bitwig connected » en moins de 2 s.
+- [ ] Espace dans la liste de Crate lance puis arrête Bitwig ; ↑/↓ pilotent toujours Crate.
+- [ ] Preview en lecture : Espace l'arrête et lance Bitwig ; un nouvel Espace arrête Bitwig, la preview ne repart pas.
+- [ ] Réglage décoché : Espace revient à la preview de Crate.
+- [ ] ChorusBench marche toujours à côté (ports 9000 / 9001).
+- [ ] Bitwig fermé ou contrôleur retiré : « Waiting for Bitwig » revient en moins de 5 s.
+
+## 6 duodecies. Retours n° 5 : glisser natif, panneaux Library et Virtual
+
+- [ ] Glisser natif sur un écran Retina : le dossier éclairé est celui sous le pointeur, en haut comme en bas de
+  l'arbre, en colonne et en Expanded ; nos samples comme des fichiers du Finder (ou de Sononym) déposés sur un
+  dossier virtuel.
+- [ ] Expanded : Library et Virtual empilés ; ⌘1 / ⌘2 et les deux boutons de la barre titre les masquent et les
+  réaffichent ; les deux masqués, la liste prend toute la largeur ; ⌘N réaffiche Virtual, le nouveau dossier en
+  renommage.
+- [ ] Cliquer un dossier virtuel ne change pas la liste ; déplié, ses samples s'écoutent (preview, Espace) ; la
+  sélection de la liste se vide.
+- [ ] Glisser un sample depuis le panneau Virtual vers un autre dossier virtuel (et vers le DAW après ⌘⌥←).
+- [ ] Glisser un sample de la liste au-dessus du bouton d'un panneau masqué : il revient après ½ s.
+- [ ] Séparateur horizontal : tirer, ↑ / ↓ au clavier, double-clic ; aucun panneau sous ~5 lignes.
+- [ ] Fenêtre réduite à 640 × 480 pt avec les deux panneaux : tout tient, rien ne déborde.
+- [ ] Relance : panneaux affichés et répartition retrouvés.
 
 ## 7. Mémoire, taille, lancement (budgets du plan)
 

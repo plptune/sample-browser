@@ -433,6 +433,7 @@ pub fn samples() -> Vec<Sample> {
             kind,
             tags: tags.iter().map(|t| t.to_string()).collect(),
             auto_tags: vec![],
+            splice_tags: vec![],
             missing: false,
             fav: false,
             hidden: false,
@@ -524,6 +525,7 @@ fn audio_samples() -> Vec<Sample> {
                 kind: cat.kind,
                 tags,
                 auto_tags,
+                splice_tags: vec![],
                 missing: false,
                 // Favoris : sous-ensemble fixe (sans tirage, pour ne pas décaler la graine).
                 fav: id % 11 == 0,

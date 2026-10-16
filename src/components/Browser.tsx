@@ -1,10 +1,12 @@
-// L'arbre de l'onglet courant : sources (Bibliothèque) ou favoris / collections / dossiers virtuels (Virtuels). En
-// colonne, dossiers et samples ; en mode grand, l'explorer (dossiers seuls), dont la sélection est la portée de la liste.
+// Un arbre : sources (Bibliothèque) ou favoris / collections / dossiers virtuels (Virtuels). En colonne, l'onglet
+// courant, dossiers et samples ; en mode grand, le panneau Library (dossiers seuls, sa sélection borne la liste par une
+// chip `path:`) ou le panneau Virtual (éléments et samples, pour ranger et écouter ; il ne filtre jamais la liste).
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { For, Show, createEffect, on } from "solid-js";
-import type { FolderRow, Sample, SampleRow } from "../api";
+import { For, Show, createEffect, createMemo, on, onCleanup } from "solid-js";
+import type { FolderRow, Sample, SampleRow, TreeRoot } from "../api";
 import { inTauri } from "../lib/env";
 import { isMidi, relativePath } from "../lib/format";
+import { targetAt } from "../lib/dragHover";
 import { beginFolderDrag } from "../lib/folderDrag";
 import { startNativeDrag } from "../lib/nativeDrag";
 import { app } from "../state/app";
@@ -24,10 +26,10 @@ export function panelPoint(e: MouseEvent) {
  * Repère à droite d'un nœud : dans Bibliothèque, la nature d'un élément épinglé (il n'est pas sur le disque) ;
  * dans Virtuels, une épingle pour ce qui est aussi affiché dans Bibliothèque.
  */
-function markerFor(row: FolderRow): TreeRowMarker | undefined {
+function markerFor(row: FolderRow, root: TreeRoot): TreeRowMarker | undefined {
   if (row.kind === "shortcut") return "shortcut";
   if (!row.pinned) return undefined;
-  if (app.tab() === "virtual") return "pin";
+  if (root === "virtual") return "pin";
   if (row.parent !== null) return undefined;
   return row.kind === "virtual" ? "virtual" : row.kind === "favorites" ? "favorites" : "collection";
 }
@@ -39,11 +41,15 @@ export const PAD = 4; // --cr-space-1, en haut et en bas de l'arbre
 /** Lignes montées au-delà de l'écran. `?overscan=1000` dans l'URL du prototype : tout monter (tests anciens). */
 export const OVERSCAN = Number(new URLSearchParams(globalThis.location?.search ?? "").get("overscan")) || 20;
 
-export function Browser(props: { model: ListModel; variant?: "side" | "explorer" }) {
+/** `side` : l'arbre de la colonne ; `explorer` : le panneau Library du mode grand ; `virtual` : son panneau Virtual. */
+export type BrowserVariant = "side" | "explorer" | "virtual";
+
+export function Browser(props: { model: ListModel; root: TreeRoot; variant: BrowserVariant }) {
   let scroller!: HTMLDivElement;
   const m = props.model;
   const explorer = () => props.variant === "explorer";
-  const wave = () => app.density() === "wave" && !explorer();
+  // Le panneau Virtual du mode grand n'a jamais les pics (densité compacte, comme sa requête).
+  const wave = () => app.density() === "wave" && props.variant === "side";
   const virtualizer = createVirtualizer({
     get count() {
       return m.shownTotal();
@@ -74,34 +80,70 @@ export function Browser(props: { model: ListModel; variant?: "side" | "explorer"
   createEffect(
     on([m.rows, wave, app.fontSize], () => virtualizer.measure(), { defer: true }),
   );
+  // Bloc de la cible de dépôt : sa ligne et ses descendants visibles (les lignes sont en préordre, le bloc s'arrête à
+  // la première ligne qui n'est pas plus profonde ; une case pas encore chargée en fait partie).
+  const dropBlock = createMemo(() => {
+    const t = app.dropTarget();
+    const start = t && t !== "root" ? m.indexOf(t) : -1;
+    const first = start >= 0 ? m.rowAt(start) : undefined;
+    if (!first) return null;
+    let end = start + 1;
+    for (const total = m.shownTotal(); end < total; end++) {
+      const r = m.rowAt(end);
+      if (r && r.depth <= first.depth) break;
+    }
+    return { start, end };
+  });
+  const inBlock = (i: number) => {
+    const b = dropBlock();
+    return !!b && i >= b.start && i < b.end;
+  };
 
   return (
     <div
       ref={(el) => {
         scroller = el;
-        app.registerZone("tree", el);
+        onCleanup(app.registerZone(props.root, el));
       }}
       class="cr-tree"
       data-virtual
+      data-root={props.root}
       data-explorer={explorer() || undefined}
-      data-focused={(app.listFocused() && app.zone() === "tree") || undefined}
-      data-drop-target={app.dropTarget() === "root" || undefined}
+      data-focused={(app.listFocused() && app.zone() === props.root) || undefined}
+      data-drop-target={(props.root === "virtual" && app.dropTarget() === "root") || undefined}
+      data-drop-zone
       tabindex="0"
       role="tree"
       aria-multiselectable="true"
-      aria-rowcount={app.shownTotal()}
-      aria-label={explorer() ? "Folders" : app.tab() === "virtual" ? "Favorites, collections and virtual folders" : "Library"}
+      aria-rowcount={m.shownTotal()}
+      aria-label={explorer() ? "Folders" : props.root === "virtual" ? "Favorites, collections and virtual folders" : "Library"}
       onFocus={() => {
         app.setListFocused(true);
-        app.setZone("tree");
+        app.setZone(props.root);
       }}
       onBlur={() => app.setListFocused(false)}
       onMouseDown={(e) => {
-        // Fond de l'explorer : plus de portée, toute la bibliothèque.
+        // Fond du panneau Library : plus de portée, toute la bibliothèque (le panneau Virtual ne borne rien).
         if (explorer() && e.button === 0 && e.target === e.currentTarget) app.clearScope();
       }}
+      // Glisser HTML (prototype, liste du mode grand) : la même cible que les autres glissers, ligne ou dossier parent.
+      onDragOver={(e) => {
+        const t = targetAt(e.target as Element);
+        app.setDropTarget(t);
+        if (!t) return;
+        e.preventDefault();
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) app.setDropTarget(null);
+      }}
+      onDrop={(e) => {
+        const t = app.dropTarget();
+        if (!t) return;
+        e.preventDefault();
+        void app.dropOn(t);
+      }}
       onContextMenu={(e) => {
-        if (e.target !== e.currentTarget || app.tab() !== "virtual") return;
+        if (e.target !== e.currentTarget || props.root !== "virtual") return;
         e.preventDefault();
         const p = panelPoint(e);
         app.openMenu(p.x, p.y, "root");
@@ -115,7 +157,7 @@ export function Browser(props: { model: ListModel; variant?: "side" | "explorer"
               data-key={m.rowAt(item.index)?.key}
               style={{ transform: `translateY(${item.start}px)` }}
             >
-              <RowSlot model={m} index={item.index} explorer={explorer()} />
+              <RowSlot model={m} root={props.root} index={item.index} explorer={explorer()} dropBlock={inBlock(item.index)} />
             </div>
           )}
         </For>
@@ -128,18 +170,21 @@ export function Browser(props: { model: ListModel; variant?: "side" | "explorer"
  * Une case de l'arbre : le même composant sert quand la ligne change (recherche, défilement d'une page à
  * l'autre) ; seules ses valeurs sont mises à jour, rien n'est recréé.
  */
-function RowSlot(props: { model: ListModel; index: number; explorer: boolean }) {
+function RowSlot(props: { model: ListModel; root: TreeRoot; index: number; explorer: boolean; dropBlock: boolean }) {
   const row = () => props.model.rowAt(props.index);
   return (
-    <Show when={row()} fallback={<div class="cr-node" aria-busy="true" />}>
-      <Show when={row()!.type === "node"} fallback={<SampleRowView model={props.model} row={row() as SampleRow} />}>
-        <NodeRowView model={props.model} row={row() as FolderRow} explorer={props.explorer} />
+    <Show when={row()} fallback={<div class="cr-node" aria-busy="true" data-drop-block={props.dropBlock || undefined} />}>
+      <Show
+        when={row()!.type === "node"}
+        fallback={<SampleRowView model={props.model} row={row() as SampleRow} dropBlock={props.dropBlock} />}
+      >
+        <NodeRowView model={props.model} root={props.root} row={row() as FolderRow} explorer={props.explorer} dropBlock={props.dropBlock} />
       </Show>
     </Show>
   );
 }
 
-function NodeRowView(props: { model: ListModel; row: FolderRow; explorer: boolean }) {
+function NodeRowView(props: { model: ListModel; root: TreeRoot; row: FolderRow; explorer: boolean; dropBlock: boolean }) {
   return (
       <TreeRow
         kind={props.row.kind}
@@ -151,11 +196,12 @@ function NodeRowView(props: { model: ListModel; row: FolderRow; explorer: boolea
         flattened={props.row.flattened ?? undefined}
         hidden={props.row.hidden ?? undefined}
         leaf={props.row.leaf ?? undefined}
-        marker={markerFor(props.row)}
+        marker={markerFor(props.row, props.root)}
         selected={props.model.cursor() === props.row.key}
-        scoped={props.explorer && (props.row.target ?? props.row.key) === app.scope()}
+        scoped={props.explorer && (props.row.target ?? props.row.key) === app.listScope()}
         dragging={app.draggingKey() === props.row.key}
         dropTarget={app.dropTarget() === props.row.key}
+        dropBlock={props.dropBlock}
         renaming={app.renamingKey() === props.row.key}
         onRename={(name) => app.renameNode(props.row.key, name)}
         onContextMenu={(e) => {
@@ -165,9 +211,9 @@ function NodeRowView(props: { model: ListModel; row: FolderRow; explorer: boolea
         onToggle={() => app.toggleNode(props.row.key)}
         onMouseDown={(e) => {
           if (e.button !== 0) return;
-          // Explorer : la ligne devient la portée (un raccourci vaut son dossier, sans y sauter).
+          // Panneau Library : la ligne devient la portée (un raccourci vaut son dossier, sans y sauter).
           if (props.explorer) return app.selectExplorer(props.row.key);
-          app.select(props.row.key);
+          app.select(props.row.key, "replace", props.model);
           if (props.row.target) app.jumpTo(props.row.target);
         }}
         onDblClick={() => app.toggleNode(props.row.key)}
@@ -176,28 +222,17 @@ function NodeRowView(props: { model: ListModel; row: FolderRow; explorer: boolea
           if (props.row.kind === "virtual" && app.renamingKey() !== props.row.key)
             beginFolderDrag(e, props.row.key, props.row.name);
         }}
-        onDragOver={(e) => {
-          if (!app.canDrop(props.row.key)) return;
-          e.preventDefault();
-          e.stopPropagation();
-          app.setDropTarget(props.row.key);
-        }}
-        onDragLeave={() => app.dropTarget() === props.row.key && app.setDropTarget(null)}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          app.dropOn(props.row.key);
-        }}
       />
     );
 }
 
-/** Clic, double-clic, menu et glisser d'une ligne de sample : les mêmes dans l'arbre et dans la liste du mode grand. */
-export function sampleRowHandlers(rowKey: () => string, sample: () => Sample) {
+/** Clic, double-clic, menu et glisser d'une ligne de sample : les mêmes dans les arbres et dans la liste du mode grand.
+ *  `model` : la liste qui montre la ligne (elle reçoit la sélection). */
+export function sampleRowHandlers(rowKey: () => string, sample: () => Sample, model: ListModel) {
   return {
     onMouseDown: (e: MouseEvent) => {
       if (e.button !== 0) return;
-      app.select(rowKey(), e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace");
+      app.select(rowKey(), e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace", model);
     },
     onDblClick: () => app.togglePlay(),
     onContextMenu: (e: MouseEvent) => {
@@ -214,7 +249,7 @@ export function sampleRowHandlers(rowKey: () => string, sample: () => Sample) {
       if (app.stopOnDrag() && app.playingId() !== null) app.stop();
       e.dataTransfer?.setData("text/plain", sample().path);
       // Glisser une ligne hors sélection la sélectionne d'abord, comme dans le Finder.
-      if (!app.selection().includes(rowKey())) app.select(rowKey());
+      if (!app.selection().includes(rowKey())) app.select(rowKey(), "replace", model);
       app.setDraggingKey(rowKey());
     },
     onDragEnd: () => {
@@ -224,7 +259,7 @@ export function sampleRowHandlers(rowKey: () => string, sample: () => Sample) {
   };
 }
 
-function SampleRowView(props: { model: ListModel; row: SampleRow }) {
+function SampleRowView(props: { model: ListModel; row: SampleRow; dropBlock: boolean }) {
   const s = () => props.row.sample;
   return (
     <TreeRow
@@ -237,13 +272,14 @@ function SampleRowView(props: { model: ListModel; row: SampleRow }) {
       missing={s().missing}
       hidden={s().hidden}
       dragging={app.draggingKey() === props.row.key}
+      dropBlock={props.dropBlock}
       midi={isMidi(s())}
       fav={s().fav}
       peaks={s().peaks}
-      wave={app.density() === "wave"}
+      wave={app.density() === "wave" && app.layout() === "side"}
       themeKey={app.theme()}
       title={(s().missing ? "Missing: " : "") + relativePath(s().path, app.sources())}
-      {...sampleRowHandlers(() => props.row.key, s)}
+      {...sampleRowHandlers(() => props.row.key, s, props.model)}
     />
   );
 }

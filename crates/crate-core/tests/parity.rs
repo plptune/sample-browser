@@ -230,6 +230,13 @@ fn memes_chemins_de_dossiers() {
     for (key, want) in fx["nodePaths"].as_object().unwrap() {
         assert_eq!(serde_json::to_value(lib.node_path(key)).unwrap(), *want, "node_path({key})");
     }
+    for case in fx["samplesAt"].as_array().unwrap() {
+        let paths: Vec<String> = serde_json::from_value(case["paths"].clone()).unwrap();
+        assert_eq!(serde_json::to_value(lib.samples_at(&paths)).unwrap(), case["got"], "samples_at({paths:?})");
+    }
+    for (prefix, want) in fx["folderPaths"].as_object().unwrap() {
+        assert_eq!(serde_json::to_value(lib.folder_paths(prefix, 8)).unwrap(), *want, "folder_paths({prefix:?})");
+    }
 }
 
 #[test]

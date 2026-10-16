@@ -40,13 +40,27 @@ export const ModeWaveform = scenario(12);
 export const DossiersVirtuels = scenario(13);
 export const CreerUnVraiDossier = scenario(14);
 
-/** Fenêtre bibliothèque (⌘⇧F) : explorer de dossiers, preview, recherche et liste triable ; la portée part du dossier du
- *  sample sélectionné. */
+/** Fenêtre bibliothèque (⌘⇧F) : panneaux Library et Virtual empilés, preview, recherche et liste triable ; la chip
+ *  `path:` part du dossier du sample sélectionné. */
 export const FenetreBibliotheque: Story = {
   name: "Fenêtre bibliothèque",
   parameters: { panelWidth: "1200px" },
   play: async () => {
     await SCENARIOS.find((s) => s.id === 3)!.run();
     if (app.layout() !== "full") await app.toggleLayout();
+    app.setPanelShown("library", true);
+    app.setPanelShown("virtual", true);
+  },
+};
+
+/** Fenêtre bibliothèque avec le seul panneau Virtual (⌘1 a masqué Library) : il prend toute la hauteur. */
+export const FenetreBibliothequeVirtual: Story = {
+  name: "Fenêtre bibliothèque, panneau Virtual seul",
+  parameters: { panelWidth: "1200px" },
+  play: async () => {
+    await SCENARIOS.find((s) => s.id === 3)!.run();
+    if (app.layout() !== "full") await app.toggleLayout();
+    app.setPanelShown("virtual", true);
+    app.setPanelShown("library", false);
   },
 };

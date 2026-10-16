@@ -32,6 +32,8 @@ export const tauriBackend: Backend = {
   setPinned: (key, pinned) => commands.setPinned(key, pinned),
   ancestors: (key) => commands.ancestors(key),
   nodePath: (key) => commands.nodePath(key),
+  folderPaths: (prefix, limit) => commands.folderPaths(prefix, limit),
+  samplesAt: (paths) => commands.samplesAt(paths),
   memberships: (id) => commands.memberships(id),
   setHidden: (ids, hidden) => commands.setHidden(ids, hidden),
   setFolderHidden: (id, hidden) => commands.setFolderHidden(id, hidden),
@@ -48,6 +50,8 @@ export const tauriBackend: Backend = {
   addSource: (path) => unwrap(commands.addSource(path)),
   refreshSource: (id) => commands.refreshSource(id),
   removeSource: (id) => commands.removeSource(id),
+  syncSpliceTags: () => unwrap(commands.syncSpliceTags()),
+  clearSpliceTags: () => commands.clearSpliceTags(),
   pickFolder: () => commands.pickFolder(),
   isDemo: () => commands.isDemo(),
   scanStatus: () => commands.scanStatus(),
@@ -66,6 +70,13 @@ export const tauriBackend: Backend = {
   },
   onPlayback: (cb) => {
     const off = events.playbackEvent.listen((e) => cb(e.payload));
+    return () => void off.then((un) => un());
+  },
+  bitwigTogglePlay: () => commands.bitwigTogglePlay(),
+  bitwigStatus: () => commands.bitwigStatus(),
+  installBitwigScript: () => unwrap(commands.installBitwigScript()),
+  onBitwigState: (cb) => {
+    const off = events.bitwigStateEvent.listen((e) => cb(e.payload));
     return () => void off.then((un) => un());
   },
 };

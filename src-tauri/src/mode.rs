@@ -27,7 +27,9 @@ const SIDE_MIN_H: f64 = 320.0;
 pub const SIDE_MAX_W: f64 = 600.0;
 /// Largeur de la colonne sans cadre gardé (comme au premier lancement).
 const SIDE_W: f64 = 320.0;
-/// Bibliothèque réduite à la main : l'explorer (200 px au moins) et la liste (420 px) tiennent côte à côte.
+/// Bibliothèque réduite à la main : la colonne des panneaux (200 px au moins) et la liste (420 px) tiennent côte à
+/// côte ; en hauteur, la barre titre (38 px) et les panneaux Library et Virtual empilés (120 px chacun, séparateur de
+/// 7 px).
 const FULL_MIN_W: f64 = 640.0;
 const FULL_MIN_H: f64 = 480.0;
 

@@ -1,5 +1,5 @@
-import { Match, Show, Switch, createSignal } from "solid-js";
-import type { TreeRow as Row } from "../api";
+import { Match, Show, Switch, createSignal, onCleanup } from "solid-js";
+import type { TreeRoot, TreeRow as Row } from "../api";
 import { app } from "../state/app";
 import { Browser } from "./Browser";
 import { CommitView } from "./CommitView";
@@ -9,7 +9,7 @@ import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
 import { isKindTag } from "../lib/autotag";
 import { DEFAULT_COLORS } from "../lib/color";
-import { relativeFolder, relativePath } from "../lib/format";
+import { relativeDir, relativeFolder } from "../lib/format";
 import { PreviewDrawer } from "./PreviewDrawer";
 import { PreviewHeader } from "./PreviewHeader";
 import { ResultsTable } from "./ResultsTable";
@@ -87,7 +87,6 @@ function menuFor(row: Row | undefined): MenuItem[] {
     const n = Math.max(1, app.selection().length);
     const lib = app.library();
     const manual = lib?.collections.filter((c) => c.kind === "manual") ?? [];
-    const vfs = [...(lib?.virtualFolders ?? [])].map((f) => ({ id: f.id, path: vfPath(f.id) })).sort((a, b) => a.path.localeCompare(b.path));
     const parent = row.parent;
     const removable = parent.startsWith("v:") || (parent.startsWith("c:") && (parent === "c:fav" || manual.some((c) => `c:${c.id}` === parent)));
     return [
@@ -106,11 +105,14 @@ function menuFor(row: Row | undefined): MenuItem[] {
         ? { label: "Unhide", action: () => app.hideSelection(false) }
         : { label: n > 1 ? `Hide ${n} samples` : "Hide", shortcut: removable ? undefined : "⌘⌫", action: () => app.hideSelection(true) },
       { type: "separator" },
-      { type: "header", label: "Add to collection" },
-      ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.addSelectionTo(`c:${c.id}`) })),
-      { type: "header", label: "Add to virtual folder" },
-      ...vfs.map((f): MenuItem => ({ label: f.path, action: () => app.addSelectionTo(`v:${f.id}`) })),
-      { type: "separator" },
+      // Les dossiers virtuels ne sont pas listés ici (illisible dès qu'il y en a beaucoup) : on y glisse le sample.
+      ...(manual.length
+        ? [
+            { type: "header", label: "Add to collection" } as MenuItem,
+            ...manual.map((c): MenuItem => ({ label: c.name, action: () => app.addSelectionTo(`c:${c.id}`) })),
+            { type: "separator" } as MenuItem,
+          ]
+        : []),
       { label: "Show in Finder", shortcut: "⌥⌘R", action: () => app.showInFinder(row.sample.path), disabled: row.sample.missing },
       { label: "Copy path", action: () => navigator.clipboard?.writeText(row.sample.path) },
     ];
@@ -125,7 +127,7 @@ function menuFor(row: Row | undefined): MenuItem[] {
         { label: "Remove from Library", action: () => app.togglePin(row.key) },
       ];
     case "folder": {
-      if (row.parent === null && app.tab() === "library") {
+      if (row.parent === null) {
         return [
           toggle,
           ...flattenItem(row),
@@ -211,19 +213,36 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
   return (
     <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()} data-font-size={app.fontSize()} data-searching={app.searching() || undefined}>
       <header class="cr-titlebar" data-tauri-drag-region>
-        <Tabs
-          value={app.tab()}
-          items={[
-            { value: "library", label: "Library", shortcut: "⌘1", icon: "library" },
-            { value: "virtual", label: "Virtual", shortcut: "⌘2", icon: "layers" },
-          ]}
-          iconOnly={app.layout() === "side"}
-          springLoaded={app.draggingKey() !== null}
-          onChange={(t) => app.switchTab(t)}
-        />
+        {/* Colonne : un onglet par racine ; Expanded : un bouton à bascule par panneau (les deux peuvent être affichés). */}
+        <Show
+          when={app.layout() === "full"}
+          fallback={
+            <Tabs
+              value={app.tab()}
+              items={[
+                { value: "library", label: "Library", shortcut: "⌘1", icon: "library" },
+                { value: "virtual", label: "Virtual", shortcut: "⌘2", icon: "layers" },
+              ]}
+              iconOnly
+              springLoaded={app.draggingKey() !== null}
+              onChange={(t) => app.switchTab(t)}
+            />
+          }
+        >
+          <PanelToggles />
+        </Show>
         <span class="cr-titlebar__fill" data-tauri-drag-region />
-        <Show when={app.tab() === "virtual" && app.view() === "browser" && !app.empty()}>
-          <IconButton icon="plus" label="New virtual folder (⌘N)" onClick={() => app.newVirtualFolder()} />
+        {/* Nouveau dossier virtuel : icône seule en colonne (la place manque), avec son libellé en Expanded. */}
+        <Show when={app.rootShown("virtual") && app.view() === "browser" && !app.empty()}>
+          <Show
+            when={app.layout() === "full"}
+            fallback={<IconButton icon="folder-plus" label="New virtual folder (⌘N)" onClick={() => app.newVirtualFolder()} />}
+          >
+            <button class="cr-titlebar__action" title="New virtual folder (⌘N)" onClick={() => app.newVirtualFolder()}>
+              <Icon name="folder-plus" />
+              New folder
+            </button>
+          </Show>
         </Show>
         <ModeSwitch />
         <IconButton
@@ -275,6 +294,9 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onStopOnBlur={app.setStopOnBlur}
             onRemoveSource={app.removeSource}
             onAddSource={() => app.addFolder()}
+            spliceSync={app.spliceSync()}
+            onSyncSplice={() => void app.syncSpliceTags()}
+            onClearSplice={() => void app.clearSpliceTags()}
             synonyms={app.synonyms()}
             onSynonyms={app.saveSynonyms}
             fontSize={app.fontSize()}
@@ -285,9 +307,13 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
             onResetColors={app.resetColors}
             dawShortcut={app.dawShortcut()}
             onDawShortcut={app.setDawShortcut}
+            onShortcutCapture={app.pauseDawShortcut}
             accessibility={app.accessibility()}
             onRequestAccessibility={() => void app.checkAccessibility(true)}
             onOpenAccessibility={() => void app.openAccessibilitySettings()}
+            bitwig={app.bitwig()}
+            bitwigScript={app.bitwigScript()}
+            onInstallBitwig={() => void app.installBitwigScript()}
           />
         </Match>
         <Match when={app.view() === "commit" && app.commit()}>
@@ -326,6 +352,40 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
           return <ContextMenu x={m().x} y={m().y} items={menuFor(row)} onClose={() => app.setMenu(null)} />;
         }}
       </Show>
+    </div>
+  );
+}
+
+const PANEL_TOGGLES: { root: TreeRoot; icon: "library" | "layers"; label: string }[] = [
+  { root: "library", icon: "library", label: "Library panel (⌘1)" },
+  { root: "virtual", icon: "layers", label: "Virtual panel (⌘2)" },
+];
+
+/**
+ * Expanded : affiche ou masque les panneaux Library et Virtual. Survoler le bouton d'un panneau masqué en glissant
+ * (glisser HTML du prototype ici ; glissers natifs et au pointeur dans dragHover.ts) le réaffiche après 500 ms.
+ */
+function PanelToggles() {
+  let timer = 0;
+  onCleanup(() => clearTimeout(timer));
+  const spring = () => app.draggingKey() !== null;
+  return (
+    <div class="cr-panel-toggles" role="group" aria-label="Panels">
+      {PANEL_TOGGLES.map((p) => (
+        <span
+          class="cr-panel-toggles__item"
+          data-tab={p.root}
+          onDragEnter={() => {
+            if (!spring() || app.rootShown(p.root)) return;
+            clearTimeout(timer);
+            timer = window.setTimeout(() => app.revealRoot(p.root), 500);
+          }}
+          onDragLeave={() => clearTimeout(timer)}
+          onDragOver={(e) => spring() && e.preventDefault()}
+        >
+          <IconButton icon={p.icon} label={p.label} active={app.panels()[p.root]} onClick={() => app.togglePanel(p.root)} />
+        </span>
+      ))}
     </div>
   );
 }
@@ -372,7 +432,8 @@ function Tagging() {
 
 const noDetail = () => Promise.resolve({ min: [], max: [], rms: [] });
 const loadDetail = (b: number) => (app.current() ? app.waveformFor(app.current()!.id, b) : noDetail());
-const currentRelPath = () => (app.current() ? relativePath(app.current()!.path, app.sources()) : "");
+/** Dossier du sample courant depuis sa source (« Samples/Drums/Kicks/ ») : sans le nom du fichier, déjà affiché. */
+const currentRelPath = () => (app.current() ? relativeDir(app.current()!.path, app.sources()) : "");
 const isPlayingCurrent = () => app.playingId() !== null && app.playingId() === app.current()?.id;
 
 /** Colonne : la recherche, l'arbre (dossiers et samples), puis le tiroir. */
@@ -397,7 +458,10 @@ function SideBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceA
             />
           }
         >
-          <Browser model={app.tree} />
+          {/* Un arbre par onglet : changer d'onglet remonte le composant (défilement en haut). */}
+          <Show when={app.tab()} keyed>
+            {(t) => <Browser model={app.trees[t]} root={t} variant="side" />}
+          </Show>
         </Show>
         <Show when={app.debug()}>
           <DebugOverlay />
@@ -428,45 +492,31 @@ function SideBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceA
   );
 }
 
-/** Portée de la liste : un nœud de l'explorer, ou toute la bibliothèque ; × (ou Échap dans l'explorer) l'efface. */
-function ScopeBar() {
-  const n = () => app.results.total();
-  return (
-    <div class="cr-scopebar" role="status">
-      <Icon name={app.scope() ? (app.scope()!.startsWith("v:") ? "virtual" : app.scope()!.startsWith("c:") ? "collection" : "folder") : "library"} />
-      <span class="cr-scopebar__name">{app.scope() ? app.scopeName() || "Folder" : "All samples"}</span>
-      <span class="cr-scopebar__count cr-num">
-        {num(n())} {n() === 1 ? "sample" : "samples"}
-      </span>
-      <Show when={app.scope()}>
-        <IconButton icon="close" label="Search all samples" onClick={() => app.clearScope()} />
-      </Show>
-    </div>
-  );
-}
-
 /**
- * Séparateur entre l'explorer et la partie droite : tirer redimensionne les deux ; ← / → au clavier (⇧ : plus vite) ;
- * double-clic : la largeur par défaut. La largeur est gardée dans les réglages.
+ * Séparateur tirable : vertical entre la colonne des panneaux et la partie droite (`x`), horizontal entre les panneaux
+ * Library et Virtual (`y`). Tirer redimensionne ; ← / → ou ↑ / ↓ au clavier (⇧ : plus vite) ; double-clic : la
+ * taille par défaut. `value` et `onChange` en px depuis le bord gauche (ou haut) de `container`.
  */
-function Splitter(props: { container: () => HTMLElement }) {
+function Splitter(props: {
+  axis: "x" | "y";
+  label: string;
+  container: () => HTMLElement;
+  value: () => number;
+  onChange: (px: number) => void;
+  onReset: () => void;
+  min: () => number;
+  max: () => number;
+}) {
   const [dragging, setDragging] = createSignal(false);
-  const current = () => props.container().querySelector<HTMLElement>(".cr-explorer")!.getBoundingClientRect().width;
-  /** Bornes lues dans les tokens : l'explorer et la partie droite gardent leur largeur minimale. */
-  const set = (w: number) => {
-    const box = props.container();
-    const css = getComputedStyle(box);
-    const min = parseFloat(css.getPropertyValue("--cr-explorer-min")) || 0;
-    const mainMin = parseFloat(css.getPropertyValue("--cr-full-main-min")) || 0;
-    const max = Math.max(min, box.getBoundingClientRect().width - mainMin);
-    app.setExplorerWidth(Math.round(Math.max(min, Math.min(max, w))));
-  };
+  const x = () => props.axis === "x";
+  const set = (px: number) => props.onChange(Math.round(Math.max(props.min(), Math.min(Math.max(props.min(), props.max()), px))));
   return (
     <div
       class="cr-splitter"
+      classList={{ "cr-splitter--y": !x() }}
       role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize folders"
+      aria-orientation={x() ? "vertical" : "horizontal"}
+      aria-label={props.label}
       tabindex="0"
       data-dragging={dragging() || undefined}
       onPointerDown={(e) => {
@@ -477,35 +527,78 @@ function Splitter(props: { container: () => HTMLElement }) {
       }}
       onPointerMove={(e) => {
         if (!dragging()) return;
-        set(e.clientX - props.container().getBoundingClientRect().left);
+        const box = props.container().getBoundingClientRect();
+        set(x() ? e.clientX - box.left : e.clientY - box.top);
       }}
       onPointerUp={() => setDragging(false)}
       onPointerCancel={() => setDragging(false)}
-      onDblClick={() => app.setExplorerWidth(null)}
+      onDblClick={() => props.onReset()}
       onKeyDown={(e) => {
-        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const [less, more] = x() ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+        if (e.key !== less && e.key !== more) return;
         e.preventDefault();
         e.stopPropagation();
         const step = e.shiftKey ? 64 : 16;
-        set(current() + (e.key === "ArrowLeft" ? -step : step));
+        set(props.value() + (e.key === less ? -step : step));
       }}
     />
   );
 }
 
-/** Fenêtre bibliothèque : l'explorer (dossiers) à gauche ; à droite la preview, la recherche et la liste triable. */
+/** Longueur d'un token CSS en px, lue sur `el`. */
+const tokenPx = (el: HTMLElement, name: string) => parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0;
+
+/**
+ * Fenêtre bibliothèque : à gauche, empilés, les panneaux Library (vrais dossiers, sa sélection borne la liste) et
+ * Virtual (favoris, collections, dossiers virtuels avec leurs samples), chacun masquable ; à droite la preview, la
+ * recherche et la liste triable.
+ */
 function FullBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceAc?: boolean }) {
   let root!: HTMLDivElement;
+  let column!: HTMLElement;
+  const count = () => +app.panels().library + +app.panels().virtual;
+  const style = () => ({
+    ...(app.explorerWidth() === null ? {} : { "--cr-explorer-col": `clamp(var(--cr-explorer-min), ${app.explorerWidth()}px, calc(100% - var(--cr-full-main-min)))` }),
+    ...(app.panelSplit() === null ? {} : { "--cr-panel-split": `${app.panelSplit()! * 100}%` }),
+  });
   return (
-    <div
-      ref={root}
-      class="cr-full"
-      style={app.explorerWidth() === null ? undefined : { "--cr-explorer-col": `clamp(var(--cr-explorer-min), ${app.explorerWidth()}px, calc(100% - var(--cr-full-main-min)))` }}
-    >
-      <aside class="cr-explorer" aria-label="Folders">
-        <Browser model={app.tree} variant="explorer" />
-        <Splitter container={() => root} />
-      </aside>
+    <div ref={root} class="cr-full" data-panels={count()} style={style()}>
+      <Show when={count() > 0}>
+        <aside ref={column} class="cr-explorer" aria-label="Panels">
+          <Show when={app.panels().library}>
+            <section class="cr-pane" data-root="library" aria-label="Library">
+              <Browser model={app.libTree} root="library" variant="explorer" />
+              <Show when={app.panels().virtual}>
+                <Splitter
+                  axis="y"
+                  label="Resize panels"
+                  container={() => column}
+                  value={() => column.querySelector<HTMLElement>(".cr-pane[data-root=library]")!.getBoundingClientRect().height}
+                  min={() => tokenPx(column, "--cr-pane-min")}
+                  max={() => column.getBoundingClientRect().height - tokenPx(column, "--cr-pane-min") - tokenPx(column, "--cr-splitter-hit")}
+                  onChange={(px) => app.setPanelSplit(px / column.getBoundingClientRect().height)}
+                  onReset={() => app.setPanelSplit(null)}
+                />
+              </Show>
+            </section>
+          </Show>
+          <Show when={app.panels().virtual}>
+            <section class="cr-pane" data-root="virtual" aria-label="Virtual">
+              <Browser model={app.virtTree} root="virtual" variant="virtual" />
+            </section>
+          </Show>
+          <Splitter
+            axis="x"
+            label="Resize folders"
+            container={() => root}
+            value={() => column.getBoundingClientRect().width}
+            min={() => tokenPx(root, "--cr-explorer-min")}
+            max={() => root.getBoundingClientRect().width - tokenPx(root, "--cr-full-main-min")}
+            onChange={(px) => app.setExplorerWidth(px)}
+            onReset={() => app.setExplorerWidth(null)}
+          />
+        </aside>
+      </Show>
       <section class="cr-full__main">
         <PreviewHeader
           sample={app.current()}
@@ -534,7 +627,6 @@ function FullBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceA
         </Show>
         <Show when={app.scan()}>{(s) => <ScanStatus folder={s().folder} done={s().done} total={s().total} />}</Show>
         <Notice />
-        <ScopeBar />
         <div class="cr-full__list">
           <Show
             when={app.results.shownTotal()}
@@ -544,7 +636,7 @@ function FullBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceA
                 title="No results"
                 body={
                   app.queryLine() ? (
-                    <>Nothing {app.scope() ? `in “${app.scopeName()}” ` : ""}matches “{app.queryLine()}”.</>
+                    <>Nothing {app.listScope() ? `in “${app.scopeName()}” ` : ""}matches “{app.queryLine()}”.</>
                   ) : (
                     <>This folder has no samples.</>
                   )

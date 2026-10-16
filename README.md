@@ -34,7 +34,7 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | ← | Fermer le dossier sélectionné ; sur un sample, fermer son dossier et le sélectionner |
 | ⌘← ou ⌘→ | Tout replier, en recherche aussi (le curseur remonte au premier niveau) |
 | ⌘⌥← / ⌘⌥→ | Caler la fenêtre contre le bord gauche / droit de l'écran, sur toute la hauteur |
-| Espace | Lecture / stop du sample courant |
+| Espace | Lecture / stop du sample courant ; avec « Space plays Bitwig », lecture / stop de Bitwig, et arrêt de la preview si elle joue |
 | ⇧← / ⇧→ | Reculer / avancer d'un dixième dans le sample |
 | ⏎ | Ouvrir / fermer un dossier, lire un sample, suivre un raccourci |
 | ⌥← / ⌥→, ⌘[ / ⌘] | Historique : saut précédent / suivant (aussi les boutons de la souris) |
@@ -55,7 +55,7 @@ pnpm test:e2e     # tests navigateur du prototype (Playwright, lance le serveur 
 | ⌘⇧F | Fenêtre bibliothèque (explorer, preview, liste triable) / retour en colonne ; aussi le bouton de mode de la barre titre. Agrandir la fenêtre ne change jamais de mode |
 | Tab | Fenêtre bibliothèque : passer de l'explorer à la liste, et retour ; Échap dans l'explorer : toute la bibliothèque |
 | Échap | Fermer la surcouche ouverte, sinon stop |
-| `#`, `key:`, `in:` | Autocomplétion ; ⏎ ou Tab pour choisir (`#loop` / `#oneshot` : le type du sample ; `key:minor` / `key:major` : le mode) |
+| `#`, `key:`, `in:`, `path:` | Autocomplétion ; ⏎ ou Tab pour choisir (`#loop` / `#oneshot` : le type du sample ; `key:minor` / `key:major` : le mode ; `path:"Samples/Drums/"` : ce dossier et tout ce qui est dessous) |
 | Entonnoir (à droite du champ) | Filtres en un clic, posés comme des chips : favoris, dans une collection (ou une collection précise), boucles / one-shots, mineur / majeur |
 | ⌫ en début de champ | Supprimer la dernière chip |
 | 1–9, 0, -, =, [, ] | Scénarios de démo 1 à 14 |
@@ -99,6 +99,10 @@ Un fichier disparu reste visible, barré, s'il est dans un favori, un tag, une c
 Lecture : Espace, ⏎ ou → ; clic dans la waveform du tiroir pour lire depuis ce point ; boucle, volume et arrêt
 automatique (au glisser, en arrière-plan) dans les Réglages. Glisser un sample (ou la sélection) hors de la fenêtre :
 le fichier part vers Ableton, Logic ou le Finder.
+Bitwig : Réglages › Playback › From the DAW › « Space plays Bitwig », puis « Install Bitwig script » (copie
+`bitwig/Crate.control.js` dans `~/Documents/Bitwig Studio/Controller Scripts/Crate/`), puis, une fois dans Bitwig,
+Settings › Controllers › Add controller manually › Crate › Crate. Espace dans Crate lance ou arrête alors le transport
+de Bitwig (OSC en local, ports 9070 / 9071) ; les Réglages indiquent si Bitwig répond.
 Fichiers MIDI (`.mid`) : indexés comme des samples (repère « MIDI », `type:midi`), joués par un piano synthétique,
 glissés tels quels vers le DAW.
 Tempo, tonalité et boucle / one-shot : pris dans le nom dès le scan (`Bass_Loop_115_Bm`), puis analysés dans l'audio
@@ -124,6 +128,7 @@ src/
 crates/crate-core/  cœur Rust sans Tauri : modèle, recherche, catalogue (arbre en mémoire), base SQLite, scan,
                     indexeur (thread + notify), bibliothèque réelle et factice, trait Backend
 src-tauri/      fenêtre Tauri 2 : une commande typée par méthode du contrat
+bitwig/         script de contrôleur Bitwig (Crate.control.js), embarqué dans l'app et copié par les Réglages
 scripts/        empreinte de parité TS → Rust
   stories/      fondations Storybook (introduction, tokens) ; les stories des composants sont à côté de chaque composant
 .storybook/     configuration Storybook (framework storybook-solidjs-vite)

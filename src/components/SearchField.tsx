@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { app } from "../state/app";
 import { Autocomplete, type AcItem } from "./Autocomplete";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -26,8 +26,8 @@ const QUICK_FILTERS: { label: string; chip: string; exclusive?: string[] }[][] =
 /** Chip d'une collection : son nom complet entre guillemets. */
 const collectionChip = (name: string) => `in:"${name}"`;
 
-/** Valeurs proposées selon le token en cours de frappe. */
-function suggestionsFor(token: string): { prefix: string; items: AcItem[] } | null {
+/** Valeurs proposées selon le token en cours de frappe (`paths` : dossiers proposés pour `path:`, lus à part). */
+function suggestionsFor(token: string, paths: string[]): { prefix: string; items: AcItem[] } | null {
   const neg = token.startsWith("-") ? "-" : "";
   const t = token.slice(neg.length);
   const lib = app.library();
@@ -43,6 +43,10 @@ function suggestionsFor(token: string): { prefix: string; items: AcItem[] } | nu
   if (t.toLowerCase().startsWith("key:")) {
     const q = t.slice(4).toLowerCase();
     return { prefix: neg, items: KEY_SUGGESTIONS.filter((k) => k.toLowerCase().startsWith(q)).map((k) => ({ label: `key:${k}` })) };
+  }
+  // Chemin depuis la source : la valeur entre guillemets (un nom de dossier peut avoir des espaces).
+  if (t.toLowerCase().startsWith("path:")) {
+    return { prefix: neg, items: paths.map((p) => ({ label: `path:"${p}"` })) };
   }
   if (t.toLowerCase().startsWith("in:")) {
     const q = t.slice(3).toLowerCase();
@@ -100,19 +104,33 @@ export function SearchField(props: { ref?: (el: HTMLInputElement) => void; force
   };
 
   const current = () => app.draft().split(/\s+/).pop() ?? "";
+  // Dossiers proposés pour `path:` : lus auprès du catalogue à chaque frappe.
+  const [paths, setPaths] = createSignal<string[]>([]);
+  let pathsSeq = 0;
+  createEffect(
+    on(current, (tok) => {
+      const t = tok.replace(/^-/, "");
+      const seq = ++pathsSeq;
+      if (!t.toLowerCase().startsWith("path:")) return setPaths([]);
+      void app.folderPaths(t.slice(5).replace(/^"/, "")).then((p) => seq === pathsSeq && setPaths(p));
+    }),
+  );
   const ac = createMemo(() => {
     if ((!focused() && !props.forceAc) || acDismissed()) return null;
-    const s = suggestionsFor(current());
+    const s = suggestionsFor(current(), paths());
     return s && s.items.length ? { ...s, items: s.items.slice(0, 8) } : null;
   });
 
   function pick(i: number) {
     const s = ac();
     if (!s) return;
-    const parts = app.draft().split(/\s+/);
-    parts[parts.length - 1] = s.prefix + s.items[i].label;
-    app.setQueryDraft(parts.join(" ") + " ");
+    const label = s.prefix + s.items[i].label;
     setAcIndex(0);
+    // Une valeur entre guillemets peut contenir des espaces : la chip est posée telle quelle.
+    if (label.includes('"')) return app.pickChip(label);
+    const parts = app.draft().split(/\s+/);
+    parts[parts.length - 1] = label;
+    app.setQueryDraft(parts.join(" ") + " ");
   }
 
   function onKeyDown(e: KeyboardEvent) {

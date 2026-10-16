@@ -21,6 +21,7 @@ export interface Sample {
   kind: SampleKind;
   tags: string[]; // tous les tags, triés (ceux de l'utilisateur et ceux de l'analyse)
   autoTags: string[]; // ceux de `tags` posés par l'analyse (vocabulaire fermé), affichés atténués
+  spliceTags: string[]; // ceux de `tags` repris de la base locale de Splice, affichés atténués eux aussi
   missing: boolean;
   fav: boolean;
   hidden: boolean; // masqué lui-même (pas via son dossier) : invisible sauf avec `is:hidden`
@@ -115,13 +116,14 @@ export interface TreeRequest {
   collapsed?: NodeKey[];
   /** Résultats à plat mélangés (Shuffle) : graine de l'ordre aléatoire. Sans effet hors recherche ou sans `flat`. */
   shuffle?: number | null;
-  /** Dossiers seuls (explorer du mode grand) : aucun sample, pas d'aplatissement ; `leaf` marque les nœuds sans
-   *  sous-dossier. La recherche ne sert qu'à révéler les dossiers masqués (`is:hidden`). */
+  /** Dossiers seuls (panneau Library du mode grand) : aucun sample, pas d'aplatissement ; `leaf` marque les nœuds sans
+   *  sous-dossier. La recherche ne sert qu'à révéler les dossiers masqués (`is:hidden`). À la racine de Bibliothèque,
+   *  favoris, collections et dossiers virtuels épinglés sont omis (le panneau Virtual les montre) ; les raccourcis restent. */
   foldersOnly?: boolean;
 }
 
 /** Colonne de tri de la liste du mode grand. */
-export type SortColumn = "name" | "bpm" | "key" | "duration" | "format" | "tags";
+export type SortColumn = "name" | "bpm" | "key" | "duration" | "format" | "tags" | "kind";
 
 /** Tri : valeurs absentes (BPM, tonalité) à la fin dans les deux sens ; à égalité, par nom croissant. */
 export interface ListSort {
@@ -213,6 +215,14 @@ export interface AnalysisStatus {
   total: number;
 }
 
+/** Bilan d'une synchronisation des tags Splice : samples de la base Splice, ceux trouvés dans la bibliothèque, tags
+ * ajoutés (un tag déjà présent ou retiré à la main n'est pas compté). */
+export interface SpliceSync {
+  spliceSamples: number;
+  matched: number;
+  added: number;
+}
+
 /** État de la lecture (événement ~30 fois par seconde pendant la lecture, puis un dernier à l'arrêt). */
 export interface PlaybackStatus {
   id: SampleId;
@@ -227,6 +237,16 @@ export interface PlaybackStatus {
 export interface PlaybackOptions {
   volume: number; // 0..1
   looping: boolean;
+}
+
+/** Bitwig vu par le script de contrôleur de Crate (« Space plays Bitwig »). */
+export interface BitwigState {
+  /** Le script a répondu il y a moins de 5 s. */
+  connected: boolean;
+  /** Transport de Bitwig en lecture (dernier état reçu). */
+  playing: boolean;
+  /** Problème à afficher tel quel (port déjà pris). */
+  error?: string | null;
 }
 
 export interface Backend {
@@ -268,6 +288,11 @@ export interface Backend {
   setSynonyms(groups: string[][]): Promise<void>;
   /** Chemin sur le disque d'un dossier source ("f:<id>") ou d'un raccourci ("p:<id>") ; null sinon. */
   nodePath(key: NodeKey): Promise<string | null>;
+  /** Autocomplétion de `path:` : chemins de dossiers depuis leur source, avec un `/` final (« Samples/Drums/Kicks/ »). */
+  folderPaths(prefix: string, limit: number): Promise<string[]>;
+  /** Fichiers déposés depuis une autre app : samples désignés (un dossier : tout ce qui est dessous) et chemins hors
+   *  des sources. */
+  samplesAt(paths: string[]): Promise<{ ids: SampleId[]; outside: string[] }>;
   /** Collections manuelles ("c:<id>") puis dossiers virtuels ("v:<id>") qui contiennent ce sample. */
   memberships(id: SampleId): Promise<NodeKey[]>;
   planCommit(key: NodeKey, options: CommitOptions): Promise<CommitPlan>;
@@ -283,6 +308,10 @@ export interface Backend {
   /** Relance l'indexation d'une source (rescan incrémental). */
   refreshSource(id: number): Promise<void>;
   removeSource(id: number): Promise<void>;
+  /** Reprend les tags de la base locale de Splice (ajoute ceux qui manquent). Rejetée si Splice est introuvable. */
+  syncSpliceTags(): Promise<SpliceSync>;
+  /** Retire tous les tags repris de Splice ; renvoie leur nombre. */
+  clearSpliceTags(): Promise<number>;
   /** Sélecteur de dossier natif ; null si annulé (ou hors de la fenêtre Tauri). */
   pickFolder(): Promise<string | null>;
   /** Vrai sur les données du prototype (navigateur, Storybook, ou fenêtre lancée avec CRATE_DEMO=1). */
@@ -303,4 +332,11 @@ export interface Backend {
   setPlayback(options: PlaybackOptions): Promise<void>;
   /** S'abonne à la position de lecture ; renvoie la fonction de désabonnement. */
   onPlayback(cb: (s: PlaybackStatus) => void): () => void;
+  /** « Space plays Bitwig » : lecture / arrêt du transport de Bitwig. Faux si Bitwig ne répond pas. */
+  bitwigTogglePlay(): Promise<boolean>;
+  bitwigStatus(): Promise<BitwigState>;
+  /** Copie le script de contrôleur dans le dossier des scripts de Bitwig ; renvoie son chemin. Rejetée si impossible. */
+  installBitwigScript(): Promise<string>;
+  /** S'abonne aux changements de l'état de Bitwig ; renvoie la fonction de désabonnement. */
+  onBitwigState(cb: (s: BitwigState) => void): () => void;
 }

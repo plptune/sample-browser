@@ -41,7 +41,7 @@ Un navigateur de samples pour Mac (cœur Rust, UI web via Tauri), pensé pour vi
 | Drag & drop vers le DAW / Finder | Oui | Simple file URL, multi-fichiers |
 | Analyse BPM / tonalité / durée | Oui | En tâche de fond, priorité basse |
 | Fichiers MIDI (`.mid`) | Oui (ajout v1.3) | Indexés comme des samples, joués par un piano synthétique (batterie GM sur le canal 10), tempo et tonalité lus dans les notes, glissés tels quels vers le DAW ; `type:midi` |
-| Menu contextuel | Oui | Lire, taguer, favori, ajouter à une collection / un dossier virtuel, retirer de, renommer, supprimer, épingler, créer un vrai dossier, nouveau dossier virtuel, retirer une source, révéler dans le Finder |
+| Menu contextuel | Oui | Lire, taguer, favori, ajouter à une collection (les dossiers virtuels se remplissent au glisser), retirer de, renommer, supprimer, épingler, créer un vrai dossier, nouveau dossier virtuel, retirer une source, révéler dans le Finder |
 | Réglages dans la colonne | Oui | Sources, thème (sombre / clair / système), densité, toujours au premier plan, lecture auto |
 | Similarity search (ML) | Non, v2 | Vecteur de features par fichier |
 | Classification auto (kick, snare…) | Non, v2 | Commencer par des règles sur le nom |
@@ -90,10 +90,11 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 - **Tiroir** : ▶ / ■, nom, temps / durée, étoile favori grise, waveform. Rien d'autre (ni tags ni méta).
 - **Deux modes séparés** (v2.0) : la **colonne** ci-dessus, à côté du DAW, et la **fenêtre bibliothèque** (bouton de
   la barre titre ou ⌘⇧F, seuls passages ; la fenêtre remplit la zone utile de l'écran, sans plein écran macOS). À
-  gauche l'**explorer** (dossiers seuls, deux onglets) ; à droite la **preview** (grande waveform, lecture,
-  métadonnées, tags, « In: », chemin), la **recherche**, la **portée** puis la **liste à plat** triable (Nom, BPM,
-  Key, Length, Format, Tags). La sélection de l'explorer est la portée de la liste ; rien de sélectionné : toute la
-  bibliothèque. Chaque mode impose ses contraintes à la fenêtre (colonne 180–600 pt, bibliothèque fixe) ; le mode et
+  gauche, empilés et masquables (⌘1 / ⌘2), les panneaux **Library** (vrais dossiers seuls) et **Virtual** (favoris,
+  collections, dossiers virtuels avec leurs samples, pour ranger et écouter) ; à droite la **preview** (grande
+  waveform, lecture, métadonnées, tags, « In: », chemin), la **recherche** puis la **liste à plat** triable (Nom,
+  Type, BPM, Key, Length, Format, Tags). Un dossier choisi dans Library borne la liste par une chip `path:` ; le
+  panneau Virtual ne la filtre jamais ; rien de choisi : toute la bibliothèque. Chaque mode impose ses contraintes à la fenêtre (colonne 180–600 pt, bibliothèque fixe) ; le mode et
   le cadre de la colonne sont retrouvés au lancement.
 - **Surcouches** (une seule à la fois, Échap ferme) : autocomplétion, popover de tags, enregistrement ⌘S, menu contextuel.
 - **Réglages** (⌘,) et **Créer un vrai dossier** : remplacent l'arbre ; ‹ ou Échap pour revenir.
@@ -114,7 +115,7 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | T | Taguer la sélection |
 | ⌘D | Favori |
 | ⌘S | Recherche → collection smart |
-| ⌘1 / ⌘2 | Onglet Bibliothèque / Virtuels |
+| ⌘1 / ⌘2 | Colonne : onglet Bibliothèque / Virtuels ; fenêtre bibliothèque : panneau Library / Virtual affiché ou masqué |
 | ⌘N | Nouveau dossier virtuel |
 | ⌘⇧N | Nouvelle collection |
 | ⌘⌫ | Retirer de la collection / du dossier virtuel ; ailleurs, masquer |
@@ -127,7 +128,7 @@ L'UI n'affiche que ce que le backend lui renvoie : **aucun tri, aucun filtre, au
 | ⌘⇧Espace | Lire un sample au hasard |
 | ⌘, | Réglages |
 | ⌘⇧F | Fenêtre bibliothèque / retour en colonne |
-| Tab | Fenêtre bibliothèque : de l'explorer à la liste, et retour |
+| Tab | Fenêtre bibliothèque : panneau Library, panneau Virtual, liste (⇧Tab : à rebours) |
 | Échap | Fermer la surcouche, sinon quitter les réglages, sinon stop |
 
 ## Langage de recherche

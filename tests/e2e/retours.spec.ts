@@ -33,7 +33,7 @@ test("lecture auto active par défaut, et coupée depuis le tiroir", async ({ pa
   expect(errors).toEqual([]);
 });
 
-test("en colonne : pas de tonalité, onglets en icônes ; en grand : les deux reviennent", async ({ page }) => {
+test("en colonne : pas de tonalité, onglets en icônes ; en grand : la tonalité revient, les onglets sont des bascules", async ({ page }) => {
   await scenario(page, "3");
   const lib = page.getByRole("tab", { name: "Library" });
   await expect(lib).toHaveText("");
@@ -44,10 +44,12 @@ test("en colonne : pas de tonalité, onglets en icônes ; en grand : les deux re
 
   await page.keyboard.press("Control+Shift+F");
   await expect(page.locator(".cr-panel[data-layout=full]")).toBeVisible();
-  await expect(lib).toHaveText("Library");
-  // Fenêtre bibliothèque : la tonalité est une colonne de la liste, pas de l'explorer (dossiers seuls).
+  // En grand, les onglets deviennent des boutons à bascule, un par panneau, tous deux allumés.
+  await expect(page.getByRole("button", { name: "Library panel (⌘1)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Virtual panel (⌘2)" })).toHaveAttribute("aria-pressed", "true");
+  // Fenêtre bibliothèque : la tonalité est une colonne de la liste, pas du panneau Library (dossiers seuls).
   await expect(page.locator(".cr-table__row .cr-col-key").first()).toHaveCSS("width", "40px");
-  await expect(page.locator('.cr-explorer .cr-node[data-kind="sample"]')).toHaveCount(0);
+  await expect(page.locator('.cr-tree[data-root=library] .cr-node[data-kind="sample"]')).toHaveCount(0);
 });
 
 test("⌘← replie tous les dossiers et remonte au premier niveau", async ({ page }) => {
@@ -142,15 +144,44 @@ test("Réglages › Lecture : recherche depuis le DAW (raccourci capturé, DAW c
 
   const field = page.getByRole("button", { name: "Shortcut: ⌘F" });
   await expect(field).toBeVisible();
+  // La fenêtre de capture lit les touches sur toute la page (dans WebKit, un bouton cliqué n'a pas le focus).
   await field.click();
-  await expect(page.getByRole("button", { name: "Type the shortcut" })).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "New shortcut" });
+  await expect(dialog).toBeVisible();
+  await page.locator("body").focus();
+  const keys = dialog.locator(".cr-dialog__keys");
+  const accept = dialog.getByRole("button", { name: "Accept" });
+  await expect(accept).toBeDisabled();
   await page.keyboard.press("Shift"); // un modificateur seul ne suffit pas
   await page.keyboard.press("KeyG"); // une touche seule non plus
-  await expect(page.getByRole("button", { name: "Type the shortcut" })).toBeVisible();
+  await expect(dialog.locator(".cr-dialog__hint")).toHaveText("Add ⌘, ⌃, ⌥ or ⇧");
+  await expect(accept).toBeDisabled();
   await page.keyboard.press("Control+Alt+Space");
-  await expect(page.getByRole("button", { name: "Shortcut: ⌃⌥Space" })).toBeVisible();
-  // Le raccourci capturé n'a pas déclenché ceux de l'app (Réglages toujours ouverts).
+  await expect(keys).toHaveText("⌃⌥Space");
+  // Rien n'est changé avant « Accept » ; le raccourci tapé n'a pas déclenché ceux de l'app.
+  await expect(field).toBeVisible();
   await expect(page.locator(".cr-settings")).toBeVisible();
+  await accept.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Shortcut: ⌃⌥Space" })).toBeVisible();
+
+  // Un autre raccourci, puis Annuler (ou Échap) : l'ancien reste.
+  await page.getByRole("button", { name: "Shortcut: ⌃⌥Space" }).click();
+  await page.keyboard.press("Meta+Shift+KeyK");
+  await expect(keys).toHaveText("⇧⌘K");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Shortcut: ⌃⌥Space" })).toBeVisible();
+  await page.getByRole("button", { name: "Shortcut: ⌃⌥Space" }).click();
+  await page.keyboard.press("Meta+Shift+KeyK");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".cr-settings")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Shortcut: ⌃⌥Space" })).toBeVisible();
+  // ⏎ accepte aussi.
+  await page.getByRole("button", { name: "Shortcut: ⌃⌥Space" }).click();
+  await page.keyboard.press("Meta+Shift+KeyK");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Shortcut: ⇧⌘K" })).toBeVisible();
 
   await page.getByRole("switch", { name: "Logic Pro" }).click();
   await expect(page.getByRole("switch", { name: "Logic Pro" })).toHaveAttribute("aria-checked", "true");

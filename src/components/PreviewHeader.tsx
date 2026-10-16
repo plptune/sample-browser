@@ -3,11 +3,13 @@
 // contiennent, chemin. Toujours à la même hauteur : la liste ne saute pas quand on change de sample.
 import { For, Show } from "solid-js";
 import type { NodeKey, Sample, Waveform as WaveformData } from "../api";
-import { formatChannels, formatDuration, formatFormat, isMidi } from "../lib/format";
+import { isMidi } from "../lib/format";
+import { formatKey } from "../lib/keys";
 import type { AcItem } from "./Autocomplete";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { IconButton } from "./IconButton";
+import { KindBadge } from "./KindBadge";
 import { DrawerTags } from "./PreviewDrawer";
 import { Waveform } from "./Waveform";
 
@@ -23,7 +25,7 @@ export function PreviewHeader(props: {
   themeKey?: string;
   /** Samples sélectionnés : au-delà d'un, tags et favori s'appliquent à toute la sélection. */
   selectionCount?: number;
-  /** Chemin du sample relatif à sa source : jamais de chemin absolu à l'écran. */
+  /** Dossier du sample depuis sa source (« Samples/Drums/Kicks/ ») : jamais de chemin absolu à l'écran. */
   relPath?: string;
   /** Collections manuelles et dossiers virtuels qui contiennent le sample. */
   memberships?: { key: NodeKey; name: string }[];
@@ -39,15 +41,6 @@ export function PreviewHeader(props: {
   onReveal?: () => void;
 }) {
   const s = () => props.sample;
-  const time = () => {
-    const x = s()!;
-    return `${formatDuration(props.playing ? x.durationMs * props.progress : 0)} / ${formatDuration(x.durationMs)}`;
-  };
-  const kind = () => {
-    const x = s()!;
-    const k = x.kind === "loop" ? "loop" : "one-shot";
-    return isMidi(x) ? `MIDI · ${k}` : k === "loop" ? "Loop" : "One-shot";
-  };
   return (
     <section class="cr-preview" aria-label="Preview" data-empty={!s() || undefined}>
       <Show when={s()} fallback={<div class="cr-preview__empty">Pick a sample</div>}>
@@ -72,20 +65,22 @@ export function PreviewHeader(props: {
                 accent
                 onClick={() => props.onToggleFav?.()}
               />
-              <span class="cr-preview__time cr-num">{time()}</span>
-              <dl class="cr-preview__meta">
-                <dt>BPM</dt>
-                <dd class="cr-num">{x().bpm ?? "—"}</dd>
-                <dt>Key</dt>
-                <dd>{x().key ?? "—"}</dd>
-                <dt>Type</dt>
-                <dd>{kind()}</dd>
-                <dt>Format</dt>
-                <dd>
-                  {formatFormat(x())}
-                  <Show when={formatChannels(x().channels)}>{(c) => ` · ${c()}`}</Show>
-                </dd>
-              </dl>
+              {/* Sans libellés : le badge dit le type, la note la tonalité ; ce qui manque n'apparaît pas. */}
+              <div class="cr-preview__meta">
+                <KindBadge kind={x().kind} />
+                <Show when={x().key}>
+                  {(k) => (
+                    <span class="cr-preview__key" title={`Key: ${k()}`}>
+                      <Icon name="note" />
+                      {formatKey(k())}
+                    </span>
+                  )}
+                </Show>
+                <Show when={x().bpm !== null}>
+                  <span class="cr-preview__bpm cr-num">{x().bpm} BPM</span>
+                </Show>
+                <span class="cr-preview__ext">{isMidi(x()) ? "MIDI" : x().ext.toUpperCase()}</span>
+              </div>
             </div>
 
             <div class="cr-preview__wave cr-wave">
@@ -106,8 +101,10 @@ export function PreviewHeader(props: {
             <div class="cr-preview__foot">
               <DrawerTags
                 kind={x().kind}
+                showKind={false}
                 tags={x().tags}
                 autoTags={x().autoTags}
+                spliceTags={x().spliceTags}
                 known={props.knownTags ?? []}
                 onAdd={(t) => props.onAddTag?.(t)}
                 onRemove={(t) => props.onRemoveTag?.(t)}
@@ -131,7 +128,7 @@ export function PreviewHeader(props: {
                   )}
                 </For>
               </Show>
-              {/* Relatif à la source, tronqué par le début (le dossier et le fichier restent visibles) ; le chemin
+              {/* Dossier relatif à la source, tronqué par le début (le dossier du sample reste visible) ; le chemin
                   lui-même reste de gauche à droite. */}
               <span class="cr-preview__path" title={props.relPath}>
                 <bdi>{props.relPath ?? ""}</bdi>

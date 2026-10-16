@@ -9,13 +9,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use crate_core::audio::Player;
 use crate_core::{
     AnalysisStatus, Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, ListRequest,
-    PlaybackOptions, PlaybackStatus, SampleId, ScanStatus, Source, SqliteLibrary, TreePage, TreeRequest, VirtualFolder, Waveform,
+    PlaybackOptions, PlaybackStatus, SampleId, SamplesAt, ScanStatus, Source, SpliceSync, SqliteLibrary, TreePage, TreeRequest,
+    VirtualFolder, Waveform,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
+mod bitwig;
 mod daw;
 mod mode;
 mod panel;
@@ -332,6 +334,20 @@ fn node_path(lib: State<'_, Lib>, key: String) -> Option<String> {
     lib.lock().node_path(&key)
 }
 
+/// Fichiers déposés depuis une autre app : les samples de la bibliothèque qu'ils désignent, et ceux hors des sources.
+#[tauri::command]
+#[specta::specta]
+fn samples_at(lib: State<'_, Lib>, paths: Vec<String>) -> SamplesAt {
+    lib.lock().samples_at(&paths)
+}
+
+/// Autocomplétion de `path:` : chemins de dossiers depuis leur source (« Samples/Drums/Kicks/ »).
+#[tauri::command]
+#[specta::specta]
+fn folder_paths(lib: State<'_, Lib>, prefix: String, limit: u32) -> Vec<String> {
+    lib.lock().folder_paths(&prefix, limit as usize)
+}
+
 /// Collections manuelles et dossiers virtuels qui contiennent un sample (inspecteur du mode grand).
 #[tauri::command]
 #[specta::specta]
@@ -397,6 +413,21 @@ fn remove_source(lib: State<'_, Lib>, id: u32) {
 fn add_source(lib: State<'_, Lib>, path: String) -> Result<Source, String> {
     trace(|| format!("add_source {path:?}"));
     lib.lock().add_source(&path)
+}
+
+/// Reprend les tags de la base locale de Splice (lecture seule) : ajoute ceux qui manquent.
+#[tauri::command]
+#[specta::specta]
+fn sync_splice_tags(lib: State<'_, Lib>) -> Result<SpliceSync, String> {
+    let r = lib.lock().sync_splice_tags();
+    trace(|| format!("sync_splice_tags → {r:?}"));
+    r
+}
+
+#[tauri::command]
+#[specta::specta]
+fn clear_splice_tags(lib: State<'_, Lib>) -> u32 {
+    lib.lock().clear_splice_tags()
 }
 
 #[tauri::command]
@@ -466,7 +497,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ScanEvent,
             PlaybackEvent,
             CommitProgressEvent,
-            daw::FocusSearchEvent
+            daw::FocusSearchEvent,
+            bitwig::BitwigStateEvent
         ])
         .commands(tauri_specta::collect_commands![
             library,
@@ -490,6 +522,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_pinned,
             ancestors,
             node_path,
+            folder_paths,
+            samples_at,
             memberships,
             set_hidden,
             set_folder_hidden,
@@ -502,6 +536,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commit_to_folder,
             add_source,
             refresh_source,
+            sync_splice_tags,
+            clear_splice_tags,
             remove_source,
             pick_folder,
             is_demo,
@@ -515,6 +551,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             daw::set_daw_shortcut,
             mode::set_window_mode,
             daw::return_to_daw,
+            bitwig::bitwig_toggle_play,
+            bitwig::bitwig_status,
+            bitwig::install_bitwig_script,
+            daw::pause_daw_shortcut,
             tile::accessibility_trusted,
             tile::open_accessibility_settings,
         ])
@@ -531,6 +571,7 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
             daw::setup(app);
+            bitwig::setup(app);
             panel::setup(app);
             tile::setup(app);
             let inner = if std::env::var_os("CRATE_DEMO").is_some() {

@@ -1,21 +1,19 @@
-// Tags d'un sample (tiroir, inspecteur) : d'abord son type (loop / oneshot, non retirable), puis ses tags, ceux posés
-// par l'analyse atténués ; × retire un tag (un tag automatique retiré ne revient jamais).
+// Tags d'un sample (tiroir, preview) : ceux posés par l'analyse ou repris de Splice atténués ; × retire un tag (un tag
+// automatique ou Splice retiré ne revient jamais). Le type (loop / one-shot) a sa propre catégorie, à côté.
 import { For } from "solid-js";
-import type { SampleKind } from "../api";
 import { Icon } from "./Icon";
 
-export function TagChips(props: { kind: SampleKind; tags: string[]; autoTags: string[]; onRemove: (t: string) => void }) {
+export function TagChips(props: { tags: string[]; autoTags: string[]; spliceTags?: string[]; onRemove: (t: string) => void }) {
+  const origin = (t: string) =>
+    props.spliceTags?.includes(t) ? "From Splice" : props.autoTags.includes(t) ? "Found by the analysis" : undefined;
   return (
     <>
-      <span class="cr-tag" data-kind-tag title={props.kind === "loop" ? "Loop (type:loop)" : "One-shot (type:oneshot)"}>
-        {props.kind}
-      </span>
       <For each={props.tags}>
         {(t) => (
           <span
             class="cr-tag cr-tag--removable"
-            data-auto={props.autoTags.includes(t) || undefined}
-            title={props.autoTags.includes(t) ? "Found by the analysis" : undefined}
+            data-auto={origin(t) ? true : undefined}
+            title={origin(t)}
           >
             {t}
             <button class="cr-tag__remove" aria-label={`Remove tag ${t}`} onClick={() => props.onRemove(t)}>

@@ -11,7 +11,7 @@ import {
   type FolderNode,
 } from "../mock/generate";
 import type {
-  Backend, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, ListRequest, ListSort, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
+  Backend, BitwigState, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, ListRequest, ListSort, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
   SampleRow, TreeRow,
   VirtualFolder, Waveform,
 } from "./types";
@@ -75,6 +75,11 @@ function matchToken(s: Sample, t: QueryToken): boolean {
           if (t.value === "collection")
             return COLLECTIONS.some((c) => c.kind === "manual" && (COLLECTION_ITEMS[c.id] ?? []).includes(s.id));
           return t.value === "untagged" ? s.tags.length === 0 : false;
+        case "path":
+          return pathPrefixes(t.value).some((pre) => {
+            const p = s.path.toLowerCase();
+            return p.startsWith(pre) && (p.length === pre.length || p[pre.length] === "/");
+          });
         case "in": {
           const v = t.value.toLowerCase();
           // Collection, sinon dossier virtuel (avec ses sous-dossiers), sinon chemin. Le nom exact d'abord
@@ -91,6 +96,20 @@ function matchToken(s: Sample, t: QueryToken): boolean {
         }
       }
   }
+}
+
+/** `path:` : chemin depuis la source, avec son nom (« Samples/Drums/ ») ou sans (sous n'importe quelle source) ; rend
+ *  les chemins absolus correspondants (minuscules, sans `/` final). Miroir de `Catalog::path_prefixes`. */
+function pathPrefixes(value: string): string[] {
+  const v = value.trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+  if (!v) return [];
+  return SOURCES.flatMap((src) => {
+    const root = (ROOT_PATHS[src.id] ?? "").replace(/\/+$/, "").toLowerCase();
+    if (!root) return [];
+    const name = src.name.toLowerCase();
+    const named = v === name ? [root] : v.startsWith(`${name}/`) ? [`${root}/${v.slice(name.length + 1)}`] : [];
+    return [...named, `${root}/${v}`];
+  });
 }
 
 function matchLine(s: Sample, line: string): boolean {
@@ -177,16 +196,20 @@ const favInfo = (): NodeInfo => ({ key: "c:fav", name: "Favorites", kind: "favor
 const collInfo = (c: Collection): NodeInfo => ({ key: `c:${c.id}`, name: c.name, kind: c.kind === "smart" ? "smart" : "collection", pinned: c.pinned });
 const vfInfo = (f: VirtualFolder): NodeInfo => ({ key: `v:${f.id}`, name: f.name, kind: "virtual", pinned: f.pinned });
 
-/** Enfants d'un nœud ; `key === null` = racine de l'onglet. */
-function childNodes(root: TreeRequest["root"], key: NodeKey | null, searching: boolean): NodeInfo[] {
+/** Enfants d'un nœud ; `key === null` = racine de l'onglet. `pinned` : à la racine de Bibliothèque, les favoris,
+ *  collections et dossiers virtuels épinglés (pas dans le panneau Library d'Expanded) ; les raccourcis restent toujours.
+ *  Comme `child_nodes` (catalog.rs). */
+function childNodes(root: TreeRequest["root"], key: NodeKey | null, searching: boolean, pinned = true): NodeInfo[] {
   if (key === null) {
     // Virtuels : favoris, collections (groupe), dossiers virtuels.
     if (root === "virtual") return [favInfo(), { key: "g:collections", name: "Collections", kind: "group" }, ...vfChildren(null).map(vfInfo)];
     // Bibliothèque : sources, puis (hors recherche, pour éviter les doublons) favoris, collections et dossiers épinglés.
     if (searching) return SOURCES.map(folderInfo);
+    const shortcuts = PINNED_FOLDERS.flatMap((id) => (folders.has(id) ? [folders.get(id)!] : [])).sort(byName).map(shortcutInfo);
+    if (!pinned) return [...SOURCES.map(folderInfo), ...shortcuts];
     return [
       ...SOURCES.map(folderInfo),
-      ...PINNED_FOLDERS.flatMap((id) => (folders.has(id) ? [folders.get(id)!] : [])).sort(byName).map(shortcutInfo),
+      ...shortcuts,
       ...(FAVORITES.pinned ? [favInfo()] : []),
       ...COLLECTIONS.filter((c) => c.pinned).sort(byName).map(collInfo),
       ...VIRTUAL_FOLDERS.filter((f) => f.pinned).sort(byName).map(vfInfo),
@@ -292,9 +315,13 @@ function listCompare(sort: ListSort | undefined): (a: Sample, b: Sample) => numb
             sign(a.bitDepth - b.bitDepth),
         ) || name(a, b);
     case "tags": {
-      const text = (s: Sample) => `${s.kind === "loop" ? "loop" : "oneshot"} ${s.tags.join(" ")}`;
+      // Le texte de la colonne : les tags (le type a sa colonne).
+      const text = (s: Sample) => s.tags.join(" ");
       return (a, b) => dir(naturalCompare(text(a), text(b))) || name(a, b);
     }
+    case "kind":
+      // Boucles, puis one-shots.
+      return (a, b) => dir(Number(a.kind !== "loop") - Number(b.kind !== "loop")) || name(a, b);
   }
 }
 
@@ -332,10 +359,21 @@ function commitFolders(key: NodeKey, options: CommitOptions): string[][] {
 }
 
 const byId = new Map(SAMPLES.map((s) => [s.id, s]));
+/** Tags Splice retirés à la main ("<id>:<tag>") : une synchronisation ne les repose pas. */
+const spliceRejected = new Set<string>();
 const basename = (p: string) => p.replace(/\/+$/, "").split("/").pop() ?? p;
 const nextId = (xs: { id: number }[]) => Math.max(0, ...xs.map((x) => x.id)) + 1;
 
 const commitListeners = new Set<(p: CommitProgress) => void>();
+
+// ---------- Bitwig factice (navigateur) : il « répond » une fois le script installé ----------
+
+const bitwigListeners = new Set<(s: BitwigState) => void>();
+const bitwig: BitwigState = { connected: false, playing: false, error: null };
+const setBitwig = (patch: Partial<BitwigState>) => {
+  Object.assign(bitwig, patch);
+  for (const cb of bitwigListeners) cb({ ...bitwig });
+};
 
 // ---------- Lecture factice (navigateur) : même déroulé que le lecteur Rust, sans son ----------
 
@@ -413,7 +451,7 @@ export const mockBackend: Backend = {
 
     const rows: TreeRow[] = [];
     const walk = (key: NodeKey | null, depth: number) => {
-      for (const n of childNodes(req.root, key, searching)) {
+      for (const n of childNodes(req.root, key, searching, !foldersOnly)) {
         if (!reveal && /^[fp]:/.test(n.key) && folderHidden(+n.key.slice(2))) continue;
         if (searching && !hasMatch(n.key)) continue;
         // Aplati (hors recherche) : ouvert, avec toute sa sous-arborescence à plat.
@@ -509,8 +547,9 @@ export const mockBackend: Backend = {
     for (const id of ids) {
       const s = byId.get(id);
       if (!s) continue;
-      // Déjà posé par l'analyse : il devient un tag de l'utilisateur (plus atténué).
+      // Déjà posé par l'analyse ou repris de Splice : il devient un tag de l'utilisateur (plus atténué).
       s.autoTags = s.autoTags.filter((t) => t !== tag);
+      s.spliceTags = s.spliceTags.filter((t) => t !== tag);
       if (!s.tags.includes(tag)) s.tags = [...s.tags, tag].sort();
     }
   },
@@ -521,6 +560,10 @@ export const mockBackend: Backend = {
       if (!s) continue;
       s.tags = s.tags.filter((t) => t !== tag);
       s.autoTags = s.autoTags.filter((t) => t !== tag);
+      if (s.spliceTags.includes(tag)) {
+        s.spliceTags = s.spliceTags.filter((t) => t !== tag);
+        spliceRejected.add(`${id}:${tag}`);
+      }
     }
   },
 
@@ -666,6 +709,39 @@ export const mockBackend: Backend = {
     return [...collections, ...folders];
   },
 
+  async samplesAt(paths) {
+    const ids: number[] = [];
+    const outside: string[] = [];
+    for (const raw of paths) {
+      const p = raw.replace(/\/+$/, "");
+      const hits = SAMPLES.filter((s) => s.path.startsWith(p) && (s.path.length === p.length || s.path[p.length] === "/")).map((s) => s.id);
+      if (!hits.length) outside.push(p);
+      for (const id of hits) if (!ids.includes(id)) ids.push(id);
+    }
+    return { ids, outside };
+  },
+
+  async folderPaths(prefix, limit) {
+    const all: { path: string; rel: string; name: string }[] = [];
+    const walk = (nodes: typeof SOURCES, base: string, rel: string) => {
+      for (const n of nodes) {
+        all.push({ path: `${base}${n.name}/`, rel: `${rel}${n.name}/`, name: n.name.toLowerCase() });
+        walk(n.children, `${base}${n.name}/`, `${rel}${n.name}/`);
+      }
+    };
+    for (const s of SOURCES) {
+      all.push({ path: `${s.name}/`, rel: "", name: s.name.toLowerCase() });
+      walk(s.children, `${s.name}/`, "");
+    }
+    const p = prefix.replace(/^\/+/, "").toLowerCase();
+    // Le chemin (avec ou sans la source) commence par le texte tapé, puis le nom du dossier seul.
+    const hits = all
+      .map((f) => ({ path: f.path, rank: f.path.toLowerCase().startsWith(p) || (f.rel && f.rel.toLowerCase().startsWith(p)) ? 0 : f.name.startsWith(p) ? 1 : -1 }))
+      .filter((h) => h.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.path.length - b.path.length || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return hits.slice(0, limit).map((h) => h.path);
+  },
+
   async nodePath(key) {
     if (!key.startsWith("f:") && !key.startsWith("p:")) return null;
     const parts: string[] = [];
@@ -808,9 +884,57 @@ export const mockBackend: Backend = {
     return () => listeners.delete(cb);
   },
 
+  async bitwigTogglePlay() {
+    if (bitwig.connected) setBitwig({ playing: !bitwig.playing });
+    return bitwig.connected;
+  },
+
+  async bitwigStatus() {
+    return { ...bitwig };
+  },
+
+  async installBitwigScript() {
+    setTimeout(() => setBitwig({ connected: true }), 300);
+    return "~/Documents/Bitwig Studio/Controller Scripts/Crate/Crate.control.js";
+  },
+
+  onBitwigState(cb) {
+    bitwigListeners.add(cb);
+    return () => bitwigListeners.delete(cb);
+  },
+
   async removeSource(id) {
     const i = SOURCES.findIndex((f) => f.id === id);
     if (i >= 0) SOURCES.splice(i, 1);
+  },
+
+  async syncSpliceTags() {
+    // Navigateur : pas de base Splice. Un sample sur trois reçoit un genre (et `edm` un sur deux), comme le ferait la
+    // base ; 120 samples Splice sont hors des sources.
+    const genres = ["house", "hip-hop", "trap", "techno", "drum-and-bass"];
+    let matched = 0;
+    let added = 0;
+    for (const s of SAMPLES) {
+      if (s.id % 3 !== 0) continue;
+      matched++;
+      for (const t of [genres[s.id % genres.length], ...(s.id % 2 ? ["edm"] : [])]) {
+        if (s.tags.includes(t) || spliceRejected.has(`${s.id}:${t}`)) continue;
+        s.spliceTags = [...s.spliceTags, t].sort();
+        s.tags = [...s.tags, t].sort();
+        added++;
+      }
+    }
+    return { spliceSamples: matched + 120, matched, added };
+  },
+
+  async clearSpliceTags() {
+    let n = 0;
+    for (const s of SAMPLES) {
+      n += s.spliceTags.length;
+      s.tags = s.tags.filter((t) => !s.spliceTags.includes(t));
+      s.spliceTags = [];
+    }
+    return n;
   },
 
   async revealInFinder() {

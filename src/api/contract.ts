@@ -10,6 +10,7 @@ type Check<T extends true> = T;
 export type Contract = [
   Check<Assignable<Rust.Sample, Ui.Sample>>,
   Check<Assignable<Rust.AnalysisStatus, Ui.AnalysisStatus>>,
+  Check<Assignable<Rust.SpliceSync, Ui.SpliceSync>>,
   Check<Assignable<Rust.Tag, Ui.Tag>>,
   Check<Assignable<Rust.Collection_Serialize, Ui.Collection>>,
   Check<Assignable<Rust.VirtualFolder, Ui.VirtualFolder>>,
@@ -24,6 +25,8 @@ export type Contract = [
   Check<Assignable<Rust.ScanEvent, Ui.ScanStatus>>,
   Check<Assignable<Rust.PlaybackEvent, Ui.PlaybackStatus>>,
   Check<Assignable<Rust.CommitProgressEvent, Ui.CommitProgress>>,
+  Check<Assignable<Rust.BitwigState, Ui.BitwigState>>,
+  Check<Assignable<Rust.BitwigStateEvent, Ui.BitwigState>>,
   Check<Assignable<Ui.PlaybackOptions, Rust.PlaybackOptions>>,
   // …et ce que l'UI envoie doit être accepté par Rust.
   Check<Assignable<Ui.TreeRequest, Rust.TreeRequest>>,

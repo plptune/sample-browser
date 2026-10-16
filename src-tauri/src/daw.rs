@@ -4,6 +4,8 @@
 //! des apps de la liste (Live, Bitwig…), on enregistre le raccourci global, sinon on le relâche. Ailleurs, ⌘F garde
 //! son sens ; aucune autorisation d'accessibilité n'est demandée (pas d'interception du clavier).
 //!
+//! « Space plays Bitwig » (`space_to_daw`) passe par le script de contrôleur de Crate dans Bitwig : voir `bitwig`.
+//!
 //! À l'appui : Crate passe devant, l'interface focalise la recherche (`FocusSearchEvent`). On garde l'app d'où l'on
 //! vient : Échap dans la recherche vide, ou un glisser terminé, lui rend la main (`return_to_daw`). Si une autre
 //! app passe devant entre-temps, on l'oublie.
@@ -39,6 +41,11 @@ pub struct DawShortcutConfig {
     /// Accessibilité : coupé par défaut.
     #[serde(default)]
     pub resize_together: bool,
+    /// « Space plays Bitwig » : Espace dans Crate (hors champ de saisie) lance ou arrête le transport de Bitwig par son
+    /// script de contrôleur (`bitwig`) ; la preview s'arrête si elle joue, sans jamais repartir. Coupé par défaut. Le nom vient de la première version,
+    /// une frappe simulée vers le DAW : gardé pour les réglages déjà enregistrés.
+    #[serde(default)]
+    pub space_to_daw: bool,
 }
 
 fn yes() -> bool {
@@ -53,6 +60,7 @@ impl Default for DawShortcutConfig {
             apps: vec!["com.ableton.live".into(), "com.bitwig.studio".into()],
             keep_daw_active: true,
             resize_together: false,
+            space_to_daw: false,
         }
     }
 }
@@ -78,6 +86,9 @@ struct Inner {
     origin: Option<i32>,
     /// Dernier DAW de la liste passé au premier plan : celui dont les fenêtres suivent Crate (`tile`).
     last_daw: Option<i32>,
+    /// Capture d'un nouveau raccourci en cours (Réglages) : le raccourci global est relâché, pour que les touches
+    /// arrivent à la fenêtre (avec le panneau non activant, le DAW reste au premier plan pendant ce temps).
+    paused: bool,
 }
 
 #[derive(Default)]
@@ -118,7 +129,7 @@ fn sync<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<DawShortcut>();
     let (want, old) = {
         let mut g = state.lock();
-        let want = desired(&g.cfg, g.frontmost.as_ref());
+        let want = if g.paused { None } else { desired(&g.cfg, g.frontmost.as_ref()) };
         if want == g.active {
             return;
         }
@@ -217,6 +228,7 @@ pub fn set_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, config: D
     }
     trace(|| format!("daw : réglages {config:?}"));
     panel::set_non_activating(&app, config.keep_daw_active && !crate::mode::is_full());
+    crate::bitwig::set_enabled(&app, config.space_to_daw);
     {
         let mut g = state.lock();
         tile::configure(&app, config.resize_together, g.last_daw);
@@ -224,6 +236,15 @@ pub fn set_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, config: D
     }
     sync(&app);
     Ok(())
+}
+
+/// Capture d'un raccourci dans les Réglages : relâche le raccourci global (vrai), puis le reprend (faux).
+#[tauri::command]
+#[specta::specta]
+pub fn pause_daw_shortcut(app: AppHandle, state: State<'_, DawShortcut>, paused: bool) {
+    trace(|| format!("daw : raccourci en pause {paused}"));
+    state.lock().paused = paused;
+    sync(&app);
 }
 
 /// Rend la main à l'app d'où l'on a sauté dans Crate (Échap, glisser terminé). Faux s'il n'y en a pas.
@@ -365,6 +386,8 @@ mod tests {
         assert!(!off.keep_daw_active);
         assert!(!DawShortcutConfig::default().resize_together, "autorisation Accessibilité : coupé par défaut");
         assert!(!old.resize_together);
+        assert!(!DawShortcutConfig::default().space_to_daw, "script Bitwig à installer : coupé par défaut");
+        assert!(!old.space_to_daw);
     }
 
     #[test]

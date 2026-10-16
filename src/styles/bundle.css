@@ -120,6 +120,45 @@
   -webkit-app-region: no-drag;
 }
 
+/* Expanded : un bouton à bascule par panneau (Library, Virtual), à la place des onglets ; allumé comme un onglet. */
+.cr-panel-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  -webkit-app-region: no-drag;
+}
+
+.cr-panel-toggles__item {
+  display: inline-flex;
+}
+
+.cr-panel-toggles .cr-icon-btn[data-active] {
+  background: var(--cr-row-selected-focus);
+  color: var(--cr-on-row-selected);
+}
+
+/* Action avec libellé dans la barre titre (« New folder » de l'onglet Virtuals, en Expanded). */
+.cr-titlebar__action {
+  -webkit-app-region: no-drag;
+  height: var(--cr-icon-btn);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+  padding: 0 var(--cr-space-2);
+  border-radius: var(--cr-radius);
+  color: var(--cr-text-2);
+}
+
+.cr-titlebar__action:hover {
+  color: var(--cr-text-strong);
+  background: var(--cr-hover);
+}
+
+.cr-titlebar__action:active {
+  background: var(--cr-selected);
+}
+
 /* Champ collé à l'explorer : pas de marge, juste la bordure basse entre les deux. */
 .cr-panel__search {
   flex: none;
@@ -260,6 +299,16 @@
   color: var(--cr-text-strong);
   font-size: var(--cr-fs-sm);
   white-space: nowrap;
+}
+
+.cr-chip__remove {
+  display: inline-flex;
+  margin-right: calc(-1 * var(--cr-space-0));
+  color: var(--cr-text-3);
+}
+
+.cr-chip__remove:hover {
+  color: var(--cr-text-strong);
 }
 
 .cr-chip:hover {
@@ -498,6 +547,11 @@
 
 .cr-node[data-offline] {
   color: var(--cr-text-3);
+}
+
+/* Bloc de la cible de dépôt (la cible et ses descendants visibles, jamais ses parents) : surbrillance légère. */
+.cr-node[data-drop-block]:not([data-selected]):not([data-drop-target]) {
+  background: color-mix(in srgb, var(--cr-accent-soft) 65%, transparent);
 }
 
 .cr-node[data-drop-target] {
@@ -741,6 +795,37 @@ html.cr-dragging-folder * {
   gap: var(--cr-space-1);
 }
 
+/* Tags du sample : en mode grand, dans le flux de la ligne (qui passe à la ligne). */
+.cr-drawer__chips {
+  display: contents;
+}
+
+/* Colonne : une seule ligne. Un tag qui ne tient pas passe sur une deuxième ligne, masquée : on ne voit que les
+   premiers, entiers. */
+.cr-drawer .cr-drawer__tags {
+  flex-wrap: nowrap;
+}
+
+.cr-drawer .cr-drawer__label {
+  flex: none;
+}
+
+.cr-drawer .cr-drawer__chips {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: var(--cr-space-1);
+  height: var(--cr-chip-h);
+  overflow: hidden;
+}
+
+/* Entre la catégorie « Type: » et « Tags: ». */
+.cr-drawer__sep {
+  flex: none;
+  width: var(--cr-space-2);
+}
+
 .cr-drawer__label {
   font-size: var(--cr-fs-xs);
   color: var(--cr-text-2);
@@ -830,9 +915,23 @@ html.cr-dragging-folder * {
 }
 
 /* Type du sample (loop / oneshot) : affiché comme un tag, non retirable, sans contour. */
-.cr-tag[data-kind-tag] {
-  box-shadow: none;
+/* Type du sample en badge icône (loop / one-shot) : preview, premier tag, colonne Tags. */
+.cr-kind {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--cr-kind-h);
+  padding: 0 var(--cr-space-1);
+  border-radius: var(--cr-radius-lg);
+  background: var(--cr-hover);
   color: var(--cr-text-2);
+  vertical-align: middle;
+}
+
+.cr-node[data-selected] .cr-kind {
+  background: none;
+  color: var(--cr-on-row-selected);
 }
 
 .cr-tag[data-variant="add"] {
@@ -1234,6 +1333,68 @@ html.cr-dragging-folder * {
   box-shadow: inset 0 0 0 var(--cr-border) var(--cr-accent);
 }
 
+/* Fenêtre de capture d'un raccourci : le raccourci tapé en grand, Accept / Cancel. */
+.cr-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--cr-z-pop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--cr-space-3);
+  background: color-mix(in srgb, var(--cr-bg) 60%, transparent);
+}
+
+.cr-dialog {
+  width: min(100%, var(--cr-dialog-w));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cr-space-2);
+  padding: var(--cr-space-3);
+  background: var(--cr-surface-raised);
+  border-radius: var(--cr-radius-lg);
+  box-shadow: var(--cr-shadow-pop);
+}
+
+.cr-dialog__title {
+  font-size: var(--cr-fs-sm);
+  color: var(--cr-text-2);
+}
+
+.cr-dialog__keys {
+  min-width: var(--cr-shortcut-w);
+  padding: var(--cr-space-1) var(--cr-space-3);
+  border-radius: var(--cr-radius);
+  background: var(--cr-bg);
+  box-shadow: inset 0 0 0 var(--cr-border) var(--cr-accent);
+  font-family: inherit;
+  font-size: var(--cr-fs-lg);
+  color: var(--cr-text-strong);
+  text-align: center;
+}
+
+.cr-dialog__keys[data-empty] {
+  color: var(--cr-text-3);
+}
+
+.cr-dialog__hint {
+  font-size: var(--cr-fs-xs);
+  color: var(--cr-text-3);
+  text-align: center;
+}
+
+.cr-dialog__hint[data-warn] {
+  color: var(--cr-accent);
+}
+
+.cr-dialog__actions {
+  align-self: stretch;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--cr-space-1);
+}
+
 .cr-color {
   display: flex;
   align-items: center;
@@ -1316,14 +1477,27 @@ html.cr-dragging-folder * {
   white-space: nowrap;
 }
 
+.cr-setting__hint[data-wrap] {
+  white-space: normal;
+}
+
+.cr-setting__hint[data-error] {
+  color: var(--cr-danger);
+}
+
 .cr-settings__add {
   height: var(--cr-row-h);
   padding-left: calc(var(--cr-gutter) + var(--cr-slot) + var(--cr-space-1));
   color: var(--cr-text-2);
 }
 
-.cr-settings__add:hover {
+.cr-settings__add:hover:not(:disabled) {
   color: var(--cr-text-strong);
+}
+
+.cr-settings__add:disabled {
+  color: var(--cr-text-3);
+  cursor: default;
 }
 
 /* ---------- Button ---------- */
@@ -1428,7 +1602,8 @@ html.cr-dragging-folder * {
   margin-inline: auto;
 }
 
-/* Fenêtre bibliothèque : l'explorer (dossiers) à gauche, à droite la preview, la recherche et la liste. */
+/* Fenêtre bibliothèque : à gauche les panneaux Library et Virtual empilés, à droite la preview, la recherche et la
+   liste. Les deux panneaux masqués : la liste prend toute la largeur. */
 .cr-full {
   flex: 1;
   min-height: 0;
@@ -1437,12 +1612,31 @@ html.cr-dragging-folder * {
   grid-template-columns: var(--cr-explorer-col) minmax(0, 1fr);
 }
 
+.cr-full[data-panels="0"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .cr-explorer {
   position: relative; /* ancre du séparateur */
   min-height: 0;
   display: flex;
   flex-direction: column;
   border-right: var(--cr-border) solid var(--cr-line);
+}
+
+/* Un panneau : son arbre défile seul. Seul, il prend toute la hauteur ; à deux, Library a la part tirée au séparateur
+   (la moitié par défaut) et Virtual le reste, chacun au moins --cr-pane-min. */
+.cr-pane {
+  position: relative; /* ancre du séparateur horizontal */
+  flex: 1;
+  min-height: var(--cr-pane-min);
+  display: flex;
+  flex-direction: column;
+}
+
+.cr-full[data-panels="2"] .cr-pane[data-root="library"] {
+  flex: 0 0 clamp(var(--cr-pane-min), var(--cr-panel-split), calc(100% - var(--cr-pane-min)));
+  border-bottom: var(--cr-border) solid var(--cr-line);
 }
 
 /* Séparateur explorer | liste : une zone de saisie large, posée sur la bordure ; trait d'accent au survol et pendant
@@ -1467,6 +1661,26 @@ html.cr-dragging-folder * {
   width: calc(var(--cr-border) * 2);
   background: transparent;
   transition: background var(--cr-dur-fast);
+}
+
+/* Séparateur Library | Virtual : horizontal, posé sur la bordure basse du panneau Library. */
+.cr-splitter--y {
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--cr-splitter-hit) / -2);
+  width: auto;
+  height: var(--cr-splitter-hit);
+  cursor: row-resize;
+}
+
+.cr-splitter--y::after {
+  top: calc(50% - var(--cr-border));
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: calc(var(--cr-border) * 2);
 }
 
 .cr-splitter:hover::after,
@@ -1498,43 +1712,12 @@ html.cr-dragging-folder * {
   flex-direction: column;
 }
 
-/* Barre de portée : « All samples · 407 samples », ou le dossier choisi dans l'explorer (× pour revenir à tout). */
-.cr-scopebar {
-  flex: none;
-  height: var(--cr-row-h);
-  display: flex;
-  align-items: center;
-  gap: var(--cr-space-1);
-  padding: 0 var(--cr-space-1) 0 var(--cr-gutter);
-  background: var(--cr-bg);
-  font-size: var(--cr-fs-sm);
-  color: var(--cr-text-2);
-}
-
-.cr-scopebar > .cr-icon {
-  flex: none;
-  color: var(--cr-text-3);
-}
-
-.cr-scopebar__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--cr-text-strong);
-}
-
-.cr-scopebar__count {
-  flex: 1;
-  color: var(--cr-text-3);
-  white-space: nowrap;
-}
-
 /* ---------- Liste du mode grand : colonnes triables ---------- */
 
 .cr-table {
-  --cr-table-cols: minmax(var(--cr-tcol-name-min), 1fr) var(--cr-tcol-bpm) var(--cr-tcol-key) var(--cr-tcol-dur)
-    var(--cr-tcol-fmt) var(--cr-tcol-tags);
+  /* Colonnes affichées, dans leur ordre : posé en style par ResultsTable (app.listColumns). */
+  --cr-table-cols: minmax(var(--cr-tcol-name-min), 1fr);
+  position: relative; /* ancre du menu des colonnes */
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1579,6 +1762,45 @@ html.cr-dragging-folder * {
 
 .cr-table__th[data-active] {
   color: var(--cr-text-strong);
+}
+
+/* En-tête tiré pour changer l'ordre : il suit le pointeur ; un trait d'accent marque où il s'insérera. */
+.cr-table__th[data-dragging] {
+  position: relative;
+  z-index: 1;
+  color: var(--cr-text-strong);
+  cursor: grabbing;
+}
+
+.cr-table__th[data-insert] {
+  position: relative;
+}
+
+.cr-table__th[data-insert]::before {
+  content: "";
+  position: absolute;
+  top: var(--cr-space-1);
+  bottom: var(--cr-space-1);
+  width: calc(var(--cr-border) * 2);
+  background: var(--cr-accent);
+}
+
+.cr-table__th[data-insert="before"]::before {
+  left: calc(-1 * var(--cr-space-3) / 2 - var(--cr-border));
+}
+
+.cr-table__th[data-insert="after"]::before {
+  right: calc(-1 * var(--cr-space-3) / 2 - var(--cr-border));
+}
+
+.cr-col-kind {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cr-table__th.cr-col-kind {
+  justify-content: center;
 }
 
 .cr-table__th.cr-col-bpm,
@@ -1634,7 +1856,7 @@ html.cr-dragging-folder * {
 }
 
 /* Séparateur « · » entre le type et les tags ; tags de l'analyse en italique. */
-.cr-col-tags > span + span::before { content: " · "; font-style: normal; }
+.cr-col-tags__tag + .cr-col-tags__tag::before { content: " · "; font-style: normal; }
 .cr-col-tags__tag[data-auto] { font-style: italic; }
 /* Sur la ligne sélectionnée (inversée), tout le texte suit : contraste ≥ 4,5:1 (tests/e2e/contraste.spec.ts). */
 .cr-node[data-selected] .cr-col-tags { color: var(--cr-on-row-selected); }
@@ -1676,33 +1898,31 @@ html.cr-dragging-folder * {
   color: var(--cr-text-strong);
 }
 
-.cr-preview__time {
-  flex: none;
-  font-size: var(--cr-fs-sm);
-  color: var(--cr-text-2);
-}
-
 .cr-preview__meta {
   flex: none;
   display: flex;
-  align-items: baseline;
-  gap: var(--cr-space-1);
-  margin: 0 0 0 auto;
+  align-items: center;
+  gap: var(--cr-space-3);
+  margin-left: auto;
   font-size: var(--cr-fs-sm);
+  color: var(--cr-text);
   white-space: nowrap;
 }
 
-.cr-preview__meta dt {
+.cr-preview__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cr-space-1);
+}
+
+.cr-preview__key .cr-icon {
   color: var(--cr-text-3);
 }
 
-.cr-preview__meta dd {
-  margin: 0 var(--cr-space-2) 0 0;
-  color: var(--cr-text);
-}
-
-.cr-preview__meta dd:last-child {
-  margin-right: 0;
+.cr-preview__ext {
+  font-size: var(--cr-fs-xs);
+  letter-spacing: 0.04em;
+  color: var(--cr-text-3);
 }
 
 .cr-preview__wave {

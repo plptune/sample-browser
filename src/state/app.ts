@@ -2,22 +2,34 @@
 
 import { batch, createEffect, createRoot, createSignal, on } from "solid-js";
 import {
-  type AnalysisStatus,
-  api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type ListRequest, type ListSort, type NodeKey, type Sample,
-  type SampleId, type ScanStatus, type Source,
+  type AnalysisStatus, type BitwigState,
+  api, type CommitOptions, type CommitPlan, type CommitResult, type Library, type ListRequest, type ListSort, type NodeKey, type Sample, type SortColumn,
+  type SampleId, type ScanStatus, type Source, type SpliceSync,
   type TreeRequest, type TreeRoot,
 } from "../api";
 import type { DawShortcutConfig, Frame } from "../api/bindings";
+
+/** Une colonne de la liste du mode grand. */
+export interface ListColumn {
+  id: SortColumn;
+  visible: boolean;
+}
+/** Colonnes d'origine (« Reset columns ») : toutes, le type juste après le nom. */
+const DEFAULT_COLUMNS: ListColumn[] = (["name", "kind", "bpm", "key", "duration", "format", "tags"] as const).map((id) => ({ id, visible: true }));
 import { inTauri } from "../lib/env";
 import { normalizeTag } from "../lib/autotag";
 import { DEFAULT_DAW_SHORTCUT, migrateDawApps } from "../lib/shortcut";
 import { isChip } from "../lib/query";
+import { relativePath } from "../lib/format";
 import { createListModel, PAGE, type ListModel, type PageTiming } from "./listModel";
 
 /** Colonne étroite à côté du DAW, ou fenêtre bibliothèque (explorer, preview, liste à plat triable). */
 export type Layout = "side" | "full";
-/** Zone du clavier en mode grand : l'explorer de gauche ou la liste. En colonne, toujours l'arbre. */
-export type Zone = "tree" | "list";
+/** Zone du clavier : une région du DOM. En mode grand, le panneau Library, le panneau Virtual ou la liste ; en colonne,
+ *  l'arbre de l'onglet (sa racine). */
+export type Zone = TreeRoot | "list";
+/** Panneaux affichés à gauche du mode grand. */
+export type Panels = Record<TreeRoot, boolean>;
 export type SelectMode = "replace" | "toggle" | "range";
 
 export type Density = "compact" | "wave";
@@ -47,6 +59,13 @@ export interface CommitState {
   result: CommitResult | null;
   error: string | null; // copie refusée (dossier existant non vide…)
 }
+
+/** Synchronisation des tags Splice (Réglages › Sources) : en cours, bilan, tags retirés, ou erreur (Splice absent…). */
+export type SpliceSyncState =
+  | { status: "running" }
+  | { status: "done"; report: SpliceSync }
+  | { status: "cleared"; removed: number }
+  | { status: "error"; error: string };
 
 /** Mesures de la dernière requête d'arbre (overlay ⌥⌘D), en millisecondes. */
 export interface Metrics {
@@ -82,6 +101,8 @@ function createAppState() {
   const [listFocused, setListFocused] = createSignal(false);
   const [dropTarget, setDropTarget] = createSignal<NodeKey | null>(null);
   const [draggingKey, setDraggingKey] = createSignal<string | null>(null);
+  /** Fichiers glissés depuis une autre app (Finder, Sononym…) au-dessus de la fenêtre : déposables comme des samples. */
+  const [externalDrag, setExternalDrag] = createSignal(false);
 
   // --- mode : données du prototype (scénarios de démo) ou vraie bibliothèque (fenêtre Tauri)
   const [demo, setDemo] = createSignal(true);
@@ -96,6 +117,7 @@ function createAppState() {
   // --- surcouches (une seule à la fois) et vues
   const [view, setView] = createSignal<"browser" | "settings" | "commit">("browser");
   const [commit, setCommit] = createSignal<CommitState | null>(null);
+  const [spliceSync, setSpliceSync] = createSignal<SpliceSyncState | null>(null);
   const [tagging, setTagging] = createSignal(false); // popover de tags sur la sélection
   const [saving, setSaving] = createSignal<string | null>(null); // nom en cours pour ⌘S, null = fermé
   const [menu, setMenu] = createSignal<MenuState | null>(null);
@@ -189,9 +211,7 @@ function createAppState() {
     void refresh();
   }
   const baseRequest = () => ({
-    root: tab(),
     query: searchLine(),
-    expanded: expanded(),
     peaks: density() === "wave",
     flat: flatResults(),
     flattened: flattened(),
@@ -199,20 +219,51 @@ function createAppState() {
     shuffle: flatResults() ? shuffle() : null,
   });
 
-  // --- mode grand : portée de la liste (un nœud de l'explorer, null = toute la bibliothèque) et tri
-  const [scope, setScopeSignal] = createSignal<NodeKey | null>(null);
+  // --- mode grand : portée de la liste (le vrai dossier choisi dans le panneau Library) et tri
+  /** Vrai dossier choisi dans l'explorer : il filtre la liste par une chip `path:` visible, retenue ici pour être
+   *  remplacée au choix suivant (une chip `path:` tapée à la main n'est jamais touchée). */
+  const [explorerChip, setExplorerChip] = createSignal<{ key: NodeKey; chip: string } | null>(null);
+  /** La chip de l'explorer, tant qu'elle est dans la recherche (retirée à la main : oubliée). */
+  const explorerPath = () => {
+    const e = explorerChip();
+    return e && chips().includes(e.chip) ? e : null;
+  };
+  /** Ce qui borne la liste : le dossier de la chip `path:` posée par le panneau Library (le panneau Virtual ne filtre
+   *  jamais la liste). */
+  const listScope = () => explorerPath()?.key ?? null;
   const [listSort, setListSortSignal] = createSignal<ListSort>({ column: "name", desc: false });
-  const [zone, setZone] = createSignal<Zone>("tree");
+  /** Colonnes de la liste du mode grand : ordre et affichage (clic droit sur l'en-tête, en-têtes tirés). */
+  const [listColumns, setListColumns] = createSignal<ListColumn[]>(DEFAULT_COLUMNS);
+  const [zoneSig, setZoneSignal] = createSignal<Zone>("library");
+  /** En colonne, toujours l'arbre de l'onglet. */
+  const zone = (): Zone => (layout() === "full" ? zoneSig() : tab());
+  /** Dernier panneau (mode grand) qui a eu le clavier : ← depuis la liste et ⌘← y reviennent. */
+  const [lastTree, setLastTree] = createSignal<TreeRoot>("library");
+  const setZone = (z: Zone) => {
+    setZoneSignal(z);
+    if (z !== "list") setLastTree(z);
+  };
   /** Largeur de l'explorer tirée à la main (px) ; null : la largeur par défaut (34 % de la fenêtre). */
   const [explorerWidth, setExplorerWidth] = createSignal<number | null>(null);
+  /** Mode grand : panneaux Library et Virtual affichés (⌘1 / ⌘2, boutons de la barre titre). */
+  const [panels, setPanels] = createSignal<Panels>({ library: true, virtual: true });
+  /** Part de la hauteur donnée au panneau Library quand les deux sont affichés (0..1) ; null : moitié. */
+  const [panelSplit, setPanelSplit] = createSignal<number | null>(null);
+  /** Mode grand : le modèle qui porte la sélection de samples, la liste ou le panneau Virtual (un seul à la fois). */
+  const [sampleZone, setSampleZone] = createSignal<"list" | "virtual">("list");
 
-  /** Arbre de la colonne, ou explorer du mode grand : dossiers seuls (la recherche n'y sert qu'à révéler les dossiers
-   *  masqués). */
-  const treeRequest = (): Omit<TreeRequest, "offset" | "limit"> =>
+  /** Arbre d'une racine. En colonne, celui de l'onglet ; en mode grand, le panneau Library ne montre que des dossiers
+   *  (la recherche n'y sert qu'à révéler les dossiers masqués, les éléments virtuels épinglés n'y sont pas) et le
+   *  panneau Virtual ses éléments avec leurs samples, jamais en recherche ni en densité waveform. */
+  const libRequest = (): Omit<TreeRequest, "offset" | "limit"> =>
     layout() === "full"
-      ? { root: tab(), query: chips().includes("is:hidden") ? "is:hidden" : "", expanded: expanded(), foldersOnly: true }
-      : baseRequest();
-  const listRequest = (): Omit<ListRequest, "offset" | "limit"> => ({ scope: scope(), query: searchLine(), sort: listSort() });
+      ? { root: "library", query: chips().includes("is:hidden") ? "is:hidden" : "", expanded: expandedByTab().library, foldersOnly: true }
+      : { ...baseRequest(), root: "library", expanded: expandedByTab().library };
+  const virtRequest = (): Omit<TreeRequest, "offset" | "limit"> =>
+    layout() === "full"
+      ? { root: "virtual", query: "", expanded: expandedByTab().virtual, peaks: false, flat: false, flattened: [], collapsed: [], shuffle: null }
+      : { ...baseRequest(), root: "virtual", expanded: expandedByTab().virtual };
+  const listRequest = (): Omit<ListRequest, "offset" | "limit"> => ({ scope: null, query: searchLine(), sort: listSort() });
 
   const onLoaded = ({ page, t0, t1, t2 }: PageTiming) =>
     requestAnimationFrame(() =>
@@ -231,15 +282,20 @@ function createAppState() {
     const fresh = cur ? samples().sampleById(cur.id) : undefined;
     if (fresh) setCurrent(fresh);
   };
-  /** Arbre (colonne) ou explorer (mode grand). Nouvelle recherche, autre onglet ou nouveau mélange : il repart du haut. */
-  const tree = createListModel({
-    request: treeRequest,
-    fetch: (r) => api.tree(r),
-    signature: (r) => `${r.root}\n${r.query}\n${r.shuffle ?? ""}\n${r.foldersOnly ? "explorer" : ""}`,
-    visibleLimit,
-    onRefreshed: refreshCurrent,
-    onLoaded,
-  });
+  /** Un arbre par racine (onglet en colonne, panneau en mode grand). Nouvelle recherche, autre mode ou nouveau
+   *  mélange : il repart du haut. */
+  const treeModel = (request: () => Omit<TreeRequest, "offset" | "limit">) =>
+    createListModel({
+      request,
+      fetch: (r) => api.tree(r),
+      signature: (r) => `${layout()}\n${r.query}\n${r.shuffle ?? ""}`,
+      visibleLimit,
+      onRefreshed: refreshCurrent,
+      onLoaded,
+    });
+  const trees: Record<TreeRoot, ListModel> = { library: treeModel(libRequest), virtual: treeModel(virtRequest) };
+  const libTree = trees.library;
+  const virtTree = trees.virtual;
   /** Liste à plat du mode grand (portée, recherche, tri). */
   const results = createListModel({
     request: listRequest,
@@ -250,37 +306,72 @@ function createAppState() {
   });
 
   const full = () => layout() === "full";
-  /** Modèle qui porte les samples : la liste en mode grand, l'arbre en colonne. */
-  const samples = (): ListModel => (full() ? results : tree);
-  /** Modèle du curseur clavier : en mode grand, l'explorer ou la liste selon la zone. */
-  const focusModel = (): ListModel => (full() && zone() === "tree" ? tree : samples());
+  /** Racine d'une clé d'après sa nature : vrais dossiers et raccourcis dans Bibliothèque, le reste dans Virtuels (un
+   *  sample suit son conteneur). */
+  const rootOf = (key: string): TreeRoot => (/^[fp]:/.test(key.startsWith("s:") ? key.slice(key.indexOf("@") + 1) : key) ? "library" : "virtual");
+  /** Racine de l'arbre qui montre `key` : en colonne, l'onglet (il montre aussi les éléments épinglés). */
+  const treeRootOf = (key: string): TreeRoot => (full() ? rootOf(key) : tab());
+  const treeOf = (key: string): ListModel => trees[treeRootOf(key)];
+  /** Arbre de l'onglet (colonne), ou panneau qui a ou a eu le clavier (mode grand). */
+  const activeTree = (): ListModel => trees[full() ? (zone() === "list" ? lastTree() : (zone() as TreeRoot)) : tab()];
+  /** Panneau du mode grand qui reçoit le clavier en quittant la liste : le dernier utilisé s'il est affiché ; null
+   *  quand les deux sont masqués. En colonne, l'onglet. */
+  const treeZone = (): TreeRoot | null => {
+    if (!full()) return tab();
+    const p = panels();
+    return p[lastTree()] ? lastTree() : p.library ? "library" : p.virtual ? "virtual" : null;
+  };
+  /** Arbres à l'écran : l'onglet en colonne, les panneaux affichés en mode grand. */
+  const shownTrees = (): ListModel[] => (full() ? (["library", "virtual"] as const).filter((t) => panels()[t]).map((t) => trees[t]) : [trees[tab()]]);
+  const visibleModels = (): ListModel[] => (full() ? [...shownTrees(), results] : shownTrees());
+  /** Modèle qui porte les samples : l'arbre en colonne ; en mode grand, la liste ou le panneau Virtual. */
+  const samples = (): ListModel => (!full() ? trees[tab()] : sampleZone() === "virtual" ? virtTree : results);
+  /** Modèle qui montre `key` (une ligne de sample de la liste ou du panneau Virtual, un nœud de l'un des arbres). */
+  const modelFor = (key: string): ListModel => {
+    if (!full()) return trees[tab()];
+    if (key.startsWith("s:")) {
+      if (results.indexOf(key) >= 0) return results;
+      if (virtTree.indexOf(key) >= 0) return virtTree;
+      return rootOf(key) === "library" ? results : virtTree;
+    }
+    return trees[rootOf(key)];
+  };
+  /** Modèle du curseur clavier : en mode grand, celui de la zone. */
+  const focusModel = (): ListModel => (!full() ? trees[tab()] : zone() === "list" ? results : trees[zone() as TreeRoot]);
   const cursor = () => focusModel().cursor();
   const selection = () => samples().selection();
-  const rowByKey = (key: string | null) => (key?.startsWith("s:") ? samples() : tree).rowByKey(key);
+  const rowByKey = (key: string | null) => {
+    if (!key) return undefined;
+    const r = modelFor(key).rowByKey(key);
+    if (r) return r;
+    for (const m of visibleModels()) {
+      const x = m.rowByKey(key);
+      if (x) return x;
+    }
+    return undefined;
+  };
   const visible = () => samples().visible();
   const matches = () => samples().matches();
-  const shownTotal = () => tree.shownTotal();
-  /** L'arbre de la colonne est en recherche (l'explorer du mode grand ne l'est jamais). */
+  const shownTotal = () => trees[tab()].shownTotal();
+  /** L'arbre de la colonne est en recherche (les panneaux du mode grand ne le sont jamais). */
   const treeSearching = () => !full() && searching();
 
-  /** Recharge ce qui est à l'écran ; `focusKey` : la ligne à garder chargée (le curseur par défaut). */
+  /** Recharge ce qui est à l'écran ; `focusKey` : la ligne à garder chargée (le curseur par défaut), dans le modèle
+   *  qui la montre. */
   async function refresh(focusKey?: string | null) {
     if (!full()) {
-      await tree.refresh(focusKey === undefined ? tree.cursor() : focusKey);
+      const m = trees[tab()];
+      await m.refresh(focusKey === undefined ? m.cursor() : focusKey);
       return;
     }
-    const sample = !!focusKey?.startsWith("s:");
-    await Promise.all([
-      tree.refresh(focusKey !== undefined && !sample ? focusKey : tree.cursor()),
-      results.refresh(sample ? focusKey : results.cursor()),
-    ]);
+    const target = focusKey ? modelFor(focusKey) : null;
+    await Promise.all(visibleModels().map((m) => m.refresh(m === target ? focusKey : m.cursor())));
   }
 
-  /** Scénarios de démo : curseur et sélection, dans les deux listes. */
-  const setCursor = (key: string | null) => (key?.startsWith("s:") ? samples() : tree).setCursor(key);
+  /** Scénarios de démo : curseur et sélection, dans toutes les listes. */
+  const setCursor = (key: string | null) => (key ? modelFor(key).setCursor(key) : [libTree, virtTree, results].forEach((m) => m.setCursor(null)));
   const setSelection = (keys: string[]) => {
-    tree.setSelection(keys);
-    results.setSelection(keys);
+    for (const m of [libTree, virtTree, results]) m.setSelection(keys);
   };
 
   async function reloadLibrary() {
@@ -327,39 +418,73 @@ function createAppState() {
   /** ⌘⇧F ou le bouton de la barre titre. */
   const toggleLayout = () => setLayout(layout() === "full" ? "side" : "full");
 
-  /** Colonne → bibliothèque : la portée devient le dossier sous le curseur (ou celui du sample sélectionné), et le
-   *  sample courant reste sélectionné dans la liste, sans relancer la lecture. */
+  /** Colonne → bibliothèque. Le dossier sous le curseur (ou celui du sample sélectionné) : un vrai dossier filtre la
+   *  liste par une chip `path:` ; un élément virtuel (dossier virtuel, collection, favoris) est montré dans le panneau
+   *  Virtual, déplié, sans filtrer la liste. Le sample courant reste sélectionné, sans relancer la lecture : dans la
+   *  liste, ou dans le panneau Virtual s'il y était rangé (la liste n'y pose alors que son curseur). */
   async function enterFull() {
-    const row = tree.rowByKey(tree.cursor());
+    const side = trees[tab()];
+    const row = side.rowByKey(side.cursor());
     const key = searching() || !row ? null : row.type === "node" ? (row.target ?? row.key) : row.parent;
     if (key && row?.type === "node") knownNames.set(key, row.name);
     const cur = current();
+    const real = !!key?.startsWith("f:");
+    const virt = !!key && !real;
+    // Ligne à sélectionner dans le panneau Virtual : le sample tel qu'il y est rangé, ou le nœud.
+    const vKey = virt ? (row?.type === "sample" ? row.key : key) : null;
+    const up = virt ? await api.ancestors(key!) : [];
     // Curseurs posés une fois les lignes chargées : les listes, neuves, défilent alors jusqu'à eux.
+    const chip = real ? await pathChip(key!) : null;
     batch(() => {
       setLayoutSignal("full");
-      setZone("list");
-      setScopeSignal(key);
-      tree.setCursor(null);
-      tree.setSelection([]);
-      results.setCursor(null);
-      results.setSelection([]);
+      setZone(virt ? "virtual" : "list");
+      setSampleZone("list");
+      if (chip && key) {
+        setChips([...chips().filter((c) => c !== chip), chip]);
+        setExplorerChip({ key, chip });
+      }
+      if (virt) {
+        setPanels({ ...panels(), virtual: true });
+        setExpanded([...new Set([...expandedByTab().virtual, ...up, ...(row?.type === "sample" ? [key!] : [])])], "virtual");
+      }
+      for (const m of [libTree, virtTree, results]) {
+        m.setCursor(null);
+        m.setSelection([]);
+      }
     });
-    const [, fi] = await Promise.all([tree.refresh(key), results.refresh(cur ? `s:${cur.id}` : null)]);
-    if (key && tree.rowByKey(key)) tree.setCursor(key);
-    const r = fi === null ? undefined : results.rows()[fi];
-    if (r?.type === "sample") {
-      batch(() => {
-        results.setCursor(r.key);
-        results.setSelected([r.key]);
-        results.setAnchor(r.key);
-      });
-    }
-    focusList("list");
+    const [, , fi] = await Promise.all([
+      panels().library ? libTree.refresh(real ? key : null) : null,
+      panels().virtual ? virtTree.refresh(vKey) : null,
+      results.refresh(cur ? `s:${cur.id}` : null),
+    ]);
+    if (real && libTree.rowByKey(key)) libTree.setCursor(key);
+    const vr = vKey ? virtTree.rowByKey(vKey) : undefined;
+    batch(() => {
+      if (vr) virtTree.setCursor(vr.key);
+      if (vr?.type === "sample") {
+        virtTree.setSelected([vr.key]);
+        virtTree.setAnchor(vr.key);
+        setSampleZone("virtual");
+      }
+      const r = fi === null ? undefined : results.rows()[fi];
+      if (r?.type !== "sample") return;
+      results.setCursor(r.key);
+      if (vr?.type === "sample") return;
+      results.setSelected([r.key]);
+      results.setAnchor(r.key);
+    });
+    focusList(vr ? "virtual" : "list");
   }
 
-  /** Bibliothèque → colonne : la recherche reste ; l'arbre s'ouvre jusqu'au sample courant, sélectionné. */
+  /** Bibliothèque → colonne : la recherche reste ; l'arbre s'ouvre jusqu'au sample courant (celui de la liste ou du
+   *  panneau Virtual), sélectionné. */
   async function enterSide() {
-    const row = results.rowByKey(results.cursor());
+    // La chip `path:` posée par le panneau Library ne vaut qu'ici ; une chip tapée à la main reste.
+    const e = explorerPath();
+    if (e) setChips(chips().filter((c) => c !== e.chip));
+    setExplorerChip(null);
+    const from = samples();
+    const row = from.rowByKey(from.cursor());
     const parent = row?.type === "sample" ? row.parent : null;
     if (parent && !searching()) {
       const t: TreeRoot = parent.startsWith("f:") ? "library" : "virtual";
@@ -367,9 +492,10 @@ function createAppState() {
       setTabSignal(t);
       setExpanded([...new Set([...expandedByTab()[t], ...up, parent])], t);
     }
+    const tree = trees[tab()];
     batch(() => {
       setLayoutSignal("side");
-      setZone("tree");
+      setZone(tab());
       tree.setCursor(null);
       tree.setSelection([]);
     });
@@ -382,7 +508,7 @@ function createAppState() {
         tree.setAnchor(r.key);
       });
     }
-    focusList("tree");
+    focusList();
   }
 
   /** Garde le cadre de la colonne quand l'utilisateur la déplace ou la redimensionne. */
@@ -426,44 +552,91 @@ function createAppState() {
   }
 
   // --- portée (mode grand)
-  /** Nœud de l'explorer qui devient la portée de la liste (un raccourci vaut son dossier) ; null : tout. */
-  function setScope(key: NodeKey | null, name?: string) {
+  /** Chip `path:` d'un vrai dossier : son chemin depuis la source, avec son nom et un `/` final (comme à l'écran). */
+  async function pathChip(key: NodeKey): Promise<string | null> {
+    const abs = await api.nodePath(key);
+    return abs ? `path:"${relativePath(abs.replace(/\/+$/, "") + "/", sources())}"` : null;
+  }
+  let scopeSeq = 0;
+  /** Vrai dossier du panneau Library qui borne la liste (un raccourci vaut son dossier) ; null : tout. Il pose une
+   *  chip `path:` (visible, retirable, combinable). Les autres nœuds (dossiers virtuels, collections, favoris) ne
+   *  filtrent jamais la liste. */
+  async function setScope(key: NodeKey | null, name?: string) {
     const k = key?.startsWith("p:") ? `f:${key.slice(2)}` : key;
     if (k && name) knownNames.set(k, name);
-    if (k === scope()) return;
-    setScopeSignal(k);
+    const seq = ++scopeSeq;
+    const old = explorerPath()?.chip;
+    if (k?.startsWith("f:")) {
+      if (explorerPath()?.key === k) return;
+      const chip = await pathChip(k);
+      // Un choix plus récent est passé entre-temps.
+      if (!chip || seq !== scopeSeq) return;
+      batch(() => {
+        setChips([...chips().filter((c) => c !== old && c !== chip), chip]);
+        setExplorerChip({ key: k, chip });
+      });
+      void results.refresh(results.cursor());
+      return;
+    }
+    if (k !== null || !old) return;
+    batch(() => {
+      setChips(chips().filter((c) => c !== old));
+      setExplorerChip(null);
+    });
     void results.refresh(results.cursor());
   }
-  /** Clic dans l'explorer : la ligne devient la portée tout de suite (un saut, dans l'historique). */
+  /** Clic dans le panneau Library : la ligne devient la portée tout de suite (un saut, dans l'historique). */
   function selectExplorer(key: NodeKey) {
-    const r = tree.rowByKey(key);
+    const r = libTree.rowByKey(key);
     if (r?.type !== "node") return;
     const k = r.target ?? key;
-    if (k !== scope()) remember();
-    select(key, "replace", tree);
-    setScope(k, r.name);
+    if (k !== listScope()) remember();
+    select(key, "replace", libTree);
+    void setScope(k, r.name);
   }
-  // Flèches dans l'explorer : la portée suit le curseur, une fois qu'il s'arrête.
+  // Flèches dans le panneau Library : la portée suit le curseur, une fois qu'il s'arrête.
   let scopeTimer = 0;
   function scheduleScope() {
     clearTimeout(scopeTimer);
     scopeTimer = window.setTimeout(() => {
-      const r = tree.rowByKey(tree.cursor());
-      if (r?.type === "node") setScope(r.target ?? r.key, r.name);
+      const r = libTree.rowByKey(libTree.cursor());
+      if (r?.type === "node") void setScope(r.target ?? r.key, r.name);
     }, 150);
   }
-  /** Toute la bibliothèque (Échap dans l'explorer, × de la barre de portée). */
+  /** Toute la bibliothèque (Échap dans le panneau Library, fond du panneau). */
   function clearScope() {
-    if (scope() === null) return;
+    if (listScope() === null) return;
     remember();
-    tree.setCursor(null);
-    setScope(null);
+    libTree.setCursor(null);
+    void setScope(null);
   }
   /** Nom de la portée affiché au-dessus de la liste. */
   const scopeName = () => {
-    const k = scope();
-    return k === null ? "" : nodeName(k) || knownNames.get(k) || "";
+    const k = listScope();
+    if (k === null) return "";
+    // Chip de l'explorer : le dernier dossier de son chemin (le nœud n'est pas forcément chargé, l'onglet a pu changer).
+    const e = explorerPath();
+    const fromChip = e?.key === k ? e.chip.replace(/^path:"|\/?"$/g, "").split("/").pop() : "";
+    return nodeName(k) || fromChip || knownNames.get(k) || "";
   };
+  /** Affiche ou masque une colonne (le nom reste toujours). */
+  function toggleColumn(id: SortColumn) {
+    if (id === "name") return;
+    setListColumns(listColumns().map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)));
+  }
+  /** Déplace une colonne affichée à la place d'insertion `to`, comptée parmi les colonnes affichées (elle comprise). */
+  function moveColumn(id: SortColumn, to: number) {
+    const all = listColumns();
+    const shown = all.filter((c) => c.visible).map((c) => c.id);
+    const from = shown.indexOf(id);
+    const at = to > from ? to - 1 : to;
+    if (from < 0 || at === from) return;
+    const order = shown.filter((c) => c !== id);
+    order.splice(at, 0, id);
+    setListColumns([...order.map((c) => ({ id: c, visible: true })), ...all.filter((c) => !c.visible)]);
+  }
+  const resetColumns = () => setListColumns(DEFAULT_COLUMNS);
+
   function setListSort(sort: ListSort) {
     setListSortSignal(sort);
     void results.refresh(results.cursor());
@@ -474,15 +647,54 @@ function createAppState() {
     setListSort(cur.column === column ? { column, desc: !cur.desc } : { column, desc: false });
   }
 
-  // --- zones du clavier (mode grand) : l'explorer et la liste s'enregistrent pour recevoir le focus
+  // --- zones du clavier : les arbres et la liste s'enregistrent pour recevoir le focus (désinscrits au démontage)
   const zoneEls: Partial<Record<Zone, HTMLElement>> = {};
-  const registerZone = (z: Zone, el: HTMLElement) => (zoneEls[z] = el);
-  /** Donne le clavier à une zone (en colonne : à l'arbre). */
+  function registerZone(z: Zone, el: HTMLElement) {
+    zoneEls[z] = el;
+    return () => {
+      if (zoneEls[z] === el) delete zoneEls[z];
+    };
+  }
+  /** Donne le clavier à une zone (en colonne : à l'arbre de l'onglet). */
   function focusList(z: Zone = zone()) {
-    const target: Zone = full() ? z : "tree";
+    const target: Zone = full() ? z : tab();
     setZone(target);
     zoneEls[target]?.focus();
   }
+  /** ⌘← / ⌘→ : le clavier va à l'arbre (le panneau du mode grand qui l'avait en dernier). */
+  function focusTree() {
+    const z = full() && zone() !== "list" ? zone() : treeZone();
+    if (z) focusList(z);
+  }
+  /** Tab (⇧ : à rebours) dans le mode grand : les panneaux affichés, puis la liste. */
+  function nextZone(back = false): Zone {
+    const order: Zone[] = [...(["library", "virtual"] as const).filter((t) => panels()[t]), "list"];
+    const i = order.indexOf(zone());
+    return order[(i + (back ? order.length - 1 : 1)) % order.length];
+  }
+
+  // --- panneaux du mode grand
+  /** Affiche ou masque un panneau. Réaffiché : rechargé (il ne suivait plus) ; masqué avec le clavier : la liste le
+   *  prend, et sa sélection de samples passe à la liste. */
+  function setPanelShown(t: TreeRoot, shown: boolean) {
+    if (panels()[t] === shown) return;
+    batch(() => {
+      setPanels({ ...panels(), [t]: shown });
+      if (!shown && t === "virtual" && sampleZone() === "virtual") {
+        virtTree.setSelection([]);
+        setSampleZone("list");
+      }
+    });
+    if (shown) return void trees[t].refresh();
+    if (zone() === t) listFocused() ? focusList("list") : setZone("list");
+  }
+  const togglePanel = (t: TreeRoot) => setPanelShown(t, !panels()[t]);
+  /** La racine est à l'écran : panneau affiché (mode grand) ou onglet courant (colonne). */
+  const rootShown = (t: TreeRoot) => (full() ? panels()[t] : tab() === t);
+  /** Met la racine à l'écran (ressort du glisser, sauts). */
+  const revealRoot = (t: TreeRoot) => (full() ? setPanelShown(t, true) : void switchTab(t));
+  /** ⌘1 / ⌘2 : en colonne, changent d'onglet ; en mode grand, affichent ou masquent le panneau. */
+  const rootShortcut = (t: TreeRoot) => (full() ? togglePanel(t) : void switchTab(t));
 
   // Collections et dossiers virtuels du sample courant (inspecteur du mode grand).
   const [memberships, setMemberships] = createSignal<{ key: NodeKey; name: string }[]>([]);
@@ -497,9 +709,9 @@ function createAppState() {
   /** Tiroir : ajoute un tag (nouveau ou existant) aux samples sélectionnés. */
   async function addTag(tag: string) {
     const name = normalizeTag(tag) ?? "";
-    // Déjà là mais posé par l'analyse : l'ajouter le fait passer aux tags de l'utilisateur.
+    // Déjà là mais posé par l'analyse ou repris de Splice : l'ajouter le fait passer aux tags de l'utilisateur.
     const ids = selectedSamples()
-      .filter((s) => !s.tags.includes(name) || s.autoTags.includes(name))
+      .filter((s) => !s.tags.includes(name) || s.autoTags.includes(name) || s.spliceTags.includes(name))
       .map((s) => s.id);
     if (!name || !ids.length) return;
     await api.addTag(ids, name);
@@ -548,11 +760,35 @@ function createAppState() {
   }
   createEffect(on(() => dawShortcut().resizeTogether, (on) => on && void checkAccessibility()));
 
+  // « Space plays Bitwig » : état du script de contrôleur de Crate dans Bitwig, et sa copie (Réglages).
+  const [bitwig, setBitwig] = createSignal<BitwigState | null>(null);
+  const [bitwigScript, setBitwigScript] = createSignal<{ path: string } | { error: string } | null>(null);
+  api.onBitwigState(setBitwig);
+  void api.bitwigStatus().then(setBitwig, () => {});
+  async function installBitwigScript() {
+    try {
+      setBitwigScript({ path: await api.installBitwigScript() });
+    } catch (e) {
+      setBitwigScript({ error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  /** Capture d'un raccourci dans les Réglages : le raccourci global est relâché le temps de la capture. */
+  function pauseDawShortcut(paused: boolean) {
+    if (!inTauri) return;
+    void import("../api/bindings").then(({ commands }) => commands.pauseDawShortcut(paused));
+  }
+
   /** Rend la main au DAW d'où l'on a sauté dans Crate (Échap dans la recherche vide, glisser terminé). */
   async function returnToDaw(): Promise<boolean> {
     if (!inTauri) return false;
     const { commands } = await import("../api/bindings");
     return commands.returnToDaw();
+  }
+
+  /** « Space plays Bitwig » : lecture / arrêt du transport de Bitwig, la preview n'est pas touchée. */
+  function bitwigTogglePlay(): Promise<boolean> {
+    return api.bitwigTogglePlay();
   }
 
   // Pics du sample du tiroir (les lignes ne les transportent qu'en densité « waveform »).
@@ -618,6 +854,17 @@ function createAppState() {
     refresh();
   }
 
+  /** Autocomplétion : remplace le mot en cours de frappe par cette chip (elle peut contenir des espaces). */
+  function pickChip(chip: string) {
+    remember();
+    const parts = draft().trim().split(/\s+/).slice(0, -1).filter(Boolean);
+    batch(() => {
+      setChips([...chips().filter((c) => c !== chip), chip]);
+      setDraft(parts.length ? parts.join(" ") + " " : "");
+    });
+    refresh();
+  }
+
   function removeChip(index: number) {
     remember();
     setChips(chips().filter((_, i) => i !== index));
@@ -654,27 +901,32 @@ function createAppState() {
     refresh();
   }
 
-  // --- dossiers (arbre de la colonne, explorer du mode grand)
-  /** Ouvert : hors recherche, dans `expanded` ; en recherche, tout sauf ce qu'on a refermé. */
-  const isOpen = (key: NodeKey) => (treeSearching() ? !collapsed().includes(key) : expanded().includes(key));
+  // --- dossiers (arbre de la colonne, panneaux du mode grand)
+  /** Ouvert : hors recherche, dans `expanded` de sa racine ; en recherche, tout sauf ce qu'on a refermé. */
+  const isOpen = (key: NodeKey) => (treeSearching() ? !collapsed().includes(key) : expandedByTab()[treeRootOf(key)].includes(key));
 
   async function setOpen(key: NodeKey, open: boolean) {
     if (open === isOpen(key)) return;
+    const t = treeRootOf(key);
     if (treeSearching()) {
       const cur = collapsed();
       setCollapsedFor({ line: searchLine(), keys: open ? cur.filter((k) => k !== key) : [...cur, key] });
     } else {
-      const cur = expanded();
-      setExpanded(open ? [...cur, key] : cur.filter((k) => k !== key));
+      const cur = expandedByTab()[t];
+      setExpanded(open ? [...cur, key] : cur.filter((k) => k !== key), t);
     }
-    await tree.refresh();
+    await trees[t].refresh();
   }
 
   const toggleNode = (key: NodeKey) => setOpen(key, !isOpen(key));
 
-  /** ⌘← / ⌘→ : referme tous les dossiers de l'onglet ; le curseur remonte sur l'élément de premier niveau qui le contenait. */
+  /** ⌘← / ⌘→ : referme tous les dossiers de l'onglet (du panneau, en mode grand) ; le curseur remonte sur l'élément
+   *  de premier niveau qui le contenait. */
   async function collapseAll() {
-    if (full()) setZone("tree");
+    const t = full() ? (zone() === "list" ? treeZone() : (zone() as TreeRoot)) : tab();
+    if (!t) return;
+    if (full()) setZone(t);
+    const tree = trees[t];
     // Remonte par les lignes chargées (les parents sont au-dessus, en général déjà chargés).
     let top: string | null = tree.cursor();
     for (let r = tree.rowByKey(top); r?.parent; r = tree.rowByKey(r.parent)) top = r.parent;
@@ -688,7 +940,7 @@ function createAppState() {
         await tree.refresh();
       }
     } else {
-      setExpanded([]);
+      setExpanded([], t);
       await tree.refresh();
     }
     if (top && tree.indexOf(top) < 0) top = (await api.ancestors(top))[0] ?? null;
@@ -700,17 +952,27 @@ function createAppState() {
     }
   }
 
-  // --- sélection : un sample dans la liste qui les porte (arbre en colonne, liste en mode grand), ou un nœud de
-  // l'arbre / de l'explorer (curseur seulement)
-  function select(key: string, mode: SelectMode = "replace", m: ListModel = key.startsWith("s:") ? samples() : tree) {
+  // --- sélection : un sample dans un modèle qui les porte (arbre en colonne ; liste ou panneau Virtual en mode grand),
+  // ou un nœud d'un arbre (curseur seulement)
+  function select(key: string, mode: SelectMode = "replace", m: ListModel = modelFor(key)) {
     const i = m.indexOf(key);
     const row = i < 0 ? undefined : m.rows()[i];
     if (!row) return;
     m.setCursor(key);
     if (row.type === "node") {
-      // En mode grand, les samples sélectionnés sont dans la liste : l'explorer n'y touche pas.
+      // Les samples sélectionnés d'un autre modèle (la liste, en mode grand) n'en dépendent pas.
       if (m === samples()) m.setSelected([]);
       return;
+    }
+    // Mode grand : une seule sélection de samples, dans la liste ou dans le panneau Virtual.
+    if (full()) {
+      const z = m === virtTree ? "virtual" : "list";
+      if (z !== sampleZone()) {
+        batch(() => {
+          (z === "virtual" ? results : virtTree).setSelection([]);
+          setSampleZone(z);
+        });
+      }
     }
     if (mode === "toggle") {
       m.toggleSelected(key);
@@ -740,7 +1002,7 @@ function createAppState() {
     const i = m.indexOf(m.cursor());
     let next = Math.max(0, Math.min(n - 1, i < 0 ? 0 : i + delta));
     // En recherche, ↑ / ↓ ne s'arrêtent que sur les samples : les dossiers sont sautés.
-    if (m === tree && treeSearching()) {
+    if (m !== results && treeSearching()) {
       const dir = delta < 0 ? -1 : 1;
       let j = next;
       for (; j >= 0 && j < n; j += dir) {
@@ -754,30 +1016,36 @@ function createAppState() {
     const r = m.rows()[next];
     if (!r) return;
     select(r.key, extend ? "range" : "replace", m);
-    if (m === tree && full()) scheduleScope();
+    if (m === libTree && full()) scheduleScope();
   }
 
-  /** Sélectionne une ligne de l'arbre qui n'est peut-être pas chargée (parent lointain, saut). */
+  /** Sélectionne une ligne d'un arbre qui n'est peut-être pas chargée (parent lointain, saut). */
   async function selectKey(key: string) {
-    if ((await tree.locate(key)) >= 0) select(key, "replace", tree);
+    const m = treeOf(key);
+    if ((await m.locate(key)) >= 0) select(key, "replace", m);
   }
 
-  /** → : ouvre le dossier sélectionné (le curseur reste dessus) ; un raccourci y saute. Rien sur un sample. En mode
-   *  grand, sur un dossier ouvert (ou sans sous-dossier), passe à la liste. */
+  /** → : ouvre le dossier sélectionné (le curseur reste dessus) ; un raccourci y saute. Rien sur un sample. Dans le
+   *  panneau Library du mode grand, sur un dossier ouvert (ou sans sous-dossier), passe à la liste. */
   async function right() {
     if (full() && zone() === "list") return;
+    const tree = focusModel();
     const row = tree.rowByKey(tree.cursor());
     if (!row) return move(0);
     if (row.type === "sample") return;
     if (row.target) return full() ? focusList("list") : jumpTo(row.target);
-    if (full() && (row.open || row.leaf)) return focusList("list");
+    if (full() && tree === libTree && (row.open || row.leaf)) return focusList("list");
     if (!row.open) return setOpen(row.key, true);
   }
 
   /** ← : ferme le dossier sélectionné ; sur un sample ou un dossier fermé, ferme son parent et le sélectionne. En mode
-   *  grand, depuis la liste, revient à l'explorer. */
+   *  grand, depuis la liste, revient au panneau (s'il y en a un d'affiché). */
   async function left() {
-    if (full() && zone() === "list") return focusList("tree");
+    if (full() && zone() === "list") {
+      const z = treeZone();
+      return z ? focusList(z) : undefined;
+    }
+    const tree = focusModel();
     const row = tree.rowByKey(tree.cursor());
     if (!row) return;
     if (row.type === "node" && row.open) return setOpen(row.key, false);
@@ -785,7 +1053,7 @@ function createAppState() {
     const parent = row.parent;
     await setOpen(parent, false);
     await selectKey(parent);
-    if (full()) scheduleScope();
+    if (full() && tree === libTree) scheduleScope();
   }
 
   function activate() {
@@ -930,9 +1198,9 @@ function createAppState() {
     chips: string[];
     draft: string;
     expanded: Record<TreeRoot, NodeKey[]>;
-    cursor: string | null; // arbre, ou explorer en mode grand
-    scope: NodeKey | null; // mode grand : portée de la liste…
-    listCursor: string | null; // … et son curseur
+    cursors: Record<TreeRoot, string | null>; // arbres (onglets en colonne, panneaux en mode grand)
+    explorerChip: { key: NodeKey; chip: string } | null; // mode grand : chip `path:` posée par le panneau Library…
+    listCursor: string | null; // … et curseur de la liste
   }
   const HISTORY_MAX = 50;
   const [past, setPast] = createSignal<Snapshot[]>([]);
@@ -942,12 +1210,13 @@ function createAppState() {
     chips: chips(),
     draft: draft(),
     expanded: expandedByTab(),
-    cursor: tree.cursor(),
-    scope: scope(),
+    cursors: { library: libTree.cursor(), virtual: virtTree.cursor() },
+    explorerChip: explorerPath(),
     listCursor: results.cursor(),
   });
   const same = (a: Snapshot, b: Snapshot) =>
-    a.tab === b.tab && a.draft === b.draft && a.cursor === b.cursor && a.scope === b.scope && a.listCursor === b.listCursor &&
+    a.tab === b.tab && a.draft === b.draft && a.cursors.library === b.cursors.library && a.cursors.virtual === b.cursors.virtual &&
+    a.explorerChip?.chip === b.explorerChip?.chip && a.listCursor === b.listCursor &&
     a.chips.join("\n") === b.chips.join("\n") &&
     a.expanded.library.join() === b.expanded.library.join() && a.expanded.virtual.join() === b.expanded.virtual.join();
 
@@ -969,16 +1238,17 @@ function createAppState() {
       setChips(snap.chips);
       setDraft(snap.draft);
       setExpandedByTab(snap.expanded);
-      setScopeSignal(snap.scope);
-      tree.setCursor(snap.cursor);
+      setExplorerChip(snap.explorerChip);
+      libTree.setCursor(snap.cursors.library);
+      virtTree.setCursor(snap.cursors.virtual);
       results.setCursor(snap.listCursor);
       setSelection([]);
     });
-    await (full() ? Promise.all([tree.refresh(snap.cursor), results.refresh(snap.listCursor)]) : tree.refresh(snap.cursor));
-    if (full() && !tree.rowByKey(snap.cursor)) tree.setCursor(null);
+    await refresh();
+    if (full()) for (const m of shownTrees()) if (!m.rowByKey(m.cursor())) m.setCursor(null);
     // Curseur seulement (pas de lecture auto) ; un sample redevient la sélection.
     const m = samples();
-    const key = full() ? snap.listCursor : snap.cursor;
+    const key = m.cursor();
     const row = m.rowByKey(key);
     if (!row) m.setCursor(null);
     else if (row.type === "sample") {
@@ -1022,33 +1292,52 @@ function createAppState() {
   const canBack = () => past().length > 0;
   const canForward = () => future().length > 0;
 
-  /** Raccourci : saute au dossier source visé, recherche vidée, parents et dossier ouverts. */
+  /** Saut vers un nœud (raccourci, appartenance de la preview). Un vrai dossier : recherche vidée, parents et dossier
+   *  ouverts, et en mode grand il borne la liste (chip `path:`). Un élément virtuel en mode grand : montré dans le
+   *  panneau Virtual, déplié et sélectionné, sans toucher à la liste. */
   async function jumpTo(target: NodeKey) {
     remember();
     const parents = await api.ancestors(target);
+    if (full() && !target.startsWith("f:")) return revealVirtualNode(target, [...parents, target]);
+    const t: TreeRoot = target.startsWith("f:") ? "library" : "virtual";
     batch(() => {
       closeOverlays();
       setView("browser");
-      setTabSignal(target.startsWith("f:") ? "library" : "virtual");
+      if (full()) setPanels({ ...panels(), library: true });
+      else setTabSignal(t);
       setChips([]);
       setDraft("");
-      setExpanded([...new Set([...expanded(), ...parents, target])]);
-      if (full()) setScopeSignal(target);
+      setExpanded([...new Set([...expandedByTab()[t], ...parents, target])], t);
     });
+    if (full()) await setScope(target);
     await refresh(target);
-    select(target, "replace", tree);
-    // Mode grand : le dossier visé devient la portée de la liste.
-    const r = tree.rowByKey(target);
+    select(target, "replace", trees[t]);
+    const r = trees[t].rowByKey(target);
     if (full() && r?.type === "node") knownNames.set(target, r.name);
   }
 
-  // --- onglets
+  /** Mode grand : le panneau Virtual affiché, ces nœuds dépliés, `key` sélectionné (la liste n'en dépend pas). */
+  async function revealVirtualNode(key: NodeKey, open: NodeKey[]) {
+    batch(() => {
+      closeOverlays();
+      setView("browser");
+      setPanels({ ...panels(), virtual: true });
+      setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
+    });
+    await virtTree.refresh(key);
+    select(key, "replace", virtTree);
+  }
+
+  // --- onglets (colonne) ; en mode grand, les mêmes racines sont des panneaux
   async function switchTab(t: TreeRoot) {
+    if (full()) return setPanelShown(t, true);
     if (t === tab()) return;
     remember();
+    const tree = trees[t];
     batch(() => {
       closeOverlays();
       setTabSignal(t);
+      setZone(t);
       setView("browser");
       tree.setSelection([]);
       tree.setCursor(null);
@@ -1067,47 +1356,42 @@ function createAppState() {
     return r?.type === "node" ? r.name : (knownNames.get(key) ?? "");
   };
 
-  /** Ouvre l'onglet Virtuels avec ces nœuds dépliés, puis sélectionne `key` (et le renomme si demandé). */
+  /** Montre les Virtuels (l'onglet en colonne, le panneau en mode grand) avec ces nœuds dépliés, puis sélectionne
+   *  `key` (et le renomme si demandé). */
   async function revealVirtual(key: NodeKey, open: NodeKey[], rename = false) {
     remember();
-    setTabSignal("virtual");
-    setView("browser");
-    setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
-    // Mode grand : la nouvelle collection (ou le nouveau dossier) devient aussi la portée de la liste.
-    if (full()) setScopeSignal(key);
+    batch(() => {
+      if (full()) setPanels({ ...panels(), virtual: true });
+      else setTabSignal("virtual");
+      setView("browser");
+      setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
+    });
     await Promise.all([refresh(key), reloadLibrary()]);
-    select(key, "replace", tree);
+    select(key, "replace", virtTree);
     if (rename) setRenamingKey(key);
   }
 
   // --- collections (à plat) et recherche enregistrée
+  /** ⌘S : la recherche seule (la chip `path:` du panneau Library comprise) ; sans recherche, rien. */
   function openSaveSearch() {
-    if (!searchLine() && !(full() && scope())) return;
+    if (!searchLine()) return;
     closeOverlays();
-    setSaving(queryLine() || scopeName());
+    setSaving(queryLine());
   }
 
-  /** La portée du mode grand, écrite comme un filtre : la collection smart retrouve la même liste. */
-  async function scopeFilter(): Promise<string> {
-    const k = full() ? scope() : null;
-    if (!k) return "";
-    if (k === "c:fav") return "is:fav";
-    if (k === "g:collections") return "is:collection";
-    if (k.startsWith("c:") || k.startsWith("v:")) return `in:"${nodeName(k)}"`;
-    // Dossier source : son chemin (avec la barre finale, pour ne pas prendre « Drums 2 » pour « Drums »).
-    const path = await api.nodePath(k);
-    return path ? `in:"${path.replace(/\/+$/, "")}/"` : "";
-  }
-
+  /** Enregistre la recherche en collection smart, sélectionnée dans les Virtuels. En colonne, la recherche est vidée
+   *  (la collection montre les mêmes samples) ; en mode grand, la liste garde la sienne. */
   async function saveSearch(name: string) {
-    const query = [await scopeFilter(), searchLine()].filter(Boolean).join(" ");
+    const query = searchLine();
     setSaving(null);
     if (!name.trim() || !query) return;
     const c = await api.createCollection(name.trim(), query);
-    batch(() => {
-      setChips([]);
-      setDraft("");
-    });
+    if (!full()) {
+      batch(() => {
+        setChips([]);
+        setDraft("");
+      });
+    }
     await revealVirtual(`c:${c.id}`, ["g:collections"]);
   }
 
@@ -1136,8 +1420,7 @@ function createAppState() {
   async function deleteNode(key: NodeKey) {
     if (key.startsWith("c:")) await api.deleteCollection(nodeId(key));
     else if (key.startsWith("v:")) await api.deleteVirtualFolder(nodeId(key));
-    if (tree.cursor() === key) tree.setCursor(null);
-    if (scope() === key) setScopeSignal(null);
+    for (const m of [libTree, virtTree]) if (m.cursor() === key) m.setCursor(null);
     await Promise.all([refresh(), reloadLibrary()]);
   }
 
@@ -1155,13 +1438,41 @@ function createAppState() {
     await Promise.all([refresh(), reloadLibrary()]);
   }
 
-  /** Vrai si `target` peut recevoir ce qui est glissé (samples ou dossier virtuel). */
+  /** `key` est dans le bloc de `ancestor` (lui-même ou un descendant, d'après les lignes chargées des arbres). */
+  function isInside(key: string, ancestor: NodeKey): boolean {
+    for (let k: string | null = key, n = 0; k && n < 64; n++) {
+      if (k === ancestor) return true;
+      k = rowByKey(k)?.parent ?? null;
+    }
+    return false;
+  }
+
   function canDrop(target: NodeKey): boolean {
-    const dragged = draggingKey();
+    const dragged = draggingKey() ?? (externalDrag() ? "external" : null);
     if (!dragged) return false;
-    if (dragged.startsWith("v:")) return (target === "root" || target.startsWith("v:")) && target !== dragged;
+    // Un dossier virtuel ne se range ni en lui-même ni dans l'un de ses descendants.
+    if (dragged.startsWith("v:")) return (target === "root" || (target.startsWith("v:") && !isInside(target, dragged)));
     if (target === "c:fav" || target.startsWith("v:")) return true;
     return target.startsWith("c:") && library()?.collections.find((c) => c.id === nodeId(target))?.kind === "manual";
+  }
+
+  /** Cible de dépôt pour une ligne survolée : elle-même si elle accepte, sinon le premier parent qui accepte (survoler
+   *  un sample ou un sous-élément d'un dossier vise ce dossier). */
+  function dropTargetFor(key: string | null): NodeKey | null {
+    for (let k = key, n = 0; k && n < 64; n++) {
+      if (canDrop(k)) return k;
+      k = rowByKey(k)?.parent ?? null;
+    }
+    return null;
+  }
+
+  /** Fichiers déposés depuis une autre app sur une cible : ceux de la bibliothèque y sont ajoutés, les autres signalés
+   *  (Crate n'indexe pas un fichier isolé). */
+  async function dropFiles(target: NodeKey, paths: string[]) {
+    const r = await api.samplesAt(paths);
+    await addIdsTo(target, r.ids);
+    const n = r.outside.length;
+    if (n) setNotice(n === 1 ? "This file isn't in any of your sources." : `${n} files aren't in any of your sources.`);
   }
 
   /** Dépôt : ajoute les samples glissés, ou déplace le dossier virtuel glissé. */
@@ -1175,7 +1486,7 @@ function createAppState() {
     if (!dragged || !ok) return;
     if (dragged.startsWith("v:")) {
       await api.moveVirtualFolder(nodeId(dragged), target === "root" ? null : nodeId(target));
-      if (target !== "root") setExpanded([...new Set([...expanded(), target])]);
+      if (target !== "root") setExpanded([...new Set([...expandedByTab()[treeRootOf(target)], target])], treeRootOf(target));
       await Promise.all([refresh(), reloadLibrary()]);
       return;
     }
@@ -1185,13 +1496,16 @@ function createAppState() {
   /** Déplace un dossier virtuel sous un autre (null = racine) : le pendant clavier du glisser. */
   async function moveVirtualFolderTo(key: NodeKey, parent: NodeKey | null) {
     await api.moveVirtualFolder(nodeId(key), parent === null ? null : nodeId(parent));
-    if (parent !== null) setExpanded([...new Set([...expanded(), parent])]);
-    tree.setCursor(key);
+    if (parent !== null) setExpanded([...new Set([...expandedByTab()[treeRootOf(parent)], parent])], treeRootOf(parent));
+    treeOf(key).setCursor(key);
     await Promise.all([refresh(key), reloadLibrary()]);
   }
 
   async function addSelectionTo(target: NodeKey) {
-    const ids = selectedSamples().map((s) => s.id);
+    await addIdsTo(target, selectedSamples().map((s) => s.id));
+  }
+
+  async function addIdsTo(target: NodeKey, ids: SampleId[]) {
     if (!ids.length) return;
     if (target === "c:fav") await api.setFavorite(ids, true);
     else if (target.startsWith("c:")) await api.addToCollection(nodeId(target), ids);
@@ -1295,9 +1609,34 @@ function createAppState() {
     });
   }
 
+  /** Reprend les tags de la base locale de Splice : ajoute ceux qui manquent (Réglages › Sources). */
+  async function syncSpliceTags() {
+    if (spliceSync()?.status === "running") return;
+    setSpliceSync({ status: "running" });
+    try {
+      const report = await api.syncSpliceTags();
+      setSpliceSync({ status: "done", report });
+    } catch (e) {
+      setSpliceSync({ status: "error", error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
+  async function clearSpliceTags() {
+    if (spliceSync()?.status === "running") return;
+    setSpliceSync({ status: "running" });
+    const removed = await api.clearSpliceTags();
+    setSpliceSync({ status: "cleared", removed });
+    await Promise.all([refresh(), reloadLibrary()]);
+  }
+
   async function removeSource(id: number) {
     await api.removeSource(id);
-    if (scope() === `f:${id}`) setScopeSignal(null);
+    // Le chemin de la chip du panneau Library a pu disparaître avec la source.
+    const e = explorerPath();
+    if (e) setChips(chips().filter((c) => c !== e.chip));
+    setExplorerChip(null);
     await Promise.all([refresh(), reloadLibrary()]);
     if (!demo() && !sources().length) setEmpty(true);
   }
@@ -1319,7 +1658,8 @@ function createAppState() {
       batch(() => {
         setEmpty(false);
         setView("browser");
-        setTabSignal("library");
+        if (full()) setPanels({ ...panels(), library: true });
+        else setTabSignal("library");
       });
       await Promise.all([refresh(), reloadLibrary()]);
       setNotice(null);
@@ -1385,8 +1725,11 @@ function createAppState() {
     dawShortcut: DawShortcutConfig;
     flatResults: boolean;
     listSort: ListSort;
+    listColumns: ListColumn[];
     sideFrame: Frame | null;
     explorerWidth: number | null;
+    panels: Panels;
+    panelSplit: number | null;
   }
   /** Mode d'affichage mémorisé : appliqué à la fenêtre une fois l'app lancée. */
   let savedLayout: Layout = "side";
@@ -1410,11 +1753,19 @@ function createAppState() {
       if (p.fontSize === "sm" || p.fontSize === "base" || p.fontSize === "lg") setFontSize(p.fontSize);
       if (p.colors && typeof p.colors === "object") setColorOverrides(p.colors);
       if (typeof p.flatResults === "boolean") setFlatResultsSignal(p.flatResults);
-      const sorts = ["name", "bpm", "key", "duration", "format", "tags"];
+      const sorts = DEFAULT_COLUMNS.map((c) => c.id as string);
       if (p.listSort && sorts.includes(p.listSort.column)) setListSortSignal({ column: p.listSort.column, desc: !!p.listSort.desc });
+      // Colonnes : celles d'anciens réglages inconnues aujourd'hui sont ignorées, les nouvelles ajoutées à la fin.
+      if (Array.isArray(p.listColumns)) {
+        const known = p.listColumns.filter((c) => sorts.includes(c?.id)).map((c) => ({ id: c.id, visible: c.id === "name" || !!c.visible }));
+        const added = DEFAULT_COLUMNS.filter((d) => !known.some((c) => c.id === d.id));
+        setListColumns([...known, ...added]);
+      }
       const f = p.sideFrame;
       if (f && [f.x, f.y, f.w, f.h].every((v) => typeof v === "number" && Number.isFinite(v))) setSideFrame(f);
       if (typeof p.explorerWidth === "number" && Number.isFinite(p.explorerWidth)) setExplorerWidth(p.explorerWidth);
+      if (p.panels && typeof p.panels.library === "boolean" && typeof p.panels.virtual === "boolean") setPanels({ library: p.panels.library, virtual: p.panels.virtual });
+      if (typeof p.panelSplit === "number" && p.panelSplit >= 0.1 && p.panelSplit <= 0.9) setPanelSplit(p.panelSplit);
       const d = p.dawShortcut;
       if (d && typeof d.enabled === "boolean" && typeof d.shortcut === "string" && Array.isArray(d.apps)) setDawShortcut({ ...DEFAULT_DAW_SHORTCUT, ...d, apps: migrateDawApps(d.apps) });
     });
@@ -1435,8 +1786,11 @@ function createAppState() {
       dawShortcut: dawShortcut(),
       flatResults: flatResults(),
       listSort: listSort(),
+      listColumns: listColumns(),
       sideFrame: sideFrame(),
       explorerWidth: explorerWidth(),
+      panels: panels(),
+      panelSplit: panelSplit(),
     };
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(p));
@@ -1508,10 +1862,13 @@ function createAppState() {
     sources, alwaysOnTop, setAlwaysOnTop, themePref, selectedSamples, closeOverlays, openTagging, toggleTag,
     toggleFavorite, openSaveSearch, saveSearch, newCollection, removeSource, openMenu,
     layout, setLayout, toggleLayout, memberships, removeTag, addTag,
-    tree, results, zone, setZone, explorerWidth, setExplorerWidth, focusList, registerZone, scope, scopeName, setScope, selectExplorer, clearScope, listSort, sortBy,
-    flatResults, setFlatResults, shuffle, reshuffle, waveformFor, flattened, flatten, clearFilters, fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, returnToDaw, accessibility, checkAccessibility, openAccessibilitySettings,
-    tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, moveVirtualFolderTo, addSelectionTo,
+    trees, libTree, virtTree, activeTree, results, zone, setZone, explorerWidth, setExplorerWidth, focusList, focusTree, nextZone, registerZone,
+    panels, setPanelShown, togglePanel, panelSplit, setPanelSplit, rootShown, revealRoot, rootShortcut, sampleZone,
+    listScope, scopeName, setScope, selectExplorer, clearScope, folderPaths: (prefix: string) => api.folderPaths(prefix, 8), pickChip, listSort, sortBy, listColumns, toggleColumn, moveColumn, resetColumns,
+    flatResults, setFlatResults, shuffle, reshuffle, waveformFor, flattened, flatten, clearFilters, fontSize, setFontSize, colors, colorOverrides, setColor, resetColors, dawShortcut, setDawShortcut, pauseDawShortcut, returnToDaw, bitwigTogglePlay, bitwig, bitwigScript, installBitwigScript, accessibility, checkAccessibility, openAccessibilitySettings,
+    tab, switchTab, nodeName, newVirtualFolder, renameNode, deleteNode, togglePin, canDrop, dropOn, dropTargetFor, dropFiles, externalDrag, setExternalDrag, moveVirtualFolderTo, addSelectionTo,
     removeSelectionFrom, commit, openCommit, setCommitOptions, setCommitDestination, runCommit, closeCommit, setTabSignal,
+    spliceSync, syncSpliceTags, clearSpliceTags,
     library, visible, matches, chips, draft, expanded, cursor, selection, current, playingId, progress,
     autoPlay, listFocused, dropTarget, draggingKey, empty, scan, theme, width, density, grid, queryLine, searching,
     setAutoPlay, setListFocused, setDropTarget, setDraggingKey, setEmpty, setScan, setVisibleLimit, setTheme,

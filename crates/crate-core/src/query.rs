@@ -9,6 +9,8 @@ pub enum FilterKey {
     In,
     Type,
     Is,
+    /// Chemin depuis la source (« Samples/Drums/ ») : le dossier et tout ce qui est dessous.
+    Path,
 }
 
 impl FilterKey {
@@ -20,6 +22,7 @@ impl FilterKey {
             "in" => Self::In,
             "type" => Self::Type,
             "is" => Self::Is,
+            "path" => Self::Path,
             _ => return None,
         })
     }
@@ -218,6 +221,14 @@ pub fn parse_range(v: &str, unit: &str) -> impl Fn(f64) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn filtre_path() {
+        let t = super::parse_line(r#"path:"Samples/Drums/" -path:Bass"#);
+        assert_eq!(t[0].kind, super::TokenKind::Filter(super::FilterKey::Path));
+        assert_eq!(t[0].value, "Samples/Drums/");
+        assert!(t[1].negated && t[1].value == "Bass");
+    }
+
     use super::*;
 
     #[test]

@@ -173,6 +173,7 @@ pub(crate) struct TreeCache {
     flat: bool,
     flattened: Vec<NodeKey>,
     collapsed: Vec<NodeKey>,
+    collapse_all: bool,
     shuffle: Option<u32>,
     folders_only: bool,
     /// Clés des nœuds ouverts ; les lignes y renvoient par index (parent).
@@ -1017,6 +1018,7 @@ impl Catalog {
             expanded: HashSet<&'a str>,
             flattened: HashSet<&'a str>,
             collapsed: HashSet<&'a str>,
+            collapse_all: bool,
             memo: HashMap<String, bool>,
             keys: Vec<NodeKey>,
             rows: Vec<RowRef>,
@@ -1063,11 +1065,11 @@ impl Catalog {
                             .iter()
                             .any(|c| self.reveal || !(c.key.starts_with("f:") && self.lib.folder_hidden(node_id(&c.key))));
                     // Un raccourci ne se déplie jamais : il saute au dossier visé. En recherche, tout est ouvert sauf
-                    // ce qu'on a refermé.
+                    // ce qu'on a refermé (après ⌘← : tout est refermé sauf ce qu'on a rouvert).
                     let open = flat
                         || (n.kind != NodeKind::Shortcut
                             && if searching {
-                                !self.collapsed.contains(n.key.as_str())
+                                self.collapsed.contains(n.key.as_str()) == self.collapse_all
                             } else {
                                 self.expanded.contains(n.key.as_str())
                             });
@@ -1135,6 +1137,7 @@ impl Catalog {
             expanded: expanded.iter().map(String::as_str).collect(),
             flattened: flattened.iter().map(String::as_str).collect(),
             collapsed: collapsed.iter().map(String::as_str).collect(),
+            collapse_all: req.collapse_all,
             memo: HashMap::new(),
             keys: Vec::new(),
             rows: Vec::with_capacity(if searching { matches + 64 } else { 256 }),
@@ -1167,6 +1170,7 @@ impl Catalog {
             flat,
             flattened: flattened.to_vec(),
             collapsed: collapsed.to_vec(),
+            collapse_all: req.collapse_all,
             shuffle: req.shuffle.filter(|_| flat),
             folders_only,
             keys: w.keys,
@@ -1377,7 +1381,7 @@ impl Backend for Catalog {
         let q = req.query.trim();
         let flat = req.flat && !q.is_empty() && !req.folders_only;
         let slot = Self::slot(req.root);
-        let fresh = matches!(&self.cache.borrow()[slot], Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat && c.flattened == req.flattened && c.collapsed == req.collapsed && c.shuffle == req.shuffle.filter(|_| flat) && c.folders_only == req.folders_only);
+        let fresh = matches!(&self.cache.borrow()[slot], Some(c) if c.root == req.root && c.query == q && c.expanded == req.expanded && c.flat == flat && c.flattened == req.flattened && c.collapsed == req.collapsed && c.collapse_all == req.collapse_all && c.shuffle == req.shuffle.filter(|_| flat) && c.folders_only == req.folders_only);
         if !fresh {
             let built = self.build_tree(req, q, flat);
             self.cache.borrow_mut()[slot] = Some(built);

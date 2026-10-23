@@ -504,6 +504,7 @@ fn memes_noeuds_refermes_en_recherche() {
         };
         let page = lib.tree(&TreeRequest {
             collapsed: strings(&c["collapsed"]),
+            collapse_all: c["collapseAll"].as_bool().unwrap_or(false),
             ..req(root, c["query"].as_str().unwrap(), strings(&c["expanded"]))
         });
         assert_eq!(

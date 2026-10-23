@@ -83,6 +83,28 @@ for (const shortcut of ["Control+ArrowRight", "Control+ArrowLeft"]) {
   });
 }
 
+// Retours n° 6 : ⌘← referme aussi les sous-dossiers ; rouvrir un dossier ne remontre pas ses enfants ouverts.
+for (const query of ["", "kick "]) {
+  test(`⌘← puis → : les sous-dossiers restent fermés${query ? " (en recherche)" : ""}`, async ({ page }) => {
+    const errors = await scenario(page, "3");
+    if (query) {
+      await page.keyboard.press("Control+f");
+      await page.keyboard.type(query);
+      await page.locator(".cr-tree").focus();
+    }
+    await expect(page.locator('.cr-node:not([aria-level="1"])[aria-expanded="true"]')).not.toHaveCount(0);
+    await page.keyboard.press("Control+ArrowLeft");
+    await expect(page.locator('.cr-node[aria-expanded="true"]')).toHaveCount(0);
+    const top = page.locator(".cr-node[data-selected]");
+    await expect(top).toHaveAttribute("aria-level", "1");
+    await page.keyboard.press("ArrowRight");
+    await expect(top).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator('.cr-node[aria-level="2"]')).not.toHaveCount(0);
+    await expect(page.locator('.cr-node:not([aria-level="1"])[aria-expanded="true"]')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}
+
 test("deux clics rapides sur le chevron : deux bascules, pas trois (le double clic de la ligne ne s'y ajoute pas)", async ({ page }) => {
   const errors = await scenario(page, "3");
   const row = page.locator('.cr-node[aria-level="1"][aria-expanded]').first();

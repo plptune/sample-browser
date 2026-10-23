@@ -236,6 +236,11 @@ pub struct TreeRequest {
     #[serde(default)]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub collapsed: Vec<NodeKey>,
+    /// En recherche, après ⌘← : tout est refermé, à tous les niveaux, et `collapsed` liste à l'inverse les nœuds
+    /// rouverts à la main. Sans effet hors recherche.
+    #[serde(default, rename = "collapseAll")]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub collapse_all: bool,
     /// Résultats à plat mélangés (bouton Shuffle) : graine de l'ordre aléatoire, le même pour une même graine. Sans
     /// effet hors recherche ou sans `flat`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

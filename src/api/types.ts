@@ -114,6 +114,8 @@ export interface TreeRequest {
   flattened?: NodeKey[];
   /** En recherche : nœuds refermés à la main (les autres restent ouverts). Ignoré hors recherche. */
   collapsed?: NodeKey[];
+  /** En recherche, après ⌘← : tout est refermé, à tous les niveaux, et `collapsed` liste les nœuds rouverts. */
+  collapseAll?: boolean;
   /** Résultats à plat mélangés (Shuffle) : graine de l'ordre aléatoire. Sans effet hors recherche ou sans `flat`. */
   shuffle?: number | null;
   /** Dossiers seuls (panneau Library du mode grand) : aucun sample, pas d'aplatissement ; `leaf` marque les nœuds sans

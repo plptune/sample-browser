@@ -461,9 +461,13 @@ export const mockBackend: Backend = {
           foldersOnly &&
           n.kind !== "shortcut" &&
           !childNodes(req.root, n.key, false).some((c) => reveal || !(c.key.startsWith("f:") && folderHidden(+c.key.slice(2))));
-        // Un raccourci ne se déplie jamais : il saute au dossier visé. En recherche, tout est ouvert sauf ce qu'on a refermé.
+        // Un raccourci ne se déplie jamais : il saute au dossier visé. En recherche, tout est ouvert sauf ce qu'on a refermé
+        // (après ⌘← : tout est refermé sauf ce qu'on a rouvert).
         const open =
-          !leaf && (flat || (n.kind !== "shortcut" && (searching ? !(req.collapsed ?? []).includes(n.key) : req.expanded.includes(n.key))));
+          !leaf &&
+          (flat ||
+            (n.kind !== "shortcut" &&
+              (searching ? (req.collapsed ?? []).includes(n.key) === !!req.collapseAll : req.expanded.includes(n.key))));
         const row: FolderRow = { type: "node", key: n.key, parent: key, depth, name: n.name, kind: n.kind, open };
         if (leaf) row.leaf = true;
         if (flat) row.flattened = true;

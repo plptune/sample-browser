@@ -38574,6 +38574,49 @@
     "0|c:1|closed|pinned",
     "0|v:3|closed|pinned"
    ]
+  },
+  {
+   "root": "library",
+   "query": "kick",
+   "expanded": [],
+   "collapsed": [],
+   "collapseAll": true,
+   "rows": [
+    "0|f:1|closed",
+    "0|f:10|closed"
+   ]
+  },
+  {
+   "root": "library",
+   "query": "kick",
+   "expanded": [],
+   "collapsed": [
+    "f:1"
+   ],
+   "collapseAll": true,
+   "rows": [
+    "0|f:1|open",
+    "1|f:2|closed",
+    "0|f:10|closed"
+   ]
+  },
+  {
+   "root": "virtual",
+   "query": "kick",
+   "expanded": [],
+   "collapsed": [
+    "c:fav"
+   ],
+   "collapseAll": true,
+   "rows": [
+    "0|c:fav|open|pinned",
+    "1|s:11@c:fav",
+    "1|s:33@c:fav",
+    "1|s:22@c:fav",
+    "1|s:44@c:fav",
+    "0|g:collections|closed",
+    "0|v:3|closed|pinned"
+   ]
   }
  ],
  "lists": [

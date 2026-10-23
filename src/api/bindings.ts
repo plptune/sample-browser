@@ -575,6 +575,11 @@ export type TreeRequest_Deserialize = {
 	 */
 	collapsed?: string[],
 	/**
+	 *  En recherche, après ⌘← : tout est refermé, à tous les niveaux, et `collapsed` liste à l'inverse les nœuds
+	 *  rouverts à la main. Sans effet hors recherche.
+	 */
+	collapseAll?: boolean,
+	/**
 	 *  Résultats à plat mélangés (bouton Shuffle) : graine de l'ordre aléatoire, le même pour une même graine. Sans
 	 *  effet hors recherche ou sans `flat`.
 	 */
@@ -618,6 +623,11 @@ export type TreeRequest_Serialize = {
 	 *  `collapsed` ne sert pas hors recherche.
 	 */
 	collapsed?: string[],
+	/**
+	 *  En recherche, après ⌘← : tout est refermé, à tous les niveaux, et `collapsed` liste à l'inverse les nœuds
+	 *  rouverts à la main. Sans effet hors recherche.
+	 */
+	collapseAll?: boolean,
 	/**
 	 *  Résultats à plat mélangés (bouton Shuffle) : graine de l'ordre aléatoire, le même pour une même graine. Sans
 	 *  effet hors recherche ou sans `flat`.

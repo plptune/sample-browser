@@ -21,7 +21,7 @@ import { normalizeTag } from "../lib/autotag";
 import { DEFAULT_DAW_SHORTCUT, migrateDawApps } from "../lib/shortcut";
 import { isChip } from "../lib/query";
 import { relativePath } from "../lib/format";
-import { createListModel, PAGE, type ListModel, type PageTiming } from "./listModel";
+import { createListModel, type ListModel, type PageTiming } from "./listModel";
 
 /** Colonne étroite à côté du DAW, ou fenêtre bibliothèque (explorer, preview, liste à plat triable). */
 export type Layout = "side" | "full";
@@ -161,9 +161,11 @@ function createAppState() {
   // Les tokens spéciaux encore en cours de frappe (#ta, bpm:1…) ne filtrent pas : seul le texte libre filtre en direct.
   const searchLine = () => [...chips(), ...draft().split(/\s+/).filter((t) => t && !isChip(t))].join(" ");
   const searching = () => searchLine() !== "";
-  // En recherche, l'arbre est ouvert sauf les nœuds refermés à la main ; une autre recherche les rouvre tous.
-  const [collapsedFor, setCollapsedFor] = createSignal<{ line: string; keys: NodeKey[] }>({ line: "", keys: [] });
+  // En recherche, l'arbre est ouvert sauf les nœuds refermés à la main ; une autre recherche les rouvre tous. Après ⌘←
+  // (`all`), c'est l'inverse : tout est refermé, et `keys` liste les nœuds rouverts à la main.
+  const [collapsedFor, setCollapsedFor] = createSignal<{ line: string; keys: NodeKey[]; all?: boolean }>({ line: "", keys: [] });
   const collapsed = () => (collapsedFor().line === searchLine() ? collapsedFor().keys : []);
+  const collapseAllOn = () => collapsedFor().line === searchLine() && !!collapsedFor().all;
 
   // Une recherche remet les filtres (dossiers aplatis) à zéro.
   createEffect(
@@ -216,6 +218,7 @@ function createAppState() {
     flat: flatResults(),
     flattened: flattened(),
     collapsed: collapsed(),
+    collapseAll: collapseAllOn(),
     shuffle: flatResults() ? shuffle() : null,
   });
 
@@ -902,15 +905,19 @@ function createAppState() {
   }
 
   // --- dossiers (arbre de la colonne, panneaux du mode grand)
-  /** Ouvert : hors recherche, dans `expanded` de sa racine ; en recherche, tout sauf ce qu'on a refermé. */
-  const isOpen = (key: NodeKey) => (treeSearching() ? !collapsed().includes(key) : expandedByTab()[treeRootOf(key)].includes(key));
+  /** Ouvert : hors recherche, dans `expanded` de sa racine ; en recherche, tout sauf ce qu'on a refermé (après ⌘← :
+   *  seulement ce qu'on a rouvert). */
+  const isOpen = (key: NodeKey) =>
+    treeSearching() ? collapsed().includes(key) === collapseAllOn() : expandedByTab()[treeRootOf(key)].includes(key);
 
   async function setOpen(key: NodeKey, open: boolean) {
     if (open === isOpen(key)) return;
     const t = treeRootOf(key);
     if (treeSearching()) {
+      // `keys` : les exceptions à l'état par défaut ; basculer un nœud l'y ajoute ou l'en retire.
       const cur = collapsed();
-      setCollapsedFor({ line: searchLine(), keys: open ? cur.filter((k) => k !== key) : [...cur, key] });
+      const keys = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      setCollapsedFor({ line: searchLine(), keys, all: collapseAllOn() });
     } else {
       const cur = expandedByTab()[t];
       setExpanded(open ? [...cur, key] : cur.filter((k) => k !== key), t);
@@ -930,19 +937,10 @@ function createAppState() {
     // Remonte par les lignes chargées (les parents sont au-dessus, en général déjà chargés).
     let top: string | null = tree.cursor();
     for (let r = tree.rowByKey(top); r?.parent; r = tree.rowByKey(r.parent)) top = r.parent;
-    if (treeSearching()) {
-      // En recherche, on referme les nœuds de premier niveau, page par page : une fois refermés, ils tiennent en haut.
-      for (;;) {
-        await tree.ensureRange(0, Math.min(tree.shownTotal(), PAGE));
-        const open = tree.rows().flatMap((r) => (r?.type === "node" && r.depth === 0 && r.open ? [r.key] : []));
-        if (!open.length) break;
-        setCollapsedFor({ line: searchLine(), keys: [...new Set([...collapsed(), ...open])] });
-        await tree.refresh();
-      }
-    } else {
-      setExpanded([], t);
-      await tree.refresh();
-    }
+    // En recherche, tout se referme aussi, à tous les niveaux : rouvrir un dossier ne remontre pas ses sous-dossiers.
+    if (treeSearching()) setCollapsedFor({ line: searchLine(), keys: [], all: true });
+    else setExpanded([], t);
+    await tree.refresh();
     if (top && tree.indexOf(top) < 0) top = (await api.ancestors(top))[0] ?? null;
     if (top && tree.indexOf(top) >= 0) return select(top, "replace", tree);
     if (tree.shownTotal()) {

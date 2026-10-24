@@ -65,9 +65,15 @@
   overflow: hidden;
 }
 
+/* Barre titre (feux macOS, onglets ou bascules, mode, Réglages) : séparée du contenu par une bordure forte et une
+   ombre légère, au-dessus de ce qui suit (sous les surcouches). */
 .cr-titlebar {
+  position: relative;
+  z-index: 2;
   height: var(--cr-titlebar-h);
   flex: none;
+  border-bottom: var(--cr-border) solid var(--cr-line);
+  box-shadow: var(--cr-shadow-bar);
   display: flex;
   align-items: center;
   gap: var(--cr-space-1);

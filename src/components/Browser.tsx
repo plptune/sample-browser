@@ -6,6 +6,7 @@ import { For, Show, createEffect, createMemo, on, onCleanup } from "solid-js";
 import type { FolderRow, Sample, SampleRow, TreeRoot } from "../api";
 import { inTauri } from "../lib/env";
 import { isMidi, relativePath } from "../lib/format";
+import { notesLoader } from "../lib/notes";
 import { targetAt } from "../lib/dragHover";
 import { beginFolderDrag } from "../lib/folderDrag";
 import { startNativeDrag } from "../lib/nativeDrag";
@@ -276,6 +277,7 @@ function SampleRowView(props: { model: ListModel; row: SampleRow; dropBlock: boo
       midi={isMidi(s())}
       fav={s().fav}
       peaks={s().peaks}
+      loadNotes={isMidi(s()) ? notesLoader(s().id) : undefined}
       wave={app.density() === "wave" && app.layout() === "side"}
       themeKey={app.theme()}
       title={(s().missing ? "Missing: " : "") + relativePath(s().path, app.sources())}

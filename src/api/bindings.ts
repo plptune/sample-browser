@@ -44,6 +44,11 @@ export const commands = {
 	 *  prototype : dérivée des 256 pics.
 	 */
 	waveform: (id: number, buckets: number) => typedError<Waveform, null>(__TAURI_INVOKE("waveform", { id, buckets })),
+	/**
+	 *  Notes d'un fichier MIDI (piano roll du tiroir, de l'inspecteur et des lignes de l'arbre), lues hors du verrou de
+	 *  la bibliothèque ; rien pour un fichier audio ou illisible.
+	 */
+	notes: (id: number) => typedError<MidiNotes, null>(__TAURI_INVOKE("notes", { id })),
 	/**  Avancement de l'analyse de fond (tempo, tonalité, boucle / one-shot). */
 	analysisStatus: () => __TAURI_INVOKE<AnalysisStatus>("analysis_status"),
 	synonyms: () => __TAURI_INVOKE<string[][]>("synonyms"),
@@ -368,6 +373,26 @@ export type ListRequest_Serialize = {
 export type ListSort = {
 	column: SortColumn,
 	desc?: boolean,
+};
+
+export type MidiNote = {
+	/**  Début et fin, en secondes. */
+	start: number,
+	end: number,
+	/**  Hauteur (0..127, 60 = do central). */
+	key: number,
+	/**  1..127. */
+	velocity: number,
+};
+
+/**
+ *  Notes d'un fichier MIDI (tiroir, inspecteur, lignes de l'arbre) : dessinées en piano roll à la place de la
+ *  forme d'onde. Triées par début.
+ */
+export type MidiNotes = {
+	notes: MidiNote[],
+	/**  Longueur du clip, en secondes (au moins la fin de la dernière note). */
+	seconds: number,
 };
 
 export type NodeKind = "folder" | "shortcut" | "favorites" | "group" | "collection" | "smart" | "virtual";

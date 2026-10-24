@@ -10,6 +10,7 @@ import { IconButton } from "./IconButton";
 import { isKindTag } from "../lib/autotag";
 import { DEFAULT_COLORS } from "../lib/color";
 import { relativeDir, relativeFolder } from "../lib/format";
+import { notesFor } from "../lib/notes";
 import { PreviewDrawer } from "./PreviewDrawer";
 import { PreviewHeader } from "./PreviewHeader";
 import { ResultsTable } from "./ResultsTable";
@@ -432,6 +433,7 @@ function Tagging() {
 
 const noDetail = () => Promise.resolve({ min: [], max: [], rms: [] });
 const loadDetail = (b: number) => (app.current() ? app.waveformFor(app.current()!.id, b) : noDetail());
+const loadNotes = () => (app.current() ? notesFor(app.current()!.id) : Promise.resolve({ notes: [], seconds: 0 }));
 /** Dossier du sample courant depuis sa source (« Samples/Drums/Kicks/ ») : sans le nom du fichier, déjà affiché. */
 const currentRelPath = () => (app.current() ? relativeDir(app.current()!.path, app.sources()) : "");
 const isPlayingCurrent = () => app.playingId() !== null && app.playingId() === app.current()?.id;
@@ -478,6 +480,7 @@ function SideBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceA
         folder={app.current() ? relativeFolder(app.current()!.path, app.sources()) : ""}
         relPath={currentRelPath()}
         loadDetail={loadDetail}
+        loadNotes={loadNotes}
         knownTags={assignableTags().map((t) => ({ label: t.name, count: t.count }))}
         onTogglePlay={() => app.togglePlay()}
         onToggleFav={() => app.current() && app.toggleFavorite([app.current()!])}
@@ -607,6 +610,7 @@ function FullBrowser(props: { searchRef?: (el: HTMLInputElement) => void; forceA
           progress={app.progress()}
           looping={app.looping()}
           loadDetail={loadDetail}
+          loadNotes={loadNotes}
           themeKey={app.theme()}
           selectionCount={app.selectedSamples().length}
           memberships={app.memberships()}

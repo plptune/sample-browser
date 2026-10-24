@@ -47,6 +47,8 @@ pub struct Midi {
 /// Fichiers plus gros : ignorés (ce n'est plus un clip).
 const MAX_BYTES: u64 = 16 << 20;
 const MAX_NOTES: usize = 200_000;
+/// Notes envoyées à l'UI pour le piano roll : au-delà, illisible à cette taille de toute façon.
+const MAX_ROLL: usize = 20_000;
 
 struct Reader<'a> {
     b: &'a [u8],
@@ -280,6 +282,24 @@ impl Midi {
             time_sig,
             notes,
         })
+    }
+
+    /// Les notes à dessiner (piano roll) : les `MAX_ROLL` premières au plus.
+    pub fn roll(&self) -> crate::model::MidiNotes {
+        crate::model::MidiNotes {
+            notes: self
+                .notes
+                .iter()
+                .take(MAX_ROLL)
+                .map(|n| crate::model::MidiNote {
+                    start: n.start,
+                    end: n.end,
+                    key: n.key,
+                    velocity: n.velocity,
+                })
+                .collect(),
+            seconds: self.seconds,
+        }
     }
 
     /// Durée d'une mesure, en secondes (au premier tempo).
@@ -644,6 +664,11 @@ mod tests {
         assert_eq!(m.notes.len(), 6);
         assert!((m.notes[1].start - 0.5).abs() < 1e-9 && (m.notes[1].end - 1.0).abs() < 1e-9);
         assert!((m.bar_seconds() - 2.0).abs() < 1e-9);
+        // Piano roll : les mêmes notes, hauteur, vélocité et longueur du clip.
+        let roll = m.roll();
+        assert_eq!(roll.notes.len(), 6);
+        assert_eq!((roll.notes[2].key, roll.notes[2].velocity), (67, 100));
+        assert!((roll.notes[2].start - 1.0).abs() < 1e-9 && (roll.seconds - 4.0).abs() < 1e-9);
         assert!(Midi::parse(b"RIFF....").is_none());
         assert!(Midi::parse(&bytes[..20]).is_some_and(|m| m.notes.is_empty()) || Midi::parse(&bytes[..20]).is_none());
     }

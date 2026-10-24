@@ -27,4 +27,10 @@ impl Catalog {
         c.set_sources(sources);
         c
     }
+
+    /// Notes d'un clip MIDI du prototype (piano roll) ; rien pour un fichier audio.
+    pub fn demo_notes(&self, id: crate::model::SampleId) -> crate::model::MidiNotes {
+        let s = self.samples().iter().find(|s| s.id == id);
+        s.and_then(|s| data::midi_notes(&s.name)).unwrap_or_default()
+    }
 }

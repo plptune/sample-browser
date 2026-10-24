@@ -3,7 +3,7 @@
 //! Vérifié par `tests/parity.rs` contre une empreinte produite par le code TypeScript.
 
 use crate::catalog::FolderNode;
-use crate::model::{Collection, CollectionKind, Sample, SampleKind, VirtualFolder};
+use crate::model::{Collection, CollectionKind, MidiNote, MidiNotes, Sample, SampleKind, VirtualFolder};
 
 /// Générateur mulberry32 (identique à la version JS, arithmétique u32).
 pub struct Rng(u32);
@@ -407,6 +407,77 @@ fn midi_peaks(beats: f64) -> Vec<f64> {
             ((-pos * 3.0).exp() * 0.7 + 0.15).clamp(0.02, 1.0)
         })
         .collect()
+}
+
+/// Notes d'un clip MIDI du prototype (piano roll), à partir de son nom, sa tonalité, son tempo et sa longueur :
+/// une grille d'accords (i–VI–III–VII en mineur, I–V–vi–IV en majeur), une basse ou une mélodie sur cette grille.
+/// Même calcul en TypeScript (`src/mock/generate.ts`, `midiNotes`), vérifié par la parité.
+pub fn midi_notes(name: &str) -> Option<MidiNotes> {
+    let &(_, bpm, key, bars, kind, _) = MIDI_CLIPS.iter().find(|c| c.0 == name)?;
+    let minor = key.len() > 1 && key.ends_with('m');
+    let mut chars = key.chars();
+    let letter = match chars.next()? {
+        'C' => 0,
+        'D' => 2,
+        'E' => 4,
+        'F' => 5,
+        'G' => 7,
+        'A' => 9,
+        _ => 11,
+    };
+    let pc = match chars.next() {
+        Some('#') => letter + 1,
+        Some('b') => letter + 11,
+        _ => letter,
+    } % 12;
+    let scale: [u8; 7] = if minor { [0, 2, 3, 5, 7, 8, 10] } else { [0, 2, 4, 5, 7, 9, 11] };
+    let prog: [usize; 4] = if minor { [0, 5, 2, 6] } else { [0, 4, 5, 3] };
+    let deg = |d: usize| scale[d % 7] + 12 * (d / 7) as u8;
+    let beat = 60.0 / bpm.unwrap_or(120.0);
+    let mut notes = Vec::new();
+    let mut push = |start: f64, beats: f64, key: u8, velocity: u8| {
+        notes.push(MidiNote {
+            start,
+            end: start + beats * beat,
+            key,
+            velocity,
+        })
+    };
+    for bar in 0..bars as usize {
+        let root = prog[bar % 4];
+        let t0 = (bar * 4) as f64 * beat;
+        if name.contains("Bass") {
+            for b in 0..4 {
+                let fifth = if b == 2 { 7 } else { 0 };
+                push(
+                    t0 + b as f64 * beat,
+                    0.9,
+                    36 + pc + deg(root) + fifth,
+                    if b == 0 { 110 } else { 90 },
+                );
+            }
+        } else if name.contains("Melody") {
+            for (e, step) in [0, 2, 4, 2, 1, 4, 3, 2].into_iter().enumerate() {
+                push(
+                    t0 + e as f64 * beat / 2.0,
+                    0.45,
+                    72 + pc + deg(root + step),
+                    if e % 2 == 0 { 100 } else { 80 },
+                );
+            }
+        } else {
+            let len = if kind == SampleKind::Oneshot { 0.5 } else { 3.8 };
+            push(t0, len, 48 + pc + deg(root), 80);
+            for k in [0, 2, 4] {
+                push(t0, len, 60 + pc + deg(root + k), 96);
+            }
+        }
+    }
+    notes.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.key.cmp(&b.key)));
+    Some(MidiNotes {
+        notes,
+        seconds: (bars * 4) as f64 * beat,
+    })
 }
 
 /// Les samples du prototype : 400 fichiers audio (ids 1..=400), puis 7 clips MIDI.

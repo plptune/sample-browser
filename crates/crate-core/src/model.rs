@@ -433,6 +433,32 @@ pub struct Waveform {
     pub rms: Vec<f32>,
 }
 
+/// Notes d'un fichier MIDI (tiroir, inspecteur, lignes de l'arbre) : dessinées en piano roll à la place de la
+/// forme d'onde. Triées par début.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct MidiNotes {
+    pub notes: Vec<MidiNote>,
+    /// Longueur du clip, en secondes (au moins la fin de la dernière note).
+    // Toujours finis : déclarés `number` côté TypeScript (comme `Waveform`).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
+    pub seconds: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct MidiNote {
+    /// Début et fin, en secondes.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
+    pub start: f64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
+    pub end: f64,
+    /// Hauteur (0..127, 60 = do central).
+    pub key: u8,
+    /// 1..127.
+    pub velocity: u8,
+}
+
 /// État de la lecture, envoyé par événement (~30 par seconde pendant la lecture, puis un dernier à l'arrêt).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]

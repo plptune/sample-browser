@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use crate_core::audio::Player;
 use crate_core::{
     AnalysisStatus, Backend, Catalog, Collection, CommitOptions, CommitPlan, CommitProgress, CommitResult, Library, ListRequest,
-    PlaybackOptions, PlaybackStatus, SampleId, SamplesAt, ScanStatus, Source, SpliceSync, SqliteLibrary, TreePage, TreeRequest,
-    VirtualFolder, Waveform,
+    MidiNotes, PlaybackOptions, PlaybackStatus, SampleId, SamplesAt, ScanStatus, Source, SpliceSync, SqliteLibrary, TreePage,
+    TreeRequest, VirtualFolder, Waveform,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -297,6 +297,26 @@ async fn waveform(app: tauri::AppHandle, lib: State<'_, Lib>, id: SampleId, buck
     Ok(w)
 }
 
+/// Notes d'un fichier MIDI (piano roll du tiroir, de l'inspecteur et des lignes de l'arbre), lues hors du verrou de
+/// la bibliothèque ; rien pour un fichier audio ou illisible.
+#[tauri::command]
+#[specta::specta]
+async fn notes(lib: State<'_, Lib>, id: SampleId) -> Result<MidiNotes, ()> {
+    let file = match &*lib.0.lock().unwrap_or_else(|e| e.into_inner()) {
+        Inner::Real(l) => l.sample_file(id).map(|(p, _)| p),
+        Inner::Demo(c) => return Ok(c.demo_notes(id)),
+    };
+    let Some(path) = file.filter(|p| crate_core::midi::is_midi(p)) else {
+        return Ok(MidiNotes::default());
+    };
+    let n = tauri::async_runtime::spawn_blocking(move || crate_core::midi::Midi::open(&path).map(|m| m.roll()))
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    Ok(n)
+}
+
 /// Avancement de l'analyse de fond (tempo, tonalité, boucle / one-shot).
 #[tauri::command]
 #[specta::specta]
@@ -529,6 +549,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             set_folder_hidden,
             peaks,
             waveform,
+            notes,
             analysis_status,
             synonyms,
             set_synonyms,

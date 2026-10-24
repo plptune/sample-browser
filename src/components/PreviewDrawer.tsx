@@ -1,6 +1,7 @@
 // Bas du panneau : tags du sample courant, son dossier (relatif à la source), son nom et sa waveform.
 import { Show, createMemo, createSignal } from "solid-js";
-import type { Sample, SampleKind, Waveform as WaveformData } from "../api";
+import type { MidiNotes, Sample, SampleKind, Waveform as WaveformData } from "../api";
+import { isMidi } from "../lib/format";
 import { Autocomplete, type AcItem } from "./Autocomplete";
 import { IconButton } from "./IconButton";
 import { KindBadge } from "./KindBadge";
@@ -13,6 +14,8 @@ export function PreviewDrawer(props: {
   peaks?: number[];
   /** Forme d'onde détaillée à la largeur affichée (Rust) ; sinon les 256 pics. */
   loadDetail?: (buckets: number) => Promise<WaveformData>;
+  /** Notes du sample, s'il est MIDI : piano roll à la place de la forme d'onde. */
+  loadNotes?: () => Promise<MidiNotes>;
   playing: boolean;
   progress: number;
   looping?: boolean;
@@ -36,6 +39,7 @@ export function PreviewDrawer(props: {
   onTagsDone?: () => void;
 }) {
   const s = () => props.sample;
+  const midi = () => !!s() && isMidi(s()!);
   return (
     <section class="cr-drawer" aria-label="Preview" data-empty={!s() || undefined}>
       <Show when={s()}>
@@ -93,7 +97,8 @@ export function PreviewDrawer(props: {
             progress={props.playing ? props.progress : undefined}
             themeKey={props.themeKey}
             onSeek={props.onSeek}
-            loadDetail={props.loadDetail}
+            loadDetail={midi() ? undefined : props.loadDetail}
+            loadNotes={midi() ? props.loadNotes : undefined}
             detailKey={s()!.id}
             durationMs={s()!.durationMs}
             looping={props.looping}

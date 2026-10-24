@@ -1,7 +1,7 @@
 // Données factices déterministes (graine fixe) : mêmes samples à chaque chargement,
 // pour des captures stables. Aucun aléa au rendu.
 
-import type { Collection, Sample, SampleKind, VirtualFolder } from "../api/types";
+import type { Collection, MidiNote, MidiNotes, Sample, SampleKind, VirtualFolder } from "../api/types";
 
 export interface FolderNode {
   id: number;
@@ -274,6 +274,40 @@ function midiPeaks(beats: number): number[] {
     out.push(Math.max(0.02, Math.min(1, Math.exp(-pos * 3) * 0.7 + 0.15)));
   }
   return out;
+}
+
+/** Notes d'un clip MIDI du prototype (piano roll), à partir de son nom, sa tonalité, son tempo et sa longueur : une
+ *  grille d'accords (i–VI–III–VII en mineur, I–V–vi–IV en majeur), une basse ou une mélodie sur cette grille.
+ *  Même calcul en Rust (`mock::data::midi_notes`), vérifié par la parité. */
+export function midiNotes(name: string): MidiNotes | null {
+  const clip = MIDI_CLIPS.find((c) => c[0] === name);
+  if (!clip) return null;
+  const [, bpm, key, bars, kind] = clip;
+  const minor = key.length > 1 && key.endsWith("m");
+  const letter = ({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9 } as Record<string, number>)[key[0]] ?? 11;
+  const pc = (key[1] === "#" ? letter + 1 : key[1] === "b" ? letter + 11 : letter) % 12;
+  const scale = minor ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
+  const prog = minor ? [0, 5, 2, 6] : [0, 4, 5, 3];
+  const deg = (d: number) => scale[d % 7] + 12 * Math.floor(d / 7);
+  const beat = 60 / (bpm ?? 120);
+  const notes: MidiNote[] = [];
+  const push = (start: number, beats: number, key: number, velocity: number) =>
+    notes.push({ start, end: start + beats * beat, key, velocity });
+  for (let bar = 0; bar < bars; bar++) {
+    const root = prog[bar % 4];
+    const t0 = bar * 4 * beat;
+    if (name.includes("Bass")) {
+      for (let b = 0; b < 4; b++) push(t0 + b * beat, 0.9, 36 + pc + deg(root) + (b === 2 ? 7 : 0), b === 0 ? 110 : 90);
+    } else if (name.includes("Melody")) {
+      [0, 2, 4, 2, 1, 4, 3, 2].forEach((step, e) => push(t0 + (e * beat) / 2, 0.45, 72 + pc + deg(root + step), e % 2 === 0 ? 100 : 80));
+    } else {
+      const len = kind === "oneshot" ? 0.5 : 3.8;
+      push(t0, len, 48 + pc + deg(root), 80);
+      for (const k of [0, 2, 4]) push(t0, len, 60 + pc + deg(root + k), 96);
+    }
+  }
+  notes.sort((a, b) => a.start - b.start || a.key - b.key);
+  return { notes, seconds: bars * 4 * beat };
 }
 
 function makeMidi(first: number): Sample[] {

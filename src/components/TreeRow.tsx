@@ -1,5 +1,6 @@
 // Une ligne de l'arbre : dossier (chevron) ou sample, puis l'icône de type. Même hauteur, même grille.
 import { Show, onMount } from "solid-js";
+import type { MidiNotes } from "../api";
 import { Chevron, Icon, type IconName } from "./Icon";
 import { Waveform } from "./Waveform";
 
@@ -57,6 +58,8 @@ export function TreeRow(props: {
   /** Explorer du mode grand : la portée de la liste. */
   scoped?: boolean;
   peaks?: number[];
+  /** Fichier MIDI : ses notes, dessinées en piano roll à la place de la mini waveform. */
+  loadNotes?: () => Promise<MidiNotes>;
   wave?: boolean;
   themeKey?: string;
   title?: string;
@@ -149,6 +152,7 @@ export function TreeRow(props: {
             class="cr-node__wave"
             variant="mini"
             peaks={props.peaks!}
+            loadNotes={props.loadNotes}
             progress={props.playing ? props.progress : undefined}
             themeKey={props.themeKey}
           />

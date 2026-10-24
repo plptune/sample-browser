@@ -2,7 +2,7 @@
 // Lecture, nom, favori, métadonnées, grande waveform, tags modifiables, collections et dossiers virtuels qui le
 // contiennent, chemin. Toujours à la même hauteur : la liste ne saute pas quand on change de sample.
 import { For, Show } from "solid-js";
-import type { NodeKey, Sample, Waveform as WaveformData } from "../api";
+import type { MidiNotes, NodeKey, Sample, Waveform as WaveformData } from "../api";
 import { isMidi } from "../lib/format";
 import { formatKey } from "../lib/keys";
 import type { AcItem } from "./Autocomplete";
@@ -19,6 +19,8 @@ export function PreviewHeader(props: {
   peaks?: number[];
   /** Forme d'onde détaillée à la largeur affichée (Rust) ; sinon les 256 pics. */
   loadDetail?: (buckets: number) => Promise<WaveformData>;
+  /** Notes du sample, s'il est MIDI : piano roll à la place de la forme d'onde. */
+  loadNotes?: () => Promise<MidiNotes>;
   looping?: boolean;
   playing: boolean;
   progress: number;
@@ -41,6 +43,7 @@ export function PreviewHeader(props: {
   onReveal?: () => void;
 }) {
   const s = () => props.sample;
+  const midi = () => !!s() && isMidi(s()!);
   return (
     <section class="cr-preview" aria-label="Preview" data-empty={!s() || undefined}>
       <Show when={s()} fallback={<div class="cr-preview__empty">Pick a sample</div>}>
@@ -90,7 +93,8 @@ export function PreviewHeader(props: {
                   progress={props.playing ? props.progress : undefined}
                   themeKey={props.themeKey}
                   onSeek={props.onSeek}
-                  loadDetail={props.loadDetail}
+                  loadDetail={midi() ? undefined : props.loadDetail}
+                  loadNotes={midi() ? props.loadNotes : undefined}
                   detailKey={x().id}
                   durationMs={x().durationMs}
                   looping={props.looping}

@@ -311,3 +311,38 @@ fn vitesse_du_synthe() {
     assert!(audio / secs > 5.0, "le synthé doit tenir le temps réel avec de la marge");
     let _ = fs::remove_dir_all(d);
 }
+
+#[test]
+fn notes_du_piano_roll_des_clips_de_demo() {
+    let lib = crate_core::Catalog::demo();
+    let id = |name: &str| lib.samples().iter().find(|s| s.name == name).unwrap().id;
+    // Lofi_Chords_90_Am : 4 mesures, un accord par mesure (basse + triade), i–VI–III–VII.
+    let n = lib.demo_notes(id("Lofi_Chords_90_Am"));
+    assert_eq!(n.notes.len(), 16);
+    assert!((n.seconds - 16.0 * 60.0 / 90.0).abs() < 1e-9);
+    let keys = |from: usize| n.notes[from..from + 4].iter().map(|x| x.key).collect::<Vec<_>>();
+    assert_eq!(keys(0), [57, 69, 72, 76], "la mineur");
+    assert_eq!(keys(4), [65, 77, 81, 84], "fa majeur");
+    assert!(n.notes.windows(2).all(|w| w[0].start <= w[1].start), "triées par début");
+    // Basse et mélodie : une note par temps, une par croche.
+    assert_eq!(lib.demo_notes(id("Bass_Line_90_Am")).notes.len(), 8);
+    assert_eq!(lib.demo_notes(id("Melody_Loop_120_Em")).notes.len(), 16);
+    // Un fichier audio : rien.
+    assert!(lib.demo_notes(1).notes.is_empty());
+}
+
+#[test]
+fn notes_lues_dans_le_fichier() {
+    let d = tmp("roll");
+    let p = d.join("roll.mid");
+    let n = |at, len, key| N { at, len, key, ch: 0 };
+    smf(&p, 120.0, 4.0, &[n(0.0, 1.0, 60), n(1.0, 2.0, 67)]);
+    let roll = Midi::open(&p).unwrap().roll();
+    assert_eq!(
+        roll.notes.iter().map(|n| (n.key, n.velocity)).collect::<Vec<_>>(),
+        [(60, 96), (67, 96)]
+    );
+    assert!((roll.notes[1].start - 0.5).abs() < 1e-9 && (roll.notes[1].end - 1.5).abs() < 1e-9);
+    assert!((roll.seconds - 2.0).abs() < 1e-9);
+    let _ = fs::remove_dir_all(d);
+}

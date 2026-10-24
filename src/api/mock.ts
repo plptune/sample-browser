@@ -8,7 +8,7 @@ import { parseLine, type QueryToken } from "../lib/query";
 import { DEFAULT_SYNONYMS, expandSynonym, normalizeSynonyms } from "../lib/synonyms";
 import {
   COLLECTIONS, COLLECTION_ITEMS, FAVORITES, PINNED_FOLDERS, ROOT_PATHS, SAMPLES, SOURCES, TAGS, VIRTUAL_FOLDERS, VIRTUAL_ITEMS,
-  type FolderNode,
+  midiNotes, type FolderNode,
 } from "../mock/generate";
 import type {
   Backend, BitwigState, Collection, CommitOptions, CommitPlan, CommitProgress, FolderRow, Library, ListRequest, ListSort, NodeKey, NodeKind, PlaybackStatus, Sample, TreePage, TreeRequest,
@@ -697,6 +697,11 @@ export const mockBackend: Backend = {
 
   async peaks(id) {
     return byId.get(id)?.peaks ?? [];
+  },
+
+  async notes(id) {
+    const s = byId.get(id);
+    return (s && midiNotes(s.name)) ?? { notes: [], seconds: 0 };
   },
 
   async synonyms() {

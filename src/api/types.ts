@@ -153,6 +153,23 @@ export interface Waveform {
   rms: number[];
 }
 
+/** Notes d'un fichier MIDI, dessinées en piano roll à la place de la forme d'onde. Triées par début. */
+export interface MidiNotes {
+  notes: MidiNote[];
+  /** Longueur du clip, en secondes (au moins la fin de la dernière note). */
+  seconds: number;
+}
+
+export interface MidiNote {
+  /** Début et fin, en secondes. */
+  start: number;
+  end: number;
+  /** Hauteur (0..127, 60 = do central). */
+  key: number;
+  /** 1..127. */
+  velocity: number;
+}
+
 export interface TreePage {
   rows: TreeRow[]; // lignes visibles, dans l'ordre d'affichage (dossiers puis samples à chaque niveau)
   totalRows: number;
@@ -285,6 +302,8 @@ export interface Backend {
   peaks(id: SampleId): Promise<number[]>;
   /** Forme d'onde détaillée en `buckets` colonnes (la largeur affichée). */
   waveform(id: SampleId, buckets: number): Promise<Waveform>;
+  /** Notes d'un fichier MIDI (piano roll) ; vide pour un fichier audio. */
+  notes(id: SampleId): Promise<MidiNotes>;
   /** Groupes de synonymes : un mot libre d'un groupe trouve aussi les autres (« kick » trouve « bd »). */
   synonyms(): Promise<string[][]>;
   setSynonyms(groups: string[][]): Promise<void>;

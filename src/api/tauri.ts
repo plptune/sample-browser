@@ -42,6 +42,10 @@ export const tauriBackend: Backend = {
     const r = await commands.waveform(id, buckets);
     return r.status === "ok" ? r.data : { min: [], max: [], rms: [] };
   },
+  notes: async (id) => {
+    const r = await commands.notes(id);
+    return r.status === "ok" ? r.data : { notes: [], seconds: 0 };
+  },
   synonyms: () => commands.synonyms(),
   analysisStatus: () => commands.analysisStatus(),
   setSynonyms: (groups) => commands.setSynonyms(groups),

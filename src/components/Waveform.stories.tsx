@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
+import { midiNotes } from "../mock/generate";
 import { kick, loop } from "../stories/fixtures";
 import { Waveform } from "./Waveform";
 
@@ -24,3 +25,6 @@ type Story = StoryObj<typeof meta>;
 export const Loop: Story = {};
 export const OneShot: Story = { args: { peaks: kick.peaks, progress: undefined } };
 export const Mini: Story = { args: { variant: "mini" } };
+/** Fichier MIDI : ses notes en piano roll (hauteur × temps) à la place de l'onde. */
+export const Midi: Story = { args: { loadNotes: () => Promise.resolve(midiNotes("Lofi_Chords_90_Am")!) } };
+export const MidiMini: Story = { args: { variant: "mini", loadNotes: () => Promise.resolve(midiNotes("Melody_Loop_120_Em")!) } };

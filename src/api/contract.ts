@@ -26,6 +26,7 @@ export type Contract = [
   Check<Assignable<Rust.PlaybackEvent, Ui.PlaybackStatus>>,
   Check<Assignable<Rust.CommitProgressEvent, Ui.CommitProgress>>,
   Check<Assignable<Rust.BitwigState, Ui.BitwigState>>,
+  Check<Assignable<Rust.MidiNotes, Ui.MidiNotes>>,
   Check<Assignable<Rust.BitwigStateEvent, Ui.BitwigState>>,
   Check<Assignable<Ui.PlaybackOptions, Rust.PlaybackOptions>>,
   // …et ce que l'UI envoie doit être accepté par Rust.

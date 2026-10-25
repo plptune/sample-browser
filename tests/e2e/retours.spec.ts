@@ -33,11 +33,10 @@ test("lecture auto active par défaut, et coupée depuis le tiroir", async ({ pa
   expect(errors).toEqual([]);
 });
 
-test("en colonne : pas de tonalité, onglets en icônes ; en grand : la tonalité revient, les onglets sont des bascules", async ({ page }) => {
+test("en colonne : pas de tonalité, ni d'onglets ; en grand : la tonalité revient, les panneaux ont leurs bascules", async ({ page }) => {
   await scenario(page, "3");
-  const lib = page.getByRole("tab", { name: "Library" });
-  await expect(lib).toHaveText("");
-  await expect(lib).toHaveAttribute("title", "Library (⌘1)");
+  // Retours n° 6 : la colonne n'a que Library (un dossier virtuel utile s'y épingle).
+  await expect(page.getByRole("tab")).toHaveCount(0);
   // En colonne : ni tonalité ni BPM (retours n° 2 : juste l'icône et le nom).
   await expect(page.locator(".cr-node .cr-col-key")).toHaveCount(0);
   await expect(page.locator(".cr-node .cr-col-bpm")).toHaveCount(0);

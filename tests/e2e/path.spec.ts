@@ -91,7 +91,7 @@ test("taper path: propose les dossiers ; le choix pose la chip entre guillemets"
   expect(titles.every((t) => t.startsWith("Splice/packs/Lofi Keys/"))).toBe(true);
 });
 
-test("bouton « New folder » : libellé en Expanded, icône seule en colonne ; un clic crée un dossier à renommer", async ({ page }) => {
+test("bouton « New folder » : libellé en Expanded, absent en colonne ; un clic crée un dossier à renommer", async ({ page }) => {
   await full(page);
   const button = page.getByRole("button", { name: "New folder" });
   await expect(button).toHaveAttribute("title", "New virtual folder (⌘N)");
@@ -103,9 +103,7 @@ test("bouton « New folder » : libellé en Expanded, icône seule en colonne ; 
 
   await page.getByRole("radio", { name: "Side panel (⌘⇧F)" }).click();
   await expect(page.locator(".cr-panel[data-layout=side]")).toBeVisible();
-  // En colonne, le bouton est celui de l'onglet Virtuals.
+  // En colonne (Library seule), pas de bouton : ⌘N reste.
   await expect(page.getByRole("button", { name: "New virtual folder (⌘N)" })).toHaveCount(0);
-  await page.keyboard.press("Control+2");
-  await expect(page.getByRole("button", { name: "New virtual folder (⌘N)" })).toHaveText("");
   await expect(page.getByRole("button", { name: "New folder" })).toHaveCount(0);
 });

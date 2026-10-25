@@ -490,7 +490,8 @@ function createAppState() {
     const row = from.rowByKey(from.cursor());
     const parent = row?.type === "sample" ? row.parent : null;
     if (parent && !searching()) {
-      const t: TreeRoot = parent.startsWith("f:") ? "library" : "virtual";
+      // Colonne : Library seule (un parent virtuel n'y paraît que sous un dossier épinglé).
+      const t: TreeRoot = "library";
       const up = await api.ancestors(parent);
       setTabSignal(t);
       setExpanded([...new Set([...expandedByTab()[t], ...up, parent])], t);
@@ -696,7 +697,7 @@ function createAppState() {
   const rootShown = (t: TreeRoot) => (full() ? panels()[t] : tab() === t);
   /** Met la racine à l'écran (ressort du glisser, sauts). */
   const revealRoot = (t: TreeRoot) => (full() ? setPanelShown(t, true) : void switchTab(t));
-  /** ⌘1 / ⌘2 : en colonne, changent d'onglet ; en mode grand, affichent ou masquent le panneau. */
+  /** ⌘1 / ⌘2 : en mode grand, affichent ou masquent le panneau ; en colonne (Library seule), ⌘1 y revient. */
   const rootShortcut = (t: TreeRoot) => (full() ? togglePanel(t) : void switchTab(t));
 
   // Collections et dossiers virtuels du sample courant (inspecteur du mode grand).
@@ -1297,7 +1298,8 @@ function createAppState() {
     remember();
     const parents = await api.ancestors(target);
     if (full() && !target.startsWith("f:")) return revealVirtualNode(target, [...parents, target]);
-    const t: TreeRoot = target.startsWith("f:") ? "library" : "virtual";
+    // Colonne : Library seule ; un nœud virtuel n'y est trouvé que sous un dossier épinglé.
+    const t: TreeRoot = "library";
     batch(() => {
       closeOverlays();
       setView("browser");
@@ -1326,10 +1328,11 @@ function createAppState() {
     select(key, "replace", virtTree);
   }
 
-  // --- onglets (colonne) ; en mode grand, les mêmes racines sont des panneaux
+  // --- onglets (colonne) ; en mode grand, les mêmes racines sont des panneaux. La colonne n'a plus que Library : les
+  // dossiers virtuels utiles y sont épinglés (l'arbre Virtual en colonne ne sert plus qu'aux scénarios de démo).
   async function switchTab(t: TreeRoot) {
     if (full()) return setPanelShown(t, true);
-    if (t === tab()) return;
+    if (t === "virtual" || t === tab()) return;
     remember();
     const tree = trees[t];
     batch(() => {
@@ -1354,18 +1357,23 @@ function createAppState() {
     return r?.type === "node" ? r.name : (knownNames.get(key) ?? "");
   };
 
-  /** Montre les Virtuels (l'onglet en colonne, le panneau en mode grand) avec ces nœuds dépliés, puis sélectionne
-   *  `key` (et le renomme si demandé). */
+  /** Montre un nœud virtuel qu'on vient de créer, avec ces nœuds dépliés, puis le sélectionne (et le renomme si
+   *  demandé) : dans le panneau Virtual en mode grand ; en colonne, dans Library, où un nœud de premier niveau est
+   *  épinglé pour y paraître. */
   async function revealVirtual(key: NodeKey, open: NodeKey[], rename = false) {
     remember();
+    const t: TreeRoot = full() ? "virtual" : "library";
+    const nested = open.filter((k) => k !== "g:collections");
+    if (t === "library" && !nested.length) await api.setPinned(key, true);
     batch(() => {
       if (full()) setPanels({ ...panels(), virtual: true });
-      else setTabSignal("virtual");
+      else setTabSignal("library");
       setView("browser");
-      setExpanded([...new Set([...expandedByTab().virtual, ...open])], "virtual");
+      setExpanded([...new Set([...expandedByTab()[t], ...(t === "library" ? nested : open)])], t);
     });
     await Promise.all([refresh(key), reloadLibrary()]);
-    select(key, "replace", virtTree);
+    if (trees[t].indexOf(key) < 0) return;
+    select(key, "replace", trees[t]);
     if (rename) setRenamingKey(key);
   }
 

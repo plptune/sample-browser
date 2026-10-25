@@ -114,3 +114,23 @@ test("deux clics rapides sur le chevron : deux bascules, pas trois (le double cl
   await expect(row).toHaveAttribute("aria-expanded", before!);
   expect(errors).toEqual([]);
 });
+
+// Retours n° 6 : en colonne, pas d'onglet Virtual ; un dossier virtuel y vient épinglé dans Library.
+test("colonne : Library seule, ⌘2 sans effet, ⌘N crée un dossier épinglé dans Library, à renommer", async ({ page }) => {
+  const errors = await scenario(page, "3");
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await page.locator(".cr-tree").focus();
+  await page.keyboard.press("Control+2");
+  await expect(page.locator(".cr-tree[data-root=library]")).toBeVisible();
+  await expect(page.locator(".cr-tree[data-root=virtual]")).toHaveCount(0);
+
+  await page.keyboard.press("Control+n");
+  const input = page.locator(".cr-tree[data-root=library] input");
+  await expect(input).toBeFocused();
+  await page.keyboard.type("Drafts");
+  await page.keyboard.press("Enter");
+  const drafts = page.locator('.cr-tree[data-root=library] .cr-node[aria-level="1"]', { hasText: /^Drafts$/ });
+  await expect(drafts).toHaveCount(1);
+  await expect(drafts).toHaveAttribute("data-selected", /.*/);
+  expect(errors).toEqual([]);
+});

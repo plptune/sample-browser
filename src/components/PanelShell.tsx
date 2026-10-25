@@ -19,7 +19,6 @@ import { ScanStatus } from "./ScanStatus";
 import { SearchField } from "./SearchField";
 import { Segmented } from "./Segmented";
 import { SettingsView } from "./SettingsView";
-import { Tabs } from "./Tabs";
 import { TagPopover, type TagState } from "./TagPopover";
 
 const ms = (x: number) => `${x.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ms`;
@@ -214,22 +213,9 @@ export function PanelShell(props: { searchRef?: (el: HTMLInputElement) => void; 
   return (
     <div class="cr-panel cr-root" data-density={app.density()} data-layout={app.layout()} data-font-size={app.fontSize()} data-searching={app.searching() || undefined}>
       <header class="cr-titlebar" data-tauri-drag-region>
-        {/* Colonne : un onglet par racine ; Expanded : un bouton à bascule par panneau (les deux peuvent être affichés). */}
-        <Show
-          when={app.layout() === "full"}
-          fallback={
-            <Tabs
-              value={app.tab()}
-              items={[
-                { value: "library", label: "Library", shortcut: "⌘1", icon: "library" },
-                { value: "virtual", label: "Virtual", shortcut: "⌘2", icon: "layers" },
-              ]}
-              iconOnly
-              springLoaded={app.draggingKey() !== null}
-              onChange={(t) => app.switchTab(t)}
-            />
-          }
-        >
+        {/* Colonne : Library seule, sans onglets (un dossier virtuel utile s'y épingle) ; Expanded : un bouton à bascule
+            par panneau (les deux peuvent être affichés). */}
+        <Show when={app.layout() === "full"}>
           <PanelToggles />
         </Show>
         <span class="cr-titlebar__fill" data-tauri-drag-region />

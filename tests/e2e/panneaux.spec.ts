@@ -129,7 +129,8 @@ test("colonne → Expanded depuis un dossier virtuel : le sample sélectionné d
   await page.locator("body").click({ position: { x: 5, y: 880 } });
   await page.keyboard.press("3");
   await expect(page.locator(".cr-node[data-selected]")).toHaveCount(1);
-  await page.keyboard.press("Control+2"); // onglet Virtuals
+  // Pack 2026 est épinglé : la colonne (Library seule) le montre à sa racine, sous les sources (repliées par ⌘←).
+  await page.keyboard.press("Control+ArrowLeft");
   await page.locator(".cr-node", { hasText: /^Pack 2026$/ }).dblclick();
   const sample = page.locator('.cr-tree__row[data-key$="@v:3"] .cr-node').first();
   const name = (await sample.locator(".cr-node__label").textContent())!;

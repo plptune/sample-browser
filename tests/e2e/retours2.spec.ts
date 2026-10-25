@@ -95,10 +95,11 @@ test("champ de recherche : ni loupe ni contour au focus", async ({ page }) => {
   await expect(page.locator(".cr-panel__search")).toHaveCSS("padding-bottom", "0px");
 });
 
-test("onglets : deux icônes différentes", async ({ page }) => {
+test("bascules des panneaux : deux icônes différentes", async ({ page }) => {
   await scenario(page, "3");
-  const lib = await page.getByRole("tab", { name: "Library" }).locator("svg").innerHTML();
-  const virt = await page.getByRole("tab", { name: "Virtual" }).locator("svg").innerHTML();
+  await page.keyboard.press("Control+Shift+F");
+  const lib = await page.getByRole("button", { name: "Library panel (⌘1)" }).locator("svg").innerHTML();
+  const virt = await page.getByRole("button", { name: "Virtual panel (⌘2)" }).locator("svg").innerHTML();
   expect(lib).not.toBe(virt);
 });
 
